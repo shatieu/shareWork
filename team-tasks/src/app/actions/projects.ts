@@ -11,7 +11,12 @@ const PROFILES: SetupProfile[] = [
   "minimal",
 ];
 
-export async function createProject(formData: FormData) {
+export type ProjectFormState = { error?: string; ok?: boolean };
+
+export async function createProject(
+  _prevState: ProjectFormState | null,
+  formData: FormData
+): Promise<ProjectFormState> {
   const name = String(formData.get("name") ?? "").trim();
   const repo_url = String(formData.get("repo_url") ?? "").trim() || null;
   const default_branch =

@@ -21,7 +21,12 @@ function parseList(raw: string): string[] {
     .filter(Boolean);
 }
 
-export async function createTask(formData: FormData) {
+export type TaskFormState = { error?: string };
+
+export async function createTask(
+  _prevState: TaskFormState | null,
+  formData: FormData
+): Promise<TaskFormState> {
   const title = String(formData.get("title") ?? "").trim();
   const project_id = String(formData.get("project_id") ?? "");
   const spec_md = String(formData.get("spec_md") ?? "");

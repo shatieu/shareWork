@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Team Tasks
 
-## Getting Started
+A definer writes a task (spec + acceptance criteria) against a repo. A teammate connects their
+Claude Code to this app's hosted MCP server, claims the task, works it locally on a branch, and
+reports progress + hands over a PR — all visible live on the board. See
+`../TeamTasks_MVP-Product-Spec.md` for the full product spec.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Next.js 16 (App Router, Turbopack) · Supabase (Postgres, Auth, RLS, Realtime) · `mcp-handler`
+for the hosted MCP server · Tailwind v4.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Local setup
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. **Install deps**
+   ```bash
+   npm install
+   ```
+2. **Environment** — copy `.env.example` to `.env.local` and fill in the four values from your
+   Supabase project (Settings → API):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` — **server-only, never expose to the client.** Used exclusively
+     by the MCP server (`src/lib/supabase/service.ts`), which bypasses RLS and scopes every
+     query to the caller's team in code.
+   - `NEXT_PUBLIC_APP_URL` — defaults to `http://localhost:3000`.
+3. **Database** — the schema (tables, enums, RLS policies, RPCs, Realtime) lives in Supabase
+   migrations for the `team-tasks` project. If you're pointing at a fresh project instead,
+   apply the migrations there (`supabase db push` or the Supabase MCP `apply_migration` tool)
+   before running the app. After any schema change, regenerate `src/lib/database.types.ts` from
+   the live project so `Relationships` stay accurate — a stale, hand-edited types file with
+   empty `Relationships` is what causes join queries like `team_members.select("role, teams(*)")`
+   to fail typechecking.
+4. **Auth providers** — enable email (magic link) in Supabase Auth. For "Continue with GitHub",
+   create a GitHub OAuth App and add its client id/secret under Supabase Auth → Providers →
+   GitHub, with callback URL `<NEXT_PUBLIC_APP_URL>/auth/callback`.
+5. **Run it**
+   ```bash
+   npm run dev
+   ```
+   Open http://localhost:3000 — you'll be redirected to `/login`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Connecting a teammate's Claude Code
 
-## Learn More
+Sign in → **Settings** → generate a token → run the `claude mcp add --transport http ...`
+command it shows you. That's it — the `teamwork` skill (`.claude/skills/teamwork/SKILL.md`)
+then drives list → claim → work → report → submit against the MCP tools at `/api/mcp`.
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Connect the repo to Vercel, set the four env vars above (mark `SUPABASE_SERVICE_ROLE_KEY` as
+sensitive), and deploy. The MCP endpoint ships as part of the same deployment — no separate
+service to run.

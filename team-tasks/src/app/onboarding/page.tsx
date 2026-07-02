@@ -41,7 +41,13 @@ export default async function OnboardingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={createTeam} className="space-y-4">
+            <form
+              action={async (formData: FormData) => {
+                "use server";
+                await createTeam(formData);
+              }}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="name">Team name</Label>
                 <Input id="name" name="name" required placeholder="Acme Engineering" />
@@ -64,7 +70,13 @@ export default async function OnboardingPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={joinTeam} className="space-y-4">
+            <form
+              action={async (formData: FormData) => {
+                "use server";
+                await joinTeam(formData);
+              }}
+              className="space-y-4"
+            >
               <div className="space-y-2">
                 <Label htmlFor="code">Join code</Label>
                 <Input id="code" name="code" required placeholder="a1b2c3d4e5f6" />
