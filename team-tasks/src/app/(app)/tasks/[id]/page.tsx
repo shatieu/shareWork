@@ -36,6 +36,7 @@ export default async function TaskDetailPage({
 
   const profiles = await getProfilesByIds([
     taskRow.assignee_id,
+    taskRow.created_by,
     ...allEvents.map((e) => e.actor_id),
   ]);
 
@@ -43,6 +44,7 @@ export default async function TaskDetailPage({
     id: e.id,
     type: e.type,
     message: e.message,
+    payload: e.payload,
     created_at: e.created_at,
     actorName: e.actor_id ? displayName(profiles.get(e.actor_id), e.actor_id) : null,
   }));
@@ -54,6 +56,11 @@ export default async function TaskDetailPage({
       assigneeName={
         taskRow.assignee_id
           ? displayName(profiles.get(taskRow.assignee_id), taskRow.assignee_id)
+          : null
+      }
+      definerName={
+        taskRow.created_by
+          ? displayName(profiles.get(taskRow.created_by), taskRow.created_by)
           : null
       }
       events={eventViews}

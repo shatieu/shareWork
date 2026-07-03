@@ -4,6 +4,11 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { hashToken } from "@/lib/tokens";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import type { TablesUpdate } from "@/lib/database.types";
+import {
+  clarificationQuestionSchema,
+  asClarificationAnswer,
+  type ClarificationRequestPayload,
+} from "@/lib/clarification";
 
 /**
  * Hosted at /api/mcp (Streamable HTTP) and /api/sse. This is the product's core
@@ -268,6 +273,100 @@ const handler = createMcpHandler(
         if (error) throw new Error(error.message);
 
         return textResult({ status: task.status, feedback: events });
+      }
+    );
+
+    server.registerTool(
+      "request_clarification",
+      {
+        title: "Request clarification",
+        description:
+          "Ask the task's definer (whoever created it, not you or your operator) one or more " +
+          "structured questions — choices, free text, a 1-10 rating, a drag-to-rank list, or a " +
+          "side-by-side comparison — instead of guessing. Shows an interactive form addressed to " +
+          "the definer on the task's page. They may take a while to answer, so don't poll in a " +
+          "tight loop — call get_clarification_answers again later, e.g. after the human tells " +
+          "you they've answered.",
+        inputSchema: {
+          task_id: z.string().uuid(),
+          questions: z.array(clarificationQuestionSchema).min(1),
+        },
+      },
+      async ({ task_id, questions }, extra) => {
+        const { teamId, userId } = teamAuth(extra.authInfo);
+        const supabase = createServiceClient();
+
+        const { data: current } = await supabase
+          .from("tasks")
+          .select("team_id")
+          .eq("id", task_id)
+          .maybeSingle();
+        if (!current || current.team_id !== teamId) throw new Error("Task not found");
+
+        const payload: ClarificationRequestPayload = { kind: "clarification_request", questions };
+        const summary =
+          questions.length === 1
+            ? questions[0].prompt
+            : `${questions[0].prompt} (+${questions.length - 1} more)`;
+
+        const { data: event, error } = await supabase
+          .from("task_events")
+          .insert({
+            task_id,
+            team_id: teamId,
+            actor_id: userId,
+            actor_kind: "agent",
+            type: "comment",
+            message: `Requested clarification: ${summary}`,
+            payload,
+          })
+          .select("id")
+          .single();
+        if (error || !event)
+          throw new Error(error?.message ?? "Could not create clarification request");
+
+        return textResult({ ok: true, request_event_id: event.id });
+      }
+    );
+
+    server.registerTool(
+      "get_clarification_answers",
+      {
+        title: "Get clarification answers",
+        description:
+          "Check whether the definer has answered a clarification request yet. Returns " +
+          "{ answered: false } if they haven't gotten to it — that's normal, not an error.",
+        inputSchema: {
+          task_id: z.string().uuid(),
+          request_event_id: z.string().uuid(),
+        },
+      },
+      async ({ task_id, request_event_id }, extra) => {
+        const { teamId } = teamAuth(extra.authInfo);
+        const supabase = createServiceClient();
+
+        const { data: task } = await supabase
+          .from("tasks")
+          .select("team_id")
+          .eq("id", task_id)
+          .maybeSingle();
+        if (!task || task.team_id !== teamId) throw new Error("Task not found");
+
+        const { data: events, error } = await supabase
+          .from("task_events")
+          .select("payload")
+          .eq("task_id", task_id)
+          .eq("type", "comment")
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (error) throw new Error(error.message);
+
+        const match = (events ?? [])
+          .map((e) => asClarificationAnswer(e.payload))
+          .find((a) => a?.request_event_id === request_event_id);
+
+        if (!match) return textResult({ answered: false });
+        return textResult({ answered: true, answers: match.answers });
       }
     );
   },

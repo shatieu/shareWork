@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Markdown } from "@/components/markdown";
+import { ClarificationForm } from "@/components/clarification-form";
 import { STATUS_META, PRIORITY_META, EVENT_LABEL } from "@/lib/status";
 import { timeAgo } from "@/lib/utils";
 import {
@@ -17,6 +18,11 @@ import {
   reopenTask,
   addComment,
 } from "@/app/actions/tasks";
+import {
+  asClarificationRequest,
+  asClarificationAnswer,
+  type ClarificationRequestPayload,
+} from "@/lib/clarification";
 import type { AcceptanceItem, Task } from "@/lib/database.types";
 import {
   Check,
@@ -30,19 +36,40 @@ export type TaskEventView = {
   id: string;
   type: string;
   message: string | null;
+  payload: unknown;
   created_at: string;
   actorName: string | null;
 };
+
+/** Clarification requests (from the MCP `request_clarification` tool) that have no matching answer yet. */
+function getPendingClarifications(
+  events: TaskEventView[]
+): { event: TaskEventView; request: ClarificationRequestPayload }[] {
+  const answeredRequestIds = new Set(
+    events
+      .map((e) => asClarificationAnswer(e.payload))
+      .filter((a) => a !== null)
+      .map((a) => a.request_event_id)
+  );
+  const pending: { event: TaskEventView; request: ClarificationRequestPayload }[] = [];
+  for (const event of events) {
+    const request = asClarificationRequest(event.payload);
+    if (request && !answeredRequestIds.has(event.id)) pending.push({ event, request });
+  }
+  return pending;
+}
 
 export function TaskDetailClient({
   task,
   projectName,
   assigneeName,
+  definerName,
   events,
 }: {
   task: Task;
   projectName: string;
   assigneeName: string | null;
+  definerName: string | null;
   events: TaskEventView[];
 }) {
   const router = useRouter();
@@ -50,6 +77,7 @@ export function TaskDetailClient({
   const [comment, setComment] = useState("");
   const [changesComment, setChangesComment] = useState("");
   const acceptance = (task.acceptance as AcceptanceItem[]) ?? [];
+  const pendingClarifications = getPendingClarifications(events);
 
   useEffect(() => {
     const supabase = createClient();
@@ -89,6 +117,17 @@ export function TaskDetailClient({
             {projectName} · {assigneeName ?? "Unassigned"}
           </p>
         </div>
+
+        {pendingClarifications.map(({ event, request }) => (
+          <ClarificationForm
+            key={event.id}
+            taskId={task.id}
+            requestId={event.id}
+            questions={request.questions}
+            definerName={definerName}
+            askedBy={event.actorName}
+          />
+        ))}
 
         <Card>
           <CardHeader>

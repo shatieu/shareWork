@@ -109,6 +109,13 @@ Hosted at `https://<app>/api/mcp`. All tools authenticated + team-scoped. Tool s
 - `submit_result(task_id, pr_url, handover_md)` → set `in_review`, store PR + handover, write a
   `submitted` event.
 - `get_review_feedback(task_id)` → returns review comments if `changes_requested`.
+- `request_clarification(task_id, questions)` → posts one or more structured questions (choice,
+  free text, rating, ranking, comparison — same schema as the standalone `ask-human` skill) as an
+  interactive form on the task's page; writes a `comment` event carrying the questions in
+  `payload`, no schema change needed. Returns a `request_event_id`.
+- `get_clarification_answers(task_id, request_event_id)` → `{ answered: false }` until the
+  definer submits the form, then `{ answered: true, answers }`. Not meant to be polled in a tight
+  loop — the agent checks back when told to, or before it needs the answer.
 
 Scopes/permissions: a token can read/claim/submit within its team only. Keep tool descriptions
 crisp so Claude uses them well.
@@ -126,6 +133,8 @@ crisp so Claude uses them well.
   (checklist), priority, `env_required`.
 - `/tasks/[id]` — detail: spec, status, assignee, **progress timeline** (from `task_events`),
   handover + PR link, acceptance checklist; buttons: **Approve** / **Request changes** / Reopen.
+  Any unanswered `request_clarification` shows as an inline interactive form at the top of the
+  page — the definer answers there, no separate tool needed.
 - `/settings` — team + members (invite by email/join code); **generate MCP token**; show the
   exact `claude mcp add` command + endpoint so a teammate can connect in one copy-paste.
 

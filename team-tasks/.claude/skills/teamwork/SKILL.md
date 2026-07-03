@@ -13,10 +13,10 @@ to their team once, then this skill claims work, does it locally, and reports ba
 ## 0. Confirm the MCP connection
 
 The `team-tasks` MCP server's tools (`list_projects`, `list_available_tasks`, `get_task`,
-`claim_task`, `report_progress`, `submit_result`, `get_review_feedback`) must already be
-available in this session. If they aren't, the user hasn't connected yet — tell them to open
-**Settings** in the Team Tasks app, generate a token, and run the `claude mcp add --transport
-http ...` command it gives them, then retry.
+`claim_task`, `report_progress`, `submit_result`, `get_review_feedback`, `request_clarification`,
+`get_clarification_answers`) must already be available in this session. If they aren't, the user
+hasn't connected yet — tell them to open **Settings** in the Team Tasks app, generate a token, and
+run the `claude mcp add --transport http ...` command it gives them, then retry.
 
 **WORKSPACE** = where target repos live locally. Default to the current directory's parent, or
 ask if ambiguous. **BASE_DIR** = the `sharpSoftAIBase` repo: `SHARP_BASE_DIR` env, else a
@@ -54,21 +54,36 @@ Follow the **spec-workflow** skill (now installed in the target) to turn the tas
 acceptance criteria into a plan and implement it. Work only inside the target repo. Branch +
 PR — **never push `main`** (a hook enforces it; don't fight the hook).
 
-## 5. Report progress
+## 5. If you need a decision only the human can make
+
+Don't guess at ambiguous requirements or a choice between approaches — ask **the definer**
+(whoever created the task) — not the person you're talking to, unless they happen to be the same
+person. Call `request_clarification(task_id, questions)` with one or more structured questions
+(single/multi choice, free text, a 1-10 rating, a drag-to-rank list, or a side-by-side comparison
+— see the standalone `ask-human` skill's `SCHEMA.md` at the repo root for the exact question
+shape, it's shared). This posts an interactive form addressed to the definer on the task's page in
+the web app — but the app doesn't send them a notification yet, so tell whoever you're talking to
+that a form is waiting there **for the definer** and, if that's someone else, ask them to loop the
+definer in directly (message/email/Slack). Then keep working on anything that isn't blocked by the
+answer. When you're ready to check, call `get_clarification_answers(task_id, request_event_id)` —
+it returns `{ answered: false }` until the definer gets to it, so don't poll in a tight loop; check back
+after the user tells you they've answered, or next time you're about to touch the blocked part.
+
+## 6. Report progress
 
 At each milestone, call `report_progress(task_id, message, checklist?)` — `checklist` is the
 full updated acceptance array (mark items done as you complete them). This is what makes the
 board update live for the definer; call it more than once for anything that takes a while,
 not just at the end.
 
-## 6. Hand over
+## 7. Hand over
 
 Push the work branch, run `gh pr create` if available, and capture the PR URL. Call
 `submit_result(task_id, pr_url, handover_md)` with a handover note covering: what's done,
 what's left (if anything), and how to verify. This moves the task to `in_review` for the
 definer.
 
-## 7. If changes are requested
+## 8. If changes are requested
 
 Call `get_review_feedback(task_id)` to read the reviewer's comments, address them on the same
 branch, push, and call `submit_result` again with an updated handover note.

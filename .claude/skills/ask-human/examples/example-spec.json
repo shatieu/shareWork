@@ -1,0 +1,78 @@
+[
+  {
+    "id": "auth-strategy",
+    "type": "single-select",
+    "prompt": "Which auth strategy should we use?",
+    "context": "Current `middleware.ts` already reads a cookie for the locale, so a cookie-based session\nwould reuse that pattern. Token size and revocation matter here.",
+    "suggested": "jwt-cookie",
+    "choices": [
+      { "value": "jwt-cookie", "label": "JWT in an httpOnly cookie" },
+      { "value": "session-db", "label": "Server-side session table" }
+    ],
+    "allowOther": true
+  },
+  {
+    "id": "notification-channels",
+    "type": "multi-select",
+    "prompt": "Which channels should trigger a notification on task submit?",
+    "choices": [
+      { "value": "email", "label": "Email" },
+      { "value": "slack", "label": "Slack" },
+      { "value": "board", "label": "In-app board badge" }
+    ],
+    "suggested": ["board"],
+    "allowOther": true
+  },
+  {
+    "id": "edge-case-notes",
+    "type": "text",
+    "prompt": "Anything unusual about this repo's deploy setup I should know before touching CI?",
+    "placeholder": "e.g. a manual approval step, a staging gate, secrets that live outside env vars...",
+    "allowAttachment": true
+  },
+  {
+    "id": "ok-to-add-dependency",
+    "type": "yesno",
+    "prompt": "OK to add a small date-formatting library, or should I hand-roll it?",
+    "context": "Only used in one place; the alternative is ~15 lines of manual `Intl.DateTimeFormat` code.",
+    "suggested": "no"
+  },
+  {
+    "id": "retry-aggressiveness",
+    "type": "rating",
+    "prompt": "How aggressive should the retry policy be for the sync job?",
+    "min": 1,
+    "max": 10,
+    "minLabel": "conservative (fail fast)",
+    "maxLabel": "aggressive (retry hard)",
+    "suggested": 5
+  },
+  {
+    "id": "work-priorities",
+    "type": "ranking",
+    "prompt": "Rank these in the order I should tackle them.",
+    "choices": [
+      { "value": "fix-flaky-test", "label": "Fix the flaky auth test" },
+      { "value": "perf-pass", "label": "Performance pass on the board query" },
+      { "value": "cleanup", "label": "Clean up dead code in lib/utils" }
+    ]
+  },
+  {
+    "id": "board-layout",
+    "type": "compare",
+    "prompt": "Which board layout approach do you prefer?",
+    "choices": [
+      {
+        "value": "columns",
+        "label": "Status columns (kanban)",
+        "context": "```\n[Open] [Claimed] [In Progress] [In Review] [Done]\n```\nClassic kanban, one column per status."
+      },
+      {
+        "value": "grouped-list",
+        "label": "Grouped list by project",
+        "context": "```\nProject A\n  - task 1 (open)\n  - task 2 (in progress)\nProject B\n  - task 3 (done)\n```\nFlat list grouped by project instead of status."
+      }
+    ],
+    "suggested": "columns"
+  }
+]

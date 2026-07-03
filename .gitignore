@@ -1,0 +1,6 @@
+# ask-human runtime sessions (generated pages, answers, attachments)
+.claude/ask-human/
+
+# machine-local Claude Code state
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

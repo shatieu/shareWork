@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireCurrentTeam } from "@/lib/team";
 import type { AcceptanceItem, TaskPriority } from "@/lib/database.types";
+import type { ClarificationAnswer, ClarificationAnswerPayload } from "@/lib/clarification";
 
 function parseAcceptance(raw: string): AcceptanceItem[] {
   return raw
@@ -177,4 +178,44 @@ export async function reopenTask(taskId: string) {
 export async function addComment(taskId: string, comment: string) {
   if (!comment.trim()) return { error: "Empty comment" };
   return writeReview(taskId, "comment", null, comment.trim());
+}
+
+/** Human answers a clarification request an agent posted via the MCP `request_clarification` tool. */
+export async function answerClarification(
+  taskId: string,
+  requestEventId: string,
+  answers: ClarificationAnswer[]
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Not signed in" };
+
+  const { data: task } = await supabase
+    .from("tasks")
+    .select("team_id")
+    .eq("id", taskId)
+    .single();
+  if (!task) return { error: "Task not found" };
+
+  const payload: ClarificationAnswerPayload = {
+    kind: "clarification_answer",
+    request_event_id: requestEventId,
+    answers,
+  };
+
+  const { error } = await supabase.from("task_events").insert({
+    task_id: taskId,
+    team_id: task.team_id,
+    actor_id: user.id,
+    actor_kind: "human",
+    type: "comment",
+    message: "Answered clarification",
+    payload,
+  });
+  if (error) return { error: error.message };
+
+  revalidatePath(`/tasks/${taskId}`);
+  return { ok: true };
 }
