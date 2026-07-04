@@ -4,3 +4,13 @@
 # machine-local Claude Code state
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+.vercel
+.env*
+
+# pnpm / turborepo workspace (packages/, plugins/)
+node_modules/
+.turbo/
+dist/
+coverage/
+*.tsbuildinfo

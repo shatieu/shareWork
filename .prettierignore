@@ -1,0 +1,8 @@
+node_modules
+dist
+.turbo
+coverage
+team-tasks/
+team-tasks-starter/
+suite-design/
+*.md
