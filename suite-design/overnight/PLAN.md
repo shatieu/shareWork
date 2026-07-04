@@ -10,7 +10,7 @@ Per kickoff prompt: stay in the `shareWork` repo (no migration to a fresh `ship/
 
 | # | Package | Spec ref | Status |
 |---|---|---|---|
-| 0 | Monorepo scaffold (pnpm workspaces + turborepo, shared tsconfig/lint) | Architecture §3 | pending |
+| 0 | Monorepo scaffold (pnpm workspaces + turborepo, shared tsconfig/lint) | Architecture §3 | **PASS, merged to ship-wave1** |
 | 1 | Chart Room phase 1 — Indexer + CLI + resolution + pre-commit hook | ChartRoom_Spec §8.1 | pending |
 | 2 | Chart Room phase 2 — Viewer (read-only) | ChartRoom_Spec §8.2 | pending |
 | 3 | Chart Room phase 3 — Editor (Milkdown round-trip) | ChartRoom_Spec §8.3 | pending |
@@ -35,4 +35,4 @@ Never start package N+1 before N is Reviewer-PASS and merged to `ship-wave1`.
 - Push `ship-wave1` after every accepted package (remote `origin` exists — confirmed via `git branch -a`).
 
 ## Current position
-Setting up branch + package 0 (scaffold) Team Lead now.
+Package 0 (monorepo scaffold) is **done**: PASS verdict, fast-forward merged `ship-wave1-scaffold` → `ship-wave1` (f57ee02..8a862ea), pushing to origin next. Starting package 1 (Chart Room phase 1 — Indexer + CLI + resolution + pre-commit hook, `ChartRoom_Spec.md` §8.1) on a new feature branch `ship-wave1-cr-phase-1`, same plan-first process: spawn Team Lead alone, no developer until First Officer approves the plan.
