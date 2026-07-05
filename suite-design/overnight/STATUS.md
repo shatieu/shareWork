@@ -5,7 +5,7 @@ Legend: pending / plan-review / in-progress / PASS / FAIL / parked
 | Package | Status | Branch | Note |
 |---|---|---|---|
 | 0. Monorepo scaffold | **PASS — merged, NOT pushed** | ship-wave1-scaffold → ship-wave1 (f57ee02..8a862ea, fast-forward) | pnpm+turborepo scaffold, packages/+plugins/ stubs, team-tasks/ verified untouched; `git push origin ship-wave1` blocked by this session's permission mode (no interactive approver) — Captain needs to push manually or grant Bash permission |
-| 1. Chart Room phase 1 (indexer/CLI) | in-progress | ship-wave1-cr-phase-1 | Team Lead re-dispatched to write plan (previous attempt died with no plan file, no commits) |
+| 1. Chart Room phase 1 (indexer/CLI) | plan-review | ship-wave1-cr-phase-1 | Team Lead dispatched (background) to research + write plan → `plans/01-cr-phase1-plan.md`; awaiting return |
 | 2. Chart Room phase 2 (viewer) | pending | — | blocked on #1 |
 | 3. Chart Room phase 3 (editor) | pending | — | blocked on #2 |
 | 4. Chart Room phase 4 (interactive blocks) | pending | — | blocked on #3 |
