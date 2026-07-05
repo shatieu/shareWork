@@ -148,3 +148,21 @@ Plan: `suite-design/overnight/plans/05-cr-phase5-plan.md`. Team Lead flagged 12 
 
 ## 2026-07-05 marathon: quarantined WIP adjudication (FO default in motion)
 Unattributed uncommitted work over packages/chartroom + chartroom-ui found at marathon start (created 11:14-12:38, after the night session stood down; resembles queue items 2d/2e and 3: associate/open commands, claude-session/search/activity routes, RepoTree/SearchModal UI, Sidebar/RepoSwitcher deleted). Quarantined on `wip-quarantine-2026-07-05` (f34c297, pushed). FO default unless Captain overrides: v1.1 and Deck Team Leads evaluate salvage per-file during planning; anything not salvaged stays on the quarantine branch untouched. If this was YOUR work-in-progress, Captain, say so in CAPTAIN-INBOX.
+
+## Package 3 (Captain's Deck) planning — parked questions and taken defaults (2026-07-05)
+
+1. **Parked WIP UX features — schedule or drop?** `routes/search.ts`+SearchModal, `routes/fs.ts`
+   folder picker+RegisterRepoModal, `activity.ts`/`auto-repair.ts`/`rebuild-pipeline.ts`+LatestPanel
+   are in NO queue item's scope (per plan-02 FO note), so the Deck plan parks them on the
+   quarantine branch. They reviewed mostly sound-with-tests; proposal: a "Chart Room v1.2 UX"
+   package. Note: `routes/fs.ts` exposes full-filesystem enumeration with no auth — must be
+   hardened before it ever ships.
+2. **Hull package published npm name.** Local bin is `ship` (acceptance line `ship serve`), but
+   the published npm name is a naming/publishing call = Captain-only. Researcher will gather
+   `ship` npm availability + scoped fallbacks; no publishing tonight either way.
+3. **Deck visual defaults taken tonight (low-risk, review tomorrow):** adopted the WIP's brass
+   dark-only design system as the Deck look (baseline light/dark `--crm-*` system superseded);
+   removed the WIP's Google Fonts external dependency in favor of local font stacks (a local
+   daemon UI should not phone home). Both trivially reversible.
+4. **`chartroom-ui` package rename** (it becomes the Deck app in this package) — deferred to the
+   monorepo migration; keeping the name tonight to avoid Captain-invisible renames.

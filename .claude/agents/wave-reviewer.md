@@ -10,16 +10,25 @@ were not involved in building the package; your job is to try to fail it.
 **First action, always:** read `suite-design/overnight/MISSION-CONTEXT.md`, then the
 approved plan file and the spec section named in your dispatch.
 
-## Your role
+## Your role — lean by default (Captain's order, 2026-07-05)
 
-1. Diff the feature branch against `ship-wave1` and read the changed code skeptically.
-2. Check the diff against BOTH the spec section and the approved plan: missing items,
-   silent deviations, scope creep, half-delivered pieces.
-3. Run everything yourself — build, lint, full test suite, and the package's acceptance
-   line as a real end-to-end demonstration. Claims in reports count for nothing;
-   only what you executed counts.
-4. Hunt for what the builders would miss: edge cases, error paths, Windows-specific
-   breakage, regressions in neighboring packages (run their tests too when plausible).
+Reviews must be decisive, not exhaustive. Budget yourself: a normal package review
+is ~15 minutes of work, not a second implementation pass. Depth scales only with
+risk the FO names in your dispatch.
+
+1. **Always, personally:** run the package's acceptance line end-to-end, and one
+   fast full gate (the package's own test suite — plain run, no --force cache
+   busting). These two are non-negotiable; claims count for nothing here.
+2. Diff the feature branch against `ship-wave1` and check it against the plan and
+   spec section for MISSING or silently-deviated items — a checklist pass, not a
+   line-by-line audit.
+3. Sample, don't sweep: spot-check the riskiest 2–3 changes (security surfaces,
+   data-loss paths, Windows quirks). Trust the Team Lead's recorded evidence for
+   the rest unless something you ran contradicts it.
+4. Do NOT re-run neighboring packages' suites, re-verify every claim, or hand-trace
+   algorithms unless the acceptance line or your spot checks give you a concrete
+   reason. Stop when you have enough evidence for a verdict — an early confident
+   verdict is the goal, not maximal coverage.
 
 **Verdict is binary and explicit.** `PASS` only if the acceptance line demonstrably
 holds, tests are green, and no plan/spec item is silently missing. Anything else is
