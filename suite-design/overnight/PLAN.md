@@ -35,4 +35,6 @@ Never start package N+1 before N is Reviewer-PASS and merged to `ship-wave1`.
 - Push `ship-wave1` after every accepted package (remote `origin` exists — confirmed via `git branch -a`).
 
 ## Current position
-Package 0 (monorepo scaffold) is **done**: PASS verdict, fast-forward merged `ship-wave1-scaffold` → `ship-wave1` (f57ee02..8a862ea), pushing to origin next. Starting package 1 (Chart Room phase 1 — Indexer + CLI + resolution + pre-commit hook, `ChartRoom_Spec.md` §8.1) on a new feature branch `ship-wave1-cr-phase-1`, same plan-first process: spawn Team Lead alone, no developer until First Officer approves the plan.
+Package 0 (monorepo scaffold) is **done**: PASS verdict, fast-forward merged `ship-wave1-scaffold` → `ship-wave1` (f57ee02..8a862ea). Push to origin remains blocked by this session's permission mode (tried 3x across two instances); local commits are safe, will keep retrying after each accepted package.
+
+Package 1 (Chart Room phase 1 — Indexer + CLI + resolution + pre-commit hook, `ChartRoom_Spec.md` §8.1) on feature branch `ship-wave1-cr-phase-1`: first Team Lead dispatch died with no durable output (no plan file, no commits) — reconciled, re-dispatching Team Lead from scratch, same plan-first process (plan lands in `suite-design/overnight/plans/01-cr-phase1-plan.md`, no developer until First Officer approves).
