@@ -1,8 +1,20 @@
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+// Mocked so the checkbox-interactivity regression test below can render the *real* end-to-end
+// pipeline (ReactMarkdown + remark-gfm parsing a genuine `- [ ]` checklist item, exactly the way
+// production markdown does) without making a real network call when the click handler fires.
+vi.mock('../src/api/client.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/api/client.js')>('../src/api/client.js');
+  return {
+    ...actual,
+    toggleCheckbox: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 import { DocView } from '../src/components/DocView.js';
-import type { DocDetail } from '../src/api/client.js';
+import { toggleCheckbox, type DocDetail } from '../src/api/client.js';
 
 // @testing-library/react doesn't auto-unmount between tests under vitest (that wiring is
 // jest-specific) -- without this, each `render()` call in this file would leave its tree in the
@@ -95,5 +107,44 @@ describe('DocView', () => {
   it('frontmatter block is not rendered as visible content', () => {
     render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.queryByText(/^id: doc-a/)).not.toBeInTheDocument();
+  });
+
+  it('regression: a real GFM checklist item, parsed by the actual ReactMarkdown + remark-gfm pipeline, renders enabled and clickable', () => {
+    // This is the true end-to-end reproduction of the reported bug: `mdast-util-to-hast` (bundled
+    // transitively via `react-markdown`) hard-codes `disabled: true` in the hProperties of every
+    // GFM task-list checkbox it emits, which flows through `DocView`'s own `input(props)` handler
+    // into `<Checkbox {...props} .../>` verbatim. Unlike `Checkbox.test.tsx` (which constructs
+    // `<Checkbox>` directly and previously never exercised that real `disabled` prop), this test
+    // goes through the full real pipeline `DocView` actually uses in production.
+    const rawWithChecklist: DocDetail = {
+      doc: {
+        path: 'doc-c.md',
+        title: 'Doc C',
+        headings: ['Doc C'],
+        outbound: [],
+      },
+      raw: `---
+id: doc-c
+title: Doc C
+---
+
+# Doc C
+
+- [ ] A bare checklist item
+`,
+      backlinks: [],
+      brokenLinks: [],
+    };
+
+    render(<DocView repoId="repo-a" docId="doc-c" detail={rawWithChecklist} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
+
+    const checkbox = screen.getByRole('checkbox') as HTMLInputElement;
+    // The bug: react-markdown's default GFM rendering (and, before the fix, this app's own
+    // `Checkbox` override) leaves this `disabled`, making it permanently unclickable in a real
+    // browser (a disabled `<input>` never fires click/change events per the HTML spec).
+    expect(checkbox.disabled).toBe(false);
+
+    fireEvent.click(checkbox);
+    expect(vi.mocked(toggleCheckbox)).toHaveBeenCalledWith('repo-a', 'doc-c', { directiveId: null, index: 0 }, true, false);
   });
 });
