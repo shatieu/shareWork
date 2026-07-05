@@ -127,7 +127,6 @@ function EditorInner({
     const editor = getInstance();
     if (!editor) return undefined;
     return createImageDropPasteHandlers(editor.ctx, { repoId, docId });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed each render is fine (cheap closures)
   }, [repoId, docId, getInstance]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {

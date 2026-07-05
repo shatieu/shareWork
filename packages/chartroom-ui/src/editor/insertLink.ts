@@ -3,14 +3,17 @@
 // itself gets a plain unit test, matching phase 2's own "DocView.test.tsx does DOM-level
 // assertions, extractToc.test.ts does pure logic" split (plan §9.3).
 
-import { computeExpectedHref } from 'chartroom/link-paths';
+import { computeExpectedHref } from './relativeHref.js';
 import type { DocSummary } from '../api/client.js';
 
 /**
  * Computes the exact markdown link string to insert for "link the currently-open doc at
- * `currentDocPath` to `targetDoc`" — reuses phase-1's own `computeExpectedHref` (the same function
- * `fix-links.ts`/the indexer's own outbound-link staleness check use) so the freshly inserted link
- * is, by construction, never itself "stale" the moment it's inserted (plan §7).
+ * `currentDocPath` to `targetDoc`" — uses the same relative-href algorithm as phase-1's
+ * `link-paths.ts::computeExpectedHref` (`fix-links.ts`/the indexer's own outbound-link staleness
+ * check), reimplemented locally in `relativeHref.ts` rather than cross-imported (see that file's
+ * header: the original depends on `node:path`, which a real `vite build` confirmed breaks at
+ * runtime in a browser bundle), so the freshly inserted link is, by construction, never itself
+ * "stale" the moment it's inserted (plan §7).
  *
  * Link text: `selectedText` if the user had text selected at Ctrl+K time (standard "select text,
  * Ctrl+K to linkify" UX), otherwise the target doc's own title.

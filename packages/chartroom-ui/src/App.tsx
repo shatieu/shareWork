@@ -83,7 +83,8 @@ export default function App(): ReactElement {
       return;
     }
     refetchDoc();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetchDoc is itself derived from route.repoId/route.docId
+    // (refetchDoc itself is derived from route.repoId/route.docId via useCallback below, so this
+    // effect's own dependency array intentionally lists the primitives rather than the callback.)
   }, [route.repoId, route.docId]);
 
   const handleSelectRepo = useCallback((repoId: string) => navigateTo(repoId), []);
