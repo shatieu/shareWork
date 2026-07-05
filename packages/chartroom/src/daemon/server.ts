@@ -8,6 +8,9 @@ import { registerReposRoute } from './routes/repos.js';
 import { registerDocsRoutes } from './routes/docs.js';
 import { registerDocSaveRoute } from './routes/doc-save.js';
 import { registerDocAssetsRoute } from './routes/doc-assets.js';
+import { registerDocCheckboxRoute } from './routes/doc-checkbox.js';
+import { registerDocAskMeRoute } from './routes/doc-ask-me.js';
+import { registerInboxRoute } from './routes/inbox.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
@@ -72,6 +75,9 @@ export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = 
   registerDocsRoutes(app, repos);
   registerDocSaveRoute(app, repos);
   registerDocAssetsRoute(app, repos);
+  registerDocCheckboxRoute(app, repos);
+  registerDocAskMeRoute(app, repos);
+  registerInboxRoute(app, repos);
 
   return app;
 }

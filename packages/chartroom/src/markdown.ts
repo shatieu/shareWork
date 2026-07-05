@@ -23,6 +23,13 @@ export interface AstNode {
   url?: string;
   title?: string | null;
   position?: { start: { offset: number }; end: { offset: number } };
+  /**
+   * GFM task-list checkbox state (phase 4 plan §3.3, additive) -- `remark-gfm` sets this on a
+   * `listItem` node (`true`/`false` for `- [x]`/`- [ ]`, `null`/`undefined` for a non-task-list
+   * item). Optional and additive: no existing consumer of `AstNode` reads this field, so this is a
+   * zero-behavior-change type widening, same category as phase 3's own `AstNode` export.
+   */
+  checked?: boolean | null;
 }
 
 export interface OffsetRange {
