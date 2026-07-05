@@ -4,16 +4,8 @@ import { fileURLToPath } from 'node:url';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import type { RepoState } from './repo-state.js';
-import { registerReposRoute } from './routes/repos.js';
-import { registerDocsRoutes } from './routes/docs.js';
-import { registerDocSaveRoute } from './routes/doc-save.js';
-import { registerDocAssetsRoute } from './routes/doc-assets.js';
-import { registerDocCheckboxRoute } from './routes/doc-checkbox.js';
-import { registerDocAskMeRoute } from './routes/doc-ask-me.js';
-import { registerInboxRoute } from './routes/inbox.js';
-import { registerMcpRoute } from './routes/mcp.js';
-import { registerRawRoute } from './routes/raw.js';
-import { registerRepoRegisterRoute, type RepoRegistrar } from './routes/repo-register.js';
+import { registerChartroomRoutes } from './register-routes.js';
+import type { RepoRegistrar } from './routes/repo-register.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
@@ -46,10 +38,12 @@ export interface BuildServerOptions {
 }
 
 /**
- * Fastify app factory (plan §4.1): registers the built UI static mount (prefix `/`), the dynamic
- * per-repo raw-asset route (`/api/repos/:repoId/raw/*`, see routes/raw.ts), and the JSON API
- * routes. Returns the app *without* calling `.listen()` so both `commands/serve.ts` and tests can
- * drive it -- tests via `app.inject()`, never a real TCP socket. The `repos` array is shared and
+ * Fastify app factory (plan §4.1): registers the built UI static mount (prefix `/`) and every
+ * Chart Room API route (extracted into `register-routes.ts::registerChartroomRoutes` by the
+ * Captain's Deck refactor, plan 03 §4.4 -- this factory is now a thin composition of exactly
+ * `Fastify()` + UI static + those routes, so standalone `chartroom serve` behavior is unchanged).
+ * Returns the app *without* calling `.listen()` so both `commands/serve.ts` and tests can drive
+ * it -- tests via `app.inject()`, never a real TCP socket. The `repos` array is shared and
  * MUTABLE by design (v1.1): the serve command's registrar pushes newly registered repos into it
  * live.
  */
@@ -64,21 +58,7 @@ export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = 
     });
   }
 
-  // Raw repo assets are served by a dynamic route over the (mutable) runtimes array rather than
-  // one boot-fixed `@fastify/static` mount per repo -- the one structural change that makes live
-  // registration (`POST /api/repos/register`, used by `chartroom open`) possible at all, since
-  // fastify cannot add routes/mounts after `.listen()`.
-  registerRawRoute(app, repos);
-
-  registerReposRoute(app, repos);
-  registerDocsRoutes(app, repos);
-  registerDocSaveRoute(app, repos);
-  registerDocAssetsRoute(app, repos);
-  registerDocCheckboxRoute(app, repos);
-  registerDocAskMeRoute(app, repos);
-  registerInboxRoute(app, repos);
-  registerMcpRoute(app, repos);
-  registerRepoRegisterRoute(app, options.registrar);
+  registerChartroomRoutes(app, repos, { registrar: options.registrar });
 
   return app;
 }

@@ -56,6 +56,9 @@ importers:
       remark-parse:
         specifier: ^11.0.0
         version: 11.0.0
+      suite-conventions:
+        specifier: workspace:*
+        version: link:../suite-conventions
       unified:
         specifier: ^11.0.5
         version: 11.0.5
