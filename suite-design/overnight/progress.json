@@ -17,8 +17,8 @@
       "stage_progress": 80,
       "difficulty": "S",
       "remaining_guess_h": 1.5,
-      "updated_at": "2026-07-05T11:46:54.555Z",
-      "note": "implemented, 8 commits, gates green; adversarial review dispatched"
+      "updated_at": "2026-07-05T11:57:49.992Z",
+      "note": "review FAIL: render-progress.mjs strips PROGRESS.md id frontmatter -> check exit 1. Remediation queued: frontmatter-preserving generator, then scoped re-review."
     },
     {
       "id": 2,

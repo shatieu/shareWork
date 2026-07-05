@@ -100,3 +100,13 @@ Continuing directly on `ship-wave1-cr-phase-1` (the only branch the mission scop
 
 ## Process correction (Captain, 2026-07-05 ~13:35)
 FO wrongly idled at 79% five_hour with no ALERT signal (preemptive hold on extrapolated burn). Captain overrode; rule now amended into MARATHON-KICKOFF-PROMPT.md: dispatch decisions are mechanical on signal files only; never pre-empt an unfired threshold; interrupted-by-PAUSE is cheap, idle is expensive.
+
+## PAUSE checkpoint: 2026-07-05 13:58 (five_hour 97%, reset 14:30Z/16:30 local)
+
+Package 1 position: implemented (8 crew commits on ship-wave1-dogfood), reviewer verdict **FAIL** (reports/01-housekeeping-reviewer.md): FO rider bf50295 regenerated PROGRESS.md and stripped its injected id frontmatter -> `chartroom check` + committed acceptance script exit 1 at head. Acceptance line itself proven in isolation; 42/42 id prepends byte-pure; exclusion zones clean.
+
+RESUME AFTER RESET, in order:
+1. Dispatch wave-developer on ship-wave1-dogfood: make suite-design/overnight/render-progress.mjs preserve existing leading YAML frontmatter when rewriting PROGRESS.md (FO-chosen remediation - kills the landmine; keeps PROGRESS.md id-addressable for the future Deck Voyage tab), regenerate, verify `chartroom check` exit 0 AND acceptance/dogfood-sharework.mjs exit 0, conventional commit.
+2. Dispatch wave-reviewer, scope: remediation commit + re-run gates (check, acceptance script, turbo build/lint/test). PASS -> FO merges ship-wave1-dogfood into ship-wave1, push, changelog fragment check, CAPTAIN-INBOX check, post-merge FO step from CAPTAIN-TODO.md (`chartroom init` hook install on ship-wave1).
+3. Then package 2 (Chart Room v1.1) planning dispatch per PLAN.md; v1.1 TL must evaluate quarantine branch wip-quarantine-2026-07-05 for salvage (see DECISIONS-NEEDED).
+Lesson candidate after merge: generated docs + injected ids = landmine; generators must preserve frontmatter (bake into MISSION-CONTEXT/charters if it recurs).
