@@ -121,6 +121,11 @@ Plan: `suite-design/overnight/plans/05-cr-phase5-plan.md`. Team Lead flagged 12 
 - **`llms.txt` only, no companion `llms-full.txt`.** Approved — matches the spec's own "bonus... for free" framing.
 - Nothing needing `REMOVALS.md`; `team-tasks/` read-only for research, never modified.
 
+## Package 5 (Chart Room phase 5): Developer-stage correction and a small plan/reality slip
+
+- **Load-bearing correction, verified independently by two different sessions:** the plan assumed a `PostToolUse` hook fires on a failed `Read` and detects failure by string-matching `tool_response`. The Developer found, by fetching Claude Code's own hooks docs live, that `PostToolUse` fires only on tool-call *success* — a separate `PostToolUseFailure` event exists for failures, with no documented field name for the error payload. Corrected to register on `PostToolUseFailure`, gating detection on whether `chartroom resolve` finds a genuinely different path rather than guessing an error-string shape. The independent adversarial Reviewer re-fetched the same docs page itself and confirmed this is correct — the single highest-risk item in the whole phase held up under two rounds of independent verification.
+- **Small factual slip, not a real issue:** the plan's §3.1 stated `resolver.ts` is reused "unmodified"; the Developer actually exported two previously-private helpers (`tokenize`/`diceCoefficient`) — a pure additive change with zero behavior change, confirmed by the Reviewer via diff and the full `resolver.test.ts` suite still passing. Noting for the record since "unmodified" turned out to mean "no behavior change" rather than "zero file diff."
+
 ## Whole-mission honesty check (from phase 5's Team Lead, surfaced not suppressed) — for the morning report
 
 1. Spec §9's DoD line ("ask-me/checklist/llm blocks work end-to-end with a real Claude Code session") has never actually been verified with a real Claude Code session across any of the five phases — every acceptance proof this whole mission has been an automated script against APIs/CLIs, never a live agent session. Phase 5's own acceptance line is the first to name this explicitly, making the gap visible rather than something that could be waved past in more code-centric phases 1-4.
