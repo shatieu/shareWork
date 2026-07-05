@@ -13,12 +13,12 @@
     {
       "id": 1,
       "title": "Housekeeping + dogfood",
-      "status": "plan approved",
-      "stage_progress": 25,
+      "status": "implementing",
+      "stage_progress": 60,
       "difficulty": "S",
       "remaining_guess_h": 1.5,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": "plan approved with .chartroomignore direction; implementing next"
+      "updated_at": "2026-07-05T11:29:32.177Z",
+      "note": "implementing on ship-wave1-dogfood per approved plan"
     },
     {
       "id": 2,
