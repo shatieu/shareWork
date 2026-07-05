@@ -1,16 +1,17 @@
-import type { ReactElement } from 'react';
+import { useState, type ReactElement } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkDirective from 'remark-directive';
 import remarkDirectiveRehype from 'remark-directive-rehype';
 import rehypeSlug from 'rehype-slug';
 import rehypeSectionize from '../rehype/rehype-sectionize.js';
-import { rawAssetUrl, type DocDetail } from '../api/client.js';
+import { rawAssetUrl, type DocDetail, type DocSummary } from '../api/client.js';
 import { TombstoneBadge } from './TombstoneBadge.js';
 import { BacklinksPanel } from './BacklinksPanel.js';
 import { LlmBlock } from './LlmBlock.js';
 import { HumanBlock } from './HumanBlock.js';
 import { DirectiveFallback } from './DirectiveFallback.js';
+import { DocEditor } from '../editor/DocEditor.js';
 
 // Matches a leading YAML frontmatter block, same shape as phase-1's frontmatter.ts::FRONTMATTER_RE
 // (deliberately reimplemented locally, not cross-package imported -- plan §6.1/§1.6: react-markdown
@@ -44,16 +45,25 @@ function docDirOf(path: string): string {
 
 export interface DocViewProps {
   repoId: string;
+  docId: string;
   detail: DocDetail;
+  /** Full per-repo doc list (already fetched by `App.tsx`), needed by the editor's Ctrl+K link
+   * picker (plan §7) — reused verbatim, no new fetch. */
+  docs: DocSummary[];
   onSelectDoc: (docId: string) => void;
+  /** Called after a successful save so the host can re-fetch this doc's fresh detail (plan §8's
+   * App.tsx wiring: "thread a save-completion callback... mirrors the existing re-fetch pattern"). */
+  onSaved: () => void;
 }
 
 /**
  * Renders one doc (plan §3/§6): `ReactMarkdown` fed the doc's raw content (frontmatter stripped),
  * with the full directive + collapsing + slug pipeline, plus a tombstone-badge block and the
- * backlinks panel around it.
+ * backlinks panel around it -- or, in edit mode (plan §3 phase-3 addition), `DocEditor`'s Milkdown
+ * WYSIWYG view over the same `detail` prop.
  */
-export function DocView({ repoId, detail, onSelectDoc }: DocViewProps): ReactElement {
+export function DocView({ repoId, docId, detail, docs, onSelectDoc, onSaved }: DocViewProps): ReactElement {
+  const [isEditing, setIsEditing] = useState(false);
   const body = stripFrontmatter(detail.raw);
   const docDir = docDirOf(detail.doc.path);
 
@@ -76,7 +86,12 @@ export function DocView({ repoId, detail, onSelectDoc }: DocViewProps): ReactEle
 
   return (
     <article className="doc-view">
-      <h1>{detail.doc.title}</h1>
+      <div className="doc-view__header">
+        <h1>{detail.doc.title}</h1>
+        <button type="button" className="doc-view__edit-toggle" onClick={() => setIsEditing((v) => !v)}>
+          {isEditing ? 'View' : 'Edit'}
+        </button>
+      </div>
 
       {detail.brokenLinks.length > 0 && (
         <div className="doc-view__tombstones">
@@ -86,13 +101,26 @@ export function DocView({ repoId, detail, onSelectDoc }: DocViewProps): ReactEle
         </div>
       )}
 
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkDirective, remarkDirectiveRehype]}
-        rehypePlugins={[rehypeSlug, rehypeSectionize]}
-        components={components}
-      >
-        {body}
-      </ReactMarkdown>
+      {isEditing ? (
+        <DocEditor
+          repoId={repoId}
+          docId={docId}
+          docPath={detail.doc.path}
+          raw={detail.raw}
+          docs={docs}
+          onSaveComplete={() => {
+            onSaved();
+          }}
+        />
+      ) : (
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkDirective, remarkDirectiveRehype]}
+          rehypePlugins={[rehypeSlug, rehypeSectionize]}
+          components={components}
+        >
+          {body}
+        </ReactMarkdown>
+      )}
 
       <BacklinksPanel repoId={repoId} backlinks={detail.backlinks} onSelectDoc={onSelectDoc} />
     </article>

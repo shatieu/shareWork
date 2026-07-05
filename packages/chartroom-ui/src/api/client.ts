@@ -79,3 +79,50 @@ export function fetchDoc(repoId: string, docId: string): Promise<DocDetail> {
 export function rawAssetUrl(repoId: string, repoRelativePath: string): string {
   return `/api/repos/${encodeURIComponent(repoId)}/raw/${repoRelativePath}`;
 }
+
+export interface SaveDocResponse {
+  ok: true;
+}
+
+/**
+ * `PUT /api/repos/:repoId/docs/:docId` (plan §5.1) — sends the already-reconstructed full file
+ * content (frontmatter + spliced body) computed entirely client-side by `roundTrip.ts`. The daemon
+ * does no block-diffing itself; it is a trusted write of exactly these bytes (plus its own cheap
+ * safety checks, §5.1).
+ */
+export async function saveDoc(repoId: string, docId: string, raw: string): Promise<SaveDocResponse> {
+  const response = await fetch(`/api/repos/${encodeURIComponent(repoId)}/docs/${encodeURIComponent(docId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ raw }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`chartroom-ui: saveDoc failed with status ${response.status}${body ? `: ${body}` : ''}`);
+  }
+  return (await response.json()) as SaveDocResponse;
+}
+
+export interface UploadAssetResponse {
+  /** repo-relative-from-the-doc's-own-directory href to insert as the image's markdown link (plan §6.1 step 6). */
+  href: string;
+}
+
+/**
+ * `POST /api/repos/:repoId/docs/:docId/assets` (plan §6.1) — uploads pasted/dropped image bytes;
+ * the daemon writes them to `assets/<doc-id>/<timestamp>.png` (repo-root-relative) and returns the
+ * relative href already computed against the *editing* doc's own directory, so the inserted image
+ * link is correct from the very first paste.
+ */
+export async function uploadAsset(repoId: string, docId: string, blob: Blob): Promise<UploadAssetResponse> {
+  const response = await fetch(`/api/repos/${encodeURIComponent(repoId)}/docs/${encodeURIComponent(docId)}/assets`, {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type || 'image/png' },
+    body: blob,
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`chartroom-ui: uploadAsset failed with status ${response.status}${body ? `: ${body}` : ''}`);
+  }
+  return (await response.json()) as UploadAssetResponse;
+}

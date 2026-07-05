@@ -17,9 +17,18 @@
 // untouched block/gap and using freshly-serialized text only for blocks that actually changed
 // (plan §3.1 steps 5-8).
 
-import { Editor, rootCtx, defaultValueCtx, parserCtx, schemaCtx, serializerCtx } from '@milkdown/kit/core';
+import {
+  Editor,
+  rootCtx,
+  defaultValueCtx,
+  parserCtx,
+  schemaCtx,
+  serializerCtx,
+  type DefaultValue,
+} from '@milkdown/kit/core';
 import { commonmark } from '@milkdown/kit/preset/commonmark';
 import { gfm } from '@milkdown/kit/preset/gfm';
+import type { Ctx } from '@milkdown/kit/ctx';
 import type { Node as PMNode, Schema } from '@milkdown/kit/prose/model';
 import { opaqueNode, OPAQUE_NODE_NAME } from './opaqueNode.js';
 import type { SegmentedBlock, SegmentedDocument } from './segmentBlocks.js';
@@ -64,6 +73,41 @@ export async function createEngine(root: HTMLElement): Promise<RoundTripEngine> 
 /** Convenience wrapper for headless (non-interactive) use — always mounts to a detached `<div>`. */
 export async function createHeadlessEngine(): Promise<RoundTripEngine> {
   return createEngine(document.createElement('div'));
+}
+
+/**
+ * Builds (but does not `.create()`) the same commonmark+gfm+opaqueNode Editor plugin stack, for
+ * `@milkdown/react`'s `useEditor` hook — its `getEditor` factory must return an *uncreated* Editor
+ * synchronously (the hook itself calls `.create()` internally, per `@milkdown/react`'s own
+ * `useGetEditor` implementation, confirmed by reading its shipped `.js` during the API spike, not
+ * just its `.d.ts`). `DocEditor.tsx` uses this for the real, interactive, DOM-mounted editor.
+ */
+export function buildUncreatedEditor(root: HTMLElement, defaultValue: DefaultValue): Editor {
+  return Editor.make()
+    .config((ctx) => {
+      ctx.set(rootCtx, root);
+      ctx.set(defaultValueCtx, defaultValue);
+    })
+    .use(commonmark)
+    .use(gfm)
+    .use(opaqueNode);
+}
+
+/**
+ * Wraps an already-created Milkdown `Editor`'s own `ctx` as a `RoundTripEngine` — used at save time
+ * so `extractCurrentBlocks`/`reconstructFile` operate against the *live* editor's own schema
+ * instance (required: a live doc's nodes are bound to the schema that created them) rather than a
+ * separate headless engine.
+ */
+export function wrapEditorCtx(ctx: Ctx): RoundTripEngine {
+  return {
+    parse: ctx.get(parserCtx),
+    serialize: ctx.get(serializerCtx),
+    schema: ctx.get(schemaCtx),
+    destroy: async () => {
+      /* lifecycle owned by whoever created the real Editor this ctx belongs to */
+    },
+  };
 }
 
 /**

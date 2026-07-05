@@ -11,6 +11,10 @@
     "./markdown": {
       "types": "./dist/markdown.d.ts",
       "import": "./dist/markdown.js"
+    },
+    "./link-paths": {
+      "types": "./dist/link-paths.d.ts",
+      "import": "./dist/link-paths.js"
     }
   },
   "files": [

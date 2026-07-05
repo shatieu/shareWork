@@ -70,14 +70,20 @@ export default function App(): ReactElement {
       .catch((err: unknown) => setError(String(err)));
   }, [route.repoId]);
 
+  const refetchDoc = useCallback(() => {
+    if (!route.repoId || !route.docId) return;
+    fetchDoc(route.repoId, route.docId)
+      .then(setDetail)
+      .catch((err: unknown) => setError(String(err)));
+  }, [route.repoId, route.docId]);
+
   useEffect(() => {
     if (!route.repoId || !route.docId) {
       setDetail(null);
       return;
     }
-    fetchDoc(route.repoId, route.docId)
-      .then(setDetail)
-      .catch((err: unknown) => setError(String(err)));
+    refetchDoc();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetchDoc is itself derived from route.repoId/route.docId
   }, [route.repoId, route.docId]);
 
   const handleSelectRepo = useCallback((repoId: string) => navigateTo(repoId), []);
@@ -87,6 +93,20 @@ export default function App(): ReactElement {
     },
     [route.repoId],
   );
+
+  // Save-completion callback (plan §8's App.tsx wiring): a successful DocEditor save re-fetches
+  // both this doc's detail (fresh raw/backlinks/brokenLinks) and the repo's doc list (title/path
+  // may have changed if the edit touched frontmatter-derived display fields upstream via a
+  // rebuild) -- mirrors the existing per-route-change re-fetch pattern above, just triggered by a
+  // save instead of a hash-route change.
+  const handleSaved = useCallback(() => {
+    refetchDoc();
+    if (route.repoId) {
+      fetchDocs(route.repoId)
+        .then(setDocs)
+        .catch((err: unknown) => setError(String(err)));
+    }
+  }, [refetchDoc, route.repoId]);
 
   return (
     <div className="app-shell">
@@ -98,7 +118,14 @@ export default function App(): ReactElement {
         <main className="app-shell__main">
           {error && <p className="app-shell__error">{error}</p>}
           {route.repoId && route.docId && detail ? (
-            <DocView repoId={route.repoId} detail={detail} onSelectDoc={handleSelectDoc} />
+            <DocView
+              repoId={route.repoId}
+              docId={route.docId}
+              detail={detail}
+              docs={docs}
+              onSelectDoc={handleSelectDoc}
+              onSaved={handleSaved}
+            />
           ) : (
             <p className="app-shell__placeholder">Select a repo and a doc to begin browsing.</p>
           )}
