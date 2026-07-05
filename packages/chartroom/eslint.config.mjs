@@ -24,4 +24,18 @@ export default tseslint.config(
       'no-console': 'off',
     },
   },
+  {
+    // Standalone Node scripts (e.g. acceptance/git-mv-resolution.mjs) aren't run through the
+    // TypeScript parser, so core ESLint's `no-undef` has no other source of truth for Node
+    // globals -- declare the small set they actually use rather than pulling in a `globals` dep.
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
+    },
+  },
 );
