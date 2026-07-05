@@ -1,3 +1,7 @@
+---
+id: captain-s-inbox
+---
+
 # Captain's Inbox
 
 The Captain steers the marathon by editing this file. The First Officer reads it

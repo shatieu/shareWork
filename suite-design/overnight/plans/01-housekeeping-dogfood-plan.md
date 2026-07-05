@@ -1,3 +1,7 @@
+---
+id: plan-package-01-housekeeping-dogfood-chart-room-onto-sharework-itself
+---
+
 # Plan — Package 01-housekeeping-dogfood (Chart Room onto shareWork itself)
 
 **Team Lead plan, PLANNING ONLY. No code written yet. Feature branch (on approval): `ship-wave1-dogfood`.**

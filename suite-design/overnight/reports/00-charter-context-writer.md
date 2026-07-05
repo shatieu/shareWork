@@ -1,3 +1,7 @@
+---
+id: report-00-charter-mission-context-writer
+---
+
 # Report 00 - Charter / Mission-Context Writer
 
 Date: 2026-07-05. Branch: ship-wave1. Task: write MISSION-CONTEXT.md, commit it

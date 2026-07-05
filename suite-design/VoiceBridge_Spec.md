@@ -1,3 +1,7 @@
+---
+id: the-comm-design-spec-v1-formerly-voice-bridge-naming-settled-see-suite-architecture-and-website-spec-md
+---
+
 # The Comm — Design Spec (v1) *(formerly "Voice Bridge"; naming settled — see Suite-Architecture_and_Website_Spec.md)*
 
 **Prepared for:** Ondřej · **Date:** 4 July 2026

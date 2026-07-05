@@ -1,3 +1,7 @@
+---
+id: morning-report-ship-wave-1-session-final
+---
+
 # Morning Report — Ship Wave 1, session "final"
 
 Written at the end of a continuous First Officer session that picked up after an overnight run was

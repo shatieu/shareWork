@@ -1,3 +1,7 @@
+---
+id: live-status-board
+---
+
 # Live Status Board
 
 Legend: pending / plan-review / in-progress / PASS / FAIL / parked

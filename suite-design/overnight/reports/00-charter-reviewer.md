@@ -1,3 +1,7 @@
+---
+id: reviewer-report-00-charter-dry-run-retrospective
+---
+
 # Reviewer report — 00-charter (dry-run, retrospective)
 
 **Subject:** commit `45f6f32` on `ship-wave1` — "fix(chartroom-ui): preserve original bytes for

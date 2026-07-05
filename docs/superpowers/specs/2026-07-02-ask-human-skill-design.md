@@ -1,3 +1,7 @@
+---
+id: ask-human-skill-design-offline-standalone-sub-project-1-of-2
+---
+
 # ask-human skill — design (offline/standalone, sub-project 1 of 2)
 
 **Date:** 2026-07-02

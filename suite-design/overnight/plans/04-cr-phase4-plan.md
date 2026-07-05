@@ -1,3 +1,7 @@
+---
+id: package-4-chart-room-phase-4-interactive-blocks-inbox
+---
+
 # Package 4 — Chart Room Phase 4: Interactive blocks + inbox
 
 **Team Lead session.** Branch: `ship-wave1-cr-phase-4` (verified checked out, do not switch/create branches).

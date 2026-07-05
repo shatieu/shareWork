@@ -1,3 +1,7 @@
+---
+id: the-ship-suite-architecture-hosting-website-spec
+---
+
 # The Ship — Suite Architecture, Hosting & Website Spec
 
 **Prepared for:** Ondřej · **Date:** 4 July 2026

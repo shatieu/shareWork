@@ -1,3 +1,7 @@
+---
+id: 00-charter-researcher-report-dry-run
+---
+
 # 00-charter — Researcher report (dry-run)
 
 Date: 2026-07-05

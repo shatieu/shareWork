@@ -1,3 +1,7 @@
+---
+id: chart-room-acceptance-script
+---
+
 # Chart Room acceptance script
 
 `git-mv-resolution.mjs` is a standalone Node script that proves the Chart Room phase-1 spec's

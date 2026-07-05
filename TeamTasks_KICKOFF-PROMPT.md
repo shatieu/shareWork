@@ -1,3 +1,7 @@
+---
+id: kickoff-prompt-for-claude-code-build-the-team-tasks-product
+---
+
 # Kickoff prompt for Claude Code — build the Team Tasks product
 
 Run Claude Code from `C:\thisismydesign\`. Paste the prompt below. It's a real, deployed product

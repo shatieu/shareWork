@@ -1,3 +1,7 @@
+---
+id: packages
+---
+
 # packages/
 
 Independently npx-installable Ship suite packages (pnpm workspace members).

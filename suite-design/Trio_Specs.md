@@ -1,3 +1,7 @@
+---
+id: the-trio-skill-analytics-settings-manager-scheduler-v1-specs
+---
+
 # The Trio — Skill Analytics · Settings Manager · Scheduler (v1 specs)
 
 **Prepared for:** Ondřej · **Date:** 4 July 2026

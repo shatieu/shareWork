@@ -1,3 +1,7 @@
+---
+id: product-suite-research-synthesis-july-2026
+---
+
 # Product Suite — Research Synthesis (July 2026)
 
 **Prepared for:** Ondřej · **Date:** 4 July 2026

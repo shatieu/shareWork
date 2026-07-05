@@ -1,3 +1,7 @@
+---
+id: captain-todo-parked-integration-steps
+---
+
 # Captain TODO — parked integration steps
 
 Each entry: one line **what**, one line **how**. These are the human-only steps

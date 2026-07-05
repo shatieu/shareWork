@@ -1,3 +1,7 @@
+---
+id: team-lead-report-package-01-housekeeping-dogfood-planning-phase
+---
+
 # Team Lead report — Package 01-housekeeping-dogfood (PLANNING phase)
 
 **Verdict: PLAN READY** — `suite-design/overnight/plans/01-housekeeping-dogfood-plan.md`. No code written, no commits made, no files mutated other than this report + the plan file (both mission tracking artifacts). Planning-only dispatch honored.

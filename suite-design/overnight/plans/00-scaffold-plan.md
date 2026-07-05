@@ -1,3 +1,7 @@
+---
+id: package-0-monorepo-scaffold-plan
+---
+
 # Package 0 — Monorepo Scaffold Plan
 
 **Team Lead session.** Branch: `ship-wave1-scaffold` (verified checked out). Status: plan awaiting First Officer approval. No implementation, no installs, no package.json files created yet — this document only.

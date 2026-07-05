@@ -1,3 +1,7 @@
+---
+id: stale-docs-linters-mcps-concrete-toolkit-mid-2026
+---
+
 # Stale Docs, Linters & MCPs — Concrete Toolkit (mid-2026)
 
 **Prepared for:** Ondřej · **Date:** 30 June 2026

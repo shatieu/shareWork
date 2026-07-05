@@ -1,3 +1,7 @@
+---
+id: chart-room-phase-1
+---
+
 # Chart Room (phase 1)
 
 Local-first markdown doc indexer, id-based link resolver, stale-link repair, and a pre-commit

@@ -1,3 +1,7 @@
+---
+id: plugins
+---
+
 # plugins/
 
 Claude Code plugin-distributed pieces of the suite (Crew, chart-room-skill,

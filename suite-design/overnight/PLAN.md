@@ -1,3 +1,7 @@
+---
+id: marathon-master-plan-the-rest-of-the-ship
+---
+
 # Marathon Master Plan — the rest of the Ship
 
 History: Chart Room v1 (all 5 build-order phases + one hardening pass) was delivered, adversarially
