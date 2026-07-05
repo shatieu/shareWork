@@ -323,4 +323,74 @@ describe('round-trip engine — fixture-based no-op + single-edit suite (plan §
       });
     });
   }
+
+  // The fixture loop above (per plan §9.1's literal ask) only ever exercises same-block-count
+  // edits. `reconstructFile`'s LCS-based matching (plan §3.1 step 7) is *designed* to also handle
+  // genuine block insertion/deletion, not just in-place edits -- worth its own explicit coverage
+  // rather than leaving that path implemented-but-unexercised.
+  describe('block insertion and deletion (plan §3.1 step 7 — beyond §9.1\'s literal same-count-edit ask)', () => {
+    const raw = '# Title\n\nFirst para.\n\nSecond para.\n\nThird para.\n';
+
+    it('inserting a brand-new block leaves every original block/gap byte-identical', () => {
+      const before = segmentDocument(raw);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+
+      // Insert a new paragraph node between "First para." and "Second para.".
+      const parsed = engine.parse('Inserted para.');
+      const newNode = parsed.firstChild;
+      expect(newNode).toBeTruthy();
+      children.splice(2, 0, newNode!);
+
+      const editedDoc = engine.schema.topNodeType.create(null, children);
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      expect(result).toBe(
+        '# Title\n\nFirst para.\n\nInserted para.\n\nSecond para.\n\nThird para.\n',
+      );
+      // Every original block's own text still appears, untouched, in document order.
+      for (const block of before.blocks) {
+        expect(result).toContain(block.text);
+      }
+    });
+
+    it('deleting a block removes exactly that block, everything else byte-identical', () => {
+      const before = segmentDocument(raw);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+
+      // Delete "Second para." (index 2: 0=heading, 1=First para., 2=Second para., 3=Third para.).
+      children.splice(2, 1);
+
+      const editedDoc = engine.schema.topNodeType.create(null, children);
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      expect(result).toBe('# Title\n\nFirst para.\n\nThird para.\n');
+      expect(result).not.toContain('Second para.');
+    });
+
+    it('inserting at the very start and end preserves the untouched middle byte-identical', () => {
+      const before = segmentDocument(raw);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+
+      const leading = engine.parse('Leading new para.').firstChild!;
+      const trailing = engine.parse('Trailing new para.').firstChild!;
+      children.unshift(leading);
+      children.push(trailing);
+
+      const editedDoc = engine.schema.topNodeType.create(null, children);
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      expect(result).toBe(
+        'Leading new para.\n\n# Title\n\nFirst para.\n\nSecond para.\n\nThird para.\n\nTrailing new para.\n',
+      );
+    });
+  });
 });
