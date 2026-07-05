@@ -45,7 +45,12 @@ function readDocRaw(repoRoot: string, relPath: string, overrides?: Map<string, s
   return readFileSync(join(repoRoot, relPath), 'utf8');
 }
 
-function titleFor(data: Record<string, unknown>, raw: string, relPath: string): string {
+/**
+ * Frontmatter `title:` -> else first `# ` heading in the body -> else filename stem (plan §5 step 3).
+ * Exported so `commands/init.ts` and the pre-commit hook (`hook.ts`) can compute a missing doc's id
+ * base string using the exact same rule the indexer itself uses, without duplicating the logic.
+ */
+export function titleFor(data: Record<string, unknown>, raw: string, relPath: string): string {
   if (typeof data.title === 'string' && data.title.trim().length > 0) return data.title.trim();
   const h1 = extractFirstH1(raw);
   if (h1) return h1;
