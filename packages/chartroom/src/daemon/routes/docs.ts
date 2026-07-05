@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import type { BrokenLinkIssue } from '../../check.js';
 import type { DocEntry } from '../../index-schema.js';
 import type { BacklinkEntry } from '../backlinks.js';
+import { findDoc } from '../doc-lookup.js';
 import type { RepoRuntime } from '../server.js';
 
 export interface DocSummary {
@@ -25,6 +26,10 @@ export interface BrokenLinkIssueWithDeletedAt extends BrokenLinkIssue {
 }
 
 export interface DocDetailResponse {
+  /** frontmatter id, or null for an unidentified (id-less) doc -- v1.1 contract. */
+  id: string | null;
+  /** canonical doc key (`id ?? path`) -- what the UI should put in its own URLs. */
+  key: string;
   doc: DocEntry;
   raw: string;
   backlinks: BacklinkEntry[];
@@ -37,8 +42,11 @@ function findRepo(repos: RepoRuntime[], repoId: string): RepoRuntime | undefined
 
 /**
  * `GET /api/repos/:repoId/docs` (list) and `GET /api/repos/:repoId/docs/:docId` (single doc: entry
- * + raw content + backlinks + brokenLinks filtered to that doc's path) -- plan §4.1. `brokenLinks`
- * is `check.ts::runCheck().brokenLinks` filtered to `path === doc.path`; zero new tombstone
+ * + raw content + backlinks + brokenLinks filtered to that doc's path) -- plan §4.1. Since v1.1,
+ * `:docId` is a doc *key* resolved via `doc-lookup.ts::findDoc` (exact id, then exact
+ * repo-relative path), so id-less docs -- most of any real repo -- are addressable too; their
+ * backlinks are `[]` by construction (backlinks are keyed by target id). `brokenLinks` is
+ * `check.ts::runCheck().brokenLinks` filtered to `path === doc.path`; zero new tombstone
  * detection logic lives here, it only surfaces what phase-1's `check.ts` already computed (plus
  * the `deletedAt` enrichment described above).
  */
@@ -66,21 +74,28 @@ export function registerDocsRoutes(app: FastifyInstance, repos: RepoRuntime[]): 
     }
 
     const state = repo.getState();
-    const doc = state.index.docs[docId];
-    if (!doc) {
+    const found = findDoc(state, docId);
+    if (!found) {
       return reply.code(404).send({ error: `unknown doc '${docId}' in repo '${repoId}'` });
     }
 
-    const raw = readFileSync(join(repo.absPath, doc.path), 'utf8');
-    const backlinks = state.backlinks[docId] ?? [];
+    const raw = readFileSync(join(repo.absPath, found.entry.path), 'utf8');
+    const backlinks = found.id ? (state.backlinks[found.id] ?? []) : [];
     const brokenLinks: BrokenLinkIssueWithDeletedAt[] = state.check.brokenLinks
-      .filter((issue) => issue.path === doc.path)
+      .filter((issue) => issue.path === found.entry.path)
       .map((issue) => ({
         ...issue,
         deletedAt: issue.matchType === 'tombstone' ? state.index.deleted[issue.targetId]?.deletedAt : undefined,
       }));
 
-    const response: DocDetailResponse = { doc, raw, backlinks, brokenLinks };
+    const response: DocDetailResponse = {
+      id: found.id,
+      key: found.key,
+      doc: found.entry,
+      raw,
+      backlinks,
+      brokenLinks,
+    };
     return response;
   });
 }
