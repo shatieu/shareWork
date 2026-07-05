@@ -159,7 +159,7 @@ async function main() {
     console.log('chartroom acceptance: editor-round-trip -- ALL ASSERTIONS PASSED');
     console.log(
       '  (no-op/single-edit round-trip byte-identity is proven separately by ' +
-        'packages/chartroom-ui/test/editor/roundTrip.test.ts, 43/43 passing -- see that suite for ' +
+        'packages/chartroom-ui/test/editor/roundTrip.test.ts, 52/52 passing -- see that suite for ' +
         'the full fixture-by-fixture breakdown; see this script\'s own header comment for why.)',
     );
   } finally {
