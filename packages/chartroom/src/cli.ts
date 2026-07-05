@@ -6,6 +6,8 @@ import { registerIndexCommand } from './commands/index.js';
 import { registerResolveCommand } from './commands/resolve.js';
 import { registerFixLinksCommand } from './commands/fix-links.js';
 import { registerCheckCommand } from './commands/check.js';
+import { registerServeCommand } from './commands/serve.js';
+import { registerRegisterCommand } from './commands/register.js';
 
 const program = new Command();
 
@@ -21,6 +23,8 @@ registerIndexCommand(program);
 registerResolveCommand(program);
 registerFixLinksCommand(program);
 registerCheckCommand(program);
+registerRegisterCommand(program);
+registerServeCommand(program);
 
 // Hidden command: manually invoke the pre-commit hook logic without going through a real git
 // commit. The installed `.git/hooks/pre-commit` shim (see install-hook.ts) does NOT go through
