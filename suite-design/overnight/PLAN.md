@@ -38,3 +38,5 @@ Never start package N+1 before N is Reviewer-PASS and merged to `ship-wave1`.
 Package 0 (monorepo scaffold) is **done**: PASS verdict, fast-forward merged `ship-wave1-scaffold` → `ship-wave1` (f57ee02..8a862ea). Push to origin remains blocked by this session's permission mode (tried 3x across two instances); local commits are safe, will keep retrying after each accepted package.
 
 Package 1 (Chart Room phase 1 — Indexer + CLI + resolution + pre-commit hook, `ChartRoom_Spec.md` §8.1) on feature branch `ship-wave1-cr-phase-1`: first Team Lead dispatch died with no durable output (no plan file, no commits) — reconciled, re-dispatching Team Lead from scratch, same plan-first process (plan lands in `suite-design/overnight/plans/01-cr-phase1-plan.md`, no developer until First Officer approves).
+
+**2026-07-05 (resumed instance, 2nd resume):** plan approved, lib layer implemented and verified (typecheck + unit tests clean), but CLI/hook/acceptance-script portion of package 1 was not yet started when this instance's predecessor ended — resuming implementation in place on `ship-wave1-cr-phase-1`, no restart from scratch.
