@@ -86,3 +86,10 @@ Continuing directly on `ship-wave1-cr-phase-1` (the only branch the mission scop
 - Captain's 5 July spec amendments + mission prompts committed (f951b74); first-ever push of ship-wave1 done, now tracking origin. Push policy active.
 - **FO approvals, package 1 plan** (plans/01-housekeeping-dogfood-plan.md): APPROVED with directions: (1) `.chartroomignore` support in discoverDocFiles approved — zero deps, uniform across init/index/check/hook/daemon; exclusion list as proposed (team-tasks, fixtures, skill-template, .claude/, lookout, kickoff prompts); (2) post-merge FO `init` hook-install step approved; (3) reconcile/push confirmed FO-side, out of package scope.
 - Lookout at dispatch time: five_hour 46%, seven_day 78 (watch: near 80). Sensor healthy.
+
+## Marathon checkpoint: 2026-07-05 13:30 — holding at package boundary (Lookout)
+
+- Developer dry-run PASS (progress tracking adopted per Captain Order 1, commits 96d064d/e6cf6fc/355bfed). Charter proven 4/4. Package 0 CLOSED, 100%.
+- Package 1 (housekeeping+dogfood): plan approved, implementation NOT dispatched — Lookout five_hour surged 46->74% in 35 min; a 1.5h implementation would hit PAUSE (93) mid-flight. FO holds per finish-don't-start.
+- Resume point for any successor: dispatch TL implementation of plans/01-housekeeping-dogfood-plan.md on branch ship-wave1-dogfood (approvals already logged above), after five_hour resets (~14:30Z / 16:30 local). Then queue continues per PLAN.md. Dispatch method: general-purpose agent + "adopt charter .claude/agents/wave-team-lead.md" preamble.
+- All work pushed through this checkpoint. Worktree clean of quarantined WIP; quarantine branch pushed.
