@@ -18,6 +18,27 @@ Plan: `suite-design/overnight/plans/01-cr-phase1-plan.md`. Team Lead flagged 4 i
 - **Monorepo pre-commit hook composability with `team-tasks/`.** Confirmed by direct check: no `.git/hooks/pre-commit` exists yet and `team-tasks/` has no husky/pre-commit config, so there's nothing to collide with tonight. Approved the plan's "refuse to clobber + print manual chaining instructions" approach; no chaining framework built. **Review tomorrow** if `team-tasks/` ever wants its own hook.
 - **`fix-links` default write behavior — overridden, not deferred.** Plan proposed `--write` as the implicit default (bare `chartroom fix-links` mutates files). Changed this before implementation: bare `chartroom fix-links` now defaults to the same behavior as `--dry-run` (report only); an explicit `--write` flag is required to mutate. Matches the industry convention (`eslint --fix`, `prettier --write` both require an explicit flag) and the mission's general safety-first posture around file mutation. This is a First Officer correction to the plan, not a Captain-level open question — mentioning here for visibility only.
 
+## Chart Room phase 1 (Developer stage): `.docs/` not yet in any `.gitignore`
+
+- **What:** the index schema (plan §4) and this repo's own `packages/chartroom/src/repo.ts` both
+  treat `.docs/index.json` as "gitignored, per-repo" -- `repo.ts`'s doc-discovery walk already
+  skips a built-in `.docs` directory name so `chartroom index` never indexes its own output, but
+  no actual `.gitignore` entry for `.docs/` exists yet anywhere in this monorepo (checked the root
+  `.gitignore` and found no `packages/chartroom/.gitignore` either).
+- **Why deferred:** adding a `.gitignore` entry wasn't in the Developer stage's assigned file list
+  (plan §3), and this Developer session never ran `chartroom init`/`chartroom index` against the
+  real repo tree (only against disposable scratch dirs, per instructions) -- so nothing has
+  actually landed in the real working tree as an untracked `.docs/index.json` yet. No urgency, but
+  worth fixing before anyone runs `chartroom init` for real in this repo.
+- **Default taken:** left as-is; not silently patched by the Developer since touching
+  `.gitignore` (root or a new package-scoped one) is a small but real repo-wide change outside this
+  package's assigned scope.
+- **Review tomorrow:** add `.docs/` to the root `.gitignore` (or a `packages/chartroom/.gitignore`)
+  before the first real `chartroom init` run in this repo, so `.docs/index.json` doesn't show up as
+  an untracked file / risk getting committed by accident.
+- **Resolved same night:** First Officer added `.docs/` to the root `.gitignore` (`4bb3688`) before
+  merging phase 1 — no longer open, kept here for the record.
+
 ## Package 0 scaffold: no root README update
 
 - **What:** package 0's plan flagged that the repo root has several loose docs but no root `README.md` describing the new `packages/`/`plugins/` layout; asked whether to add one.
