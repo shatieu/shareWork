@@ -1,0 +1,41 @@
+{
+  "name": "ship",
+  "version": "0.1.0",
+  "description": "The Ship's hull: one local Fastify process hosting every suite station behind the Captain's Deck UI (Ship_Spec §2 one-hull revision). Internal workspace name only -- npm 'ship' is taken; publish naming is a Captain decision (plan 03 §9, researcher R6). The local bin stays `ship`.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "ship": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:ui-bundle": "node scripts/copy-ui-dist.mjs",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/deck-boot.mjs"
+  },
+  "dependencies": {
+    "@fastify/static": "^9.1.3",
+    "chartroom": "workspace:*",
+    "chokidar": "^4.0.3",
+    "commander": "^13.1.0",
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}

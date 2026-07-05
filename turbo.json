@@ -8,6 +8,10 @@
     "chartroom#build:ui-bundle": {
       "dependsOn": ["build", "chartroom-ui#build"],
       "outputs": ["dist/public/**"]
+    },
+    "ship#build:ui-bundle": {
+      "dependsOn": ["build", "chartroom-ui#build"],
+      "outputs": ["dist/public/**"]
     }
   }
 }
