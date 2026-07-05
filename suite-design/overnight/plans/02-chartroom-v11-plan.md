@@ -4,7 +4,7 @@ id: plan-02-chartroom-v11
 
 # Package 02 — Chart Room v1.1 — Implementation Plan
 
-- **Status:** PLAN READY (awaiting FO approval; no code written)
+- **Status:** APPROVED (FO, STATUS.md 17:05) — IMPLEMENTING. R1–R5 verdicts folded in (§7bis).
 - **Feature branch:** `ship-wave1-cr-v11`, cut fresh from `ship-wave1` (currently `4031f41`)
 - **Spec:** `suite-design/ChartRoom_Spec.md` §6 (staleness), §5 (check contract), §9 (DoD);
   `suite-design/MARATHON-KICKOFF-PROMPT.md` §3 item 2; CAPTAIN-INBOX Order 1 item 4.
@@ -249,6 +249,44 @@ baseline `Sidebar.tsx` lists id-less docs too (`key = doc.id ?? doc.path`); veri
   Captain's own acceptance wording), then invoke the exact registered command
   (`wscript.exe <launcher> <file>` — byte-for-byte what Explorer executes) AND a real
   double-click; browser lands on the doc. Evidence + `--remove` instructions in the report.
+
+## 7bis. Research verdicts folded in (2026-07-05, from `reports/02-chartroom-v11-researcher.md`) — binding on §§4.C/4.D/4.E/6
+
+- **R1 — GO for the VBS launcher**, with two hardenings: (i) `associate` performs an
+  install-time presence check (`%SystemRoot%\System32\wscript.exe` AND
+  `System32\vbscript.dll` exist); (ii) if absent, fall back to a
+  `powershell.exe -NoProfile -WindowStyle Hidden -Command …` launcher (documented degraded
+  mode: brief console flash). `conhost --headless` rejected (undocumented). Launcher `.vbs`
+  must be defensive (`On Error`) — wscript shows blocking GUI dialogs on script errors;
+  tests exercise it via `cscript //nologo`.
+- **R2 — design confirmed.** Write ONLY `HKCU\Software\Classes\ChartRoom.md` (ProgID must be
+  fully registered: default value = friendly name + valid `shell\open\command`) and
+  `HKCU\Software\Classes\.md\OpenWithProgIds\ChartRoom.md`. **Never write the `.md` default
+  value** (if no UserChoice exists, that would silently steal the effective handler —
+  violates offer-only). **Fire `SHChangeNotify(SHCNE_ASSOCCHANGED)` after registration**
+  (via a one-shot `powershell -NoProfile` P/Invoke — no new dependency) or Explorer may not
+  refresh until re-login. UserChoice/UserChoiceLatest hashes block only programmatic
+  default-setting, which we never do.
+- **R3 — quoting verified.** Registry writes via `spawnSync("reg.exe", [args])` — args
+  array, **no `shell: true`**, never `cmd /c reg add`. Command value (JS literal):
+  `"…\wscript.exe" "…\open-md.vbs" "%1"`; `%1` is inert outside batch context and expands
+  at ShellExecute time. `WScript.Arguments(0)` arrives quote-stripped and byte-correct for
+  spaces + unicode; the .vbs re-quotes when building the CLI invocation. **Added test
+  obligation:** an integration test that writes a scratch key under
+  `HKCU\Software\ChartRoomTest\…`, reads it back via `reg query`, and cleans up (key
+  removal via `reg delete` on the scratch key is test teardown of a key the test created —
+  not repo file deletion).
+- **R4 — headless contract confirmed on CLI 2.1.201.** Hooks AND skills load and fire in
+  `-p` (empirically: `PostToolUseFailure` fired on a failed Read — the event name stands).
+  Script rules: never `--bare`/`--safe-mode` (skip hooks + break OAuth reuse); prefer
+  minimal `--allowedTools` over `--dangerously-skip-permissions`; pass `--max-turns` and
+  `--max-budget-usd`; `--output-format json` carries `result`+`session_id`; phase B resumes
+  via `--resume <session_id>` **from the same cwd** (session lookup is cwd-scoped); do NOT
+  pass `--no-session-persistence` in phase A; logged-in OAuth reused without env keys;
+  settings JSON that fails validation is silently ignored in -p → the script should
+  sanity-check its generated settings fire (e.g. assert the hook log exists).
+- **R5 — confirmed.** `os.homedir()` honors `USERPROFILE` (win32) / `HOME` (POSIX); the
+  acceptance script must set **both** in the child-process env at spawn.
 
 ## 7. Facts for a wave-researcher pass (do NOT trust memory — verify before implementation)
 
