@@ -336,6 +336,35 @@ baseline `Sidebar.tsx` lists id-less docs too (`key = doc.id ?? doc.path`); veri
 None parked now. Conditional: R1 fallback-launcher (see Risk 1) escalates only if research
 invalidates the VBS design.
 
+## 9bis. Implementation deviation log (kept per charter — all visible, none silent)
+
+1. **`server.test.ts` needed no change.** The plan's predicted 4-line static-mount→raw-route
+   adaptation was based on a misread of the WIP diff (those 4 lines were the package-3 repos-stats
+   expectation). The baseline suite passes unchanged over the dynamic raw route — better outcome.
+2. **`raw-fs-register.test.ts` salvaged as `raw-register.test.ts`** (raw + register describes
+   only; the fs.ts describe belongs to package 3 with its route).
+3. **`open.ts` daemon-awareness check widened** vs. the plan's `justRegistered` flag: `open`
+   probes the live daemon's actual `GET /api/repos` list and live-registers whenever the repo is
+   missing from it — also covering a repo registered earlier while the daemon was already running.
+   Strictly more correct; unit-tested.
+4. **`serve.ts` shutdown handler** installs SIGINT/SIGTERM `deleteDaemonInfo` only (no
+   activity-flush — package 3's concern stripped per §3.1).
+5. **eslint config**: added `fetch`/`AbortSignal` to the `.mjs` globals list (Node 20+ web
+   globals used by `open-associate-e2e.mjs`) — same no-new-dependency pattern as the existing list.
+6. **`associate` hardened beyond WIP** per §7bis: VBS presence check + PS1 `-File` fallback,
+   `SHChangeNotify` via PowerShell `-EncodedCommand` P/Invoke (best-effort), full-path
+   `wscript.exe`, `/t REG_SZ` made explicit, `On Error Resume Next` in the launcher, injectable
+   `regRun`/`notifyShell`/`hasVbs` seams, `removeAssociation` clears both launcher kinds.
+7. **`real-agent-e2e.mjs` prompts travel via stdin**, not argv: on Windows `claude` is a `.cmd`
+   shim (requires `shell: true`) and shell-mode arg concatenation shredded a quoted prompt —
+   observed empirically on the first run (both shredded attempts logged in the report), fixed,
+   then the full chain passed on attempt 1.
+8. **Demo-environment note:** a leftover daemon from the quarantined WIP session (pid 1800,
+   port 4317, WIP-build response shape) was killed to demonstrate item (d) against this package's
+   build; the demo's own spawned daemon (pid 26864) was killed after evidence capture and its
+   scratch repo entry removed from `~/.chartroom/repos.json`. The association itself is left
+   installed (it is the deliverable); `chartroom associate --remove` reverses it.
+
 ## 10. Implementation order (small conventional commits throughout)
 
 1. Researcher pass (R1–R5) → fold verdicts into this plan (visible deviation log).
