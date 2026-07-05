@@ -68,6 +68,15 @@ missing ids only (staleness rules like `ttl_days`/orphans are phase 2).
 - `--json` -- emit the full structured result instead of a human-readable list.
 - Exit codes: `0` clean, `1` one or more issues found, `2` fatal (not a repo, fs error).
 
+### `.chartroomignore`
+Doc discovery (shared by `init`/`index`/`check`/`fix-links`, the pre-commit hook, and the daemon)
+walks every `*.md` under the repo root, skipping built-in noise dirs (`.git`, `node_modules`,
+`.turbo`, `dist`, `coverage`, `.docs`) and anything matched by the top-level `.gitignore`. To
+exclude content that is *tracked in git* but must not be treated as a managed doc (vendored apps,
+byte-exact test fixtures, templates copied verbatim into other repos), add a top-level
+`.chartroomignore` -- same gitignore syntax, applied additively on top of `.gitignore`. Matched
+files never get an `id:` injected, never appear in the index, and are not counted by `check`.
+
 ## Pre-commit hook behavior
 
 `chartroom init` installs `.git/hooks/pre-commit` as a small Node-shebang shim (marked with a
