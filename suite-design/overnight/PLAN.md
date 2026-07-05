@@ -1,42 +1,44 @@
-# Overnight Master Plan — Wave 1
+# Marathon Master Plan — the rest of the Ship
 
-Source of truth: `suite-design/Suite-Architecture_and_Website_Spec.md`, `suite-design/ChartRoom_Spec.md`.
-First Officer session started 2026-07-05 ~00:30. Attempt #1 (per watchdog.log), fresh start — no prior STATUS.md existed.
+History: Chart Room v1 (all 5 build-order phases + one hardening pass) was delivered, adversarially
+reviewed, and merged to `ship-wave1` by the overnight mission — see `MORNING-REPORT.md`. That
+mission stood down cleanly (`DONE`, 2026-07-05 ~09:xx). The marathon now continues on the same
+integration branch. Kickoff briefing: `suite-design/MARATHON-KICKOFF-PROMPT.md`.
 
-## Scope decision for tonight
-Per kickoff prompt: stay in the `shareWork` repo (no migration to a fresh `ship/` repo, no `apps/harbor` move tonight — that's future work per the architecture spec §3 migration note). Add `packages/` and `plugins/` at repo root, additive only. `team-tasks/` untouched.
+## Work queue (strict order; each package fully done before the next implements)
 
-## Package sequence (strict, one at a time)
-
-| # | Package | Spec ref | Status |
-|---|---|---|---|
-| 0 | Monorepo scaffold (pnpm workspaces + turborepo, shared tsconfig/lint) | Architecture §3 | **PASS, merged to ship-wave1** |
-| 1 | Chart Room phase 1 — Indexer + CLI + resolution + pre-commit hook | ChartRoom_Spec §8.1 | pending |
-| 2 | Chart Room phase 2 — Viewer (read-only) | ChartRoom_Spec §8.2 | pending |
-| 3 | Chart Room phase 3 — Editor (Milkdown round-trip) | ChartRoom_Spec §8.3 | pending |
-| 4 | Chart Room phase 4 — Interactive blocks + inbox | ChartRoom_Spec §8.4 | pending |
-| 5 | Chart Room phase 5 — Agent surface polish (MCP, skill, hook, llms-txt) | ChartRoom_Spec §8.5 | pending |
-| 6 | (only if capacity) Bridge phase 1 — plugin skeleton + http hooks + changelog capture | Ship_Spec §9 | not started |
-| 7 | (only if capacity) Bridge phase 2 — ledger + MCP | Ship_Spec §9 | not started |
-| 8 | (only if capacity) Settings manager simulator (read-only core) | Trio_Specs §B | not started |
-
-Never start package N+1 before N is Reviewer-PASS and merged to `ship-wave1`.
+| # | Package | Status |
+|---|---|---|
+| 0 | Charter the crew (`.claude/agents/wave-*.md` + `MISSION-CONTEXT.md`, dry-run proofs, commit) | **in progress** |
+| 1 | Housekeeping + dogfood (reconcile git vs tracking, push policy, Chart Room onto this repo) | pending |
+| 2 | Chart Room v1.1 (staleness rules, whitespace-gap fix, real-agent e2e proof, `associate`, `open`) | pending |
+| 3 | Hull refactor → Captain's Deck (one Fastify host, Chart Room as first plugin, Deck UI shell, claude chip) | pending |
+| 4 | Bridge phase 1 (Crew plugin skeleton + http hooks + ship-log changelog capture) | pending |
+| 5 | Bridge phase 2 (ship-ledger + MCP + native task mirroring) | pending |
+| 6 | Bridge phase 3 (ship-inbox: permission queue, agent + Chart Room questions, always-allow) | pending |
+| 7 | Settings manager (hull plugin + UI tab: simulator → editor with rails → template packs) | pending |
+| 8 | Crew — Bridge phase 4 (full role set, scrutiny presets, SessionStart wiring, Quartermaster) | pending |
+| 9 | Bridge console (thin fleet view + rollup + inbox badge) | pending |
+| 10 | Scheduler productization (Lookout → real package: reset-detector lib, graceful-pause skill, fallback) | pending |
+| 11 | Skill analytics (transcript collector + CLI + console panel) | pending |
+| 12 | Sea Chest code-complete (Locker phases 1–3 as code + migration files only; park live seams) | pending |
+| 13 | Comm phase 1 (ship-voice laptop service + summarize-for-speech, text-mode acceptance) | pending |
 
 ## Process per package (non-negotiable)
-1. Team Lead (spawned alone) reads spec + current code, commissions Researcher if needed, writes plan to `suite-design/overnight/plans/<package-slug>-plan.md`. No developer yet.
-2. Lead submits plan to First Officer (me). I challenge/approve or send back. Recorded in STATUS.md.
-3. Only on approval: Lead dispatches Developers (parallel only if non-overlapping files), integrates.
-4. Lead hands to Reviewer/Critic (adversarial): checks diff vs spec+plan, runs build/tests/acceptance script, explicit PASS/FAIL.
-5. Lead reports verdict to me. Accept only on PASS. Merge feature branch → `ship-wave1`. Changelog fragment written.
+
+Team Lead plan (saved to `plans/`) → First Officer challenge/approval → Developer implementation →
+independent adversarial Reviewer, explicit PASS/FAIL → FO merges feature branch → `ship-wave1` only
+on PASS → FO pushes `ship-wave1` (plain push, never force). Changelog fragment per package; rm
+banned (REMOVALS.md); `team-tasks/` untouched; Captain-only calls to DECISIONS-NEEDED.md; parked
+seams to CAPTAIN-TODO.md; read CAPTAIN-INBOX.md at every package boundary.
+
+**Planning pipeline rule:** the *next* package's Team Lead may research and write its plan while the
+current package implements. Implementation is strictly sequential — never two packages building at
+once.
 
 ## Git
-- Integration branch: `ship-wave1` (created from main HEAD at start of session).
-- Feature branch per package: `ship-wave1/<package-slug>`.
-- Push `ship-wave1` after every accepted package (remote `origin` exists — confirmed via `git branch -a`).
 
-## Current position
-Package 0 (monorepo scaffold) is **done**: PASS verdict, fast-forward merged `ship-wave1-scaffold` → `ship-wave1` (f57ee02..8a862ea). Push to origin remains blocked by this session's permission mode (tried 3x across two instances); local commits are safe, will keep retrying after each accepted package.
-
-Package 1 (Chart Room phase 1 — Indexer + CLI + resolution + pre-commit hook, `ChartRoom_Spec.md` §8.1) on feature branch `ship-wave1-cr-phase-1`: first Team Lead dispatch died with no durable output (no plan file, no commits) — reconciled, re-dispatching Team Lead from scratch, same plan-first process (plan lands in `suite-design/overnight/plans/01-cr-phase1-plan.md`, no developer until First Officer approves).
-
-**2026-07-05 (resumed instance, 2nd resume):** plan approved, lib layer implemented and verified (typecheck + unit tests clean), but CLI/hook/acceptance-script portion of package 1 was not yet started when this instance's predecessor ended — resuming implementation in place on `ship-wave1-cr-phase-1`, no restart from scratch.
+- Integration branch: `ship-wave1` (local only — origin currently has just `main`; first push
+  establishes the remote branch).
+- Feature branch per package off up-to-date `ship-wave1` (dash naming, e.g. `ship-wave1-<slug>`);
+  verify the branch point includes the Lookout files.
