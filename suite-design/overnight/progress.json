@@ -1,0 +1,144 @@
+{
+  "packages": [
+    {
+      "id": 0,
+      "title": "Charter the crew",
+      "status": "PASS+merged",
+      "stage_progress": 100,
+      "difficulty": "S",
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": "charter + mission context + dry-runs, merged 5da7b59/ae1d0b7"
+    },
+    {
+      "id": 1,
+      "title": "Housekeeping + dogfood",
+      "status": "plan approved",
+      "stage_progress": 25,
+      "difficulty": "S",
+      "remaining_guess_h": 1.5,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": "plan approved with .chartroomignore direction; implementing next"
+    },
+    {
+      "id": 2,
+      "title": "Chart Room v1.1",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 4,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 3,
+      "title": "Hull refactor → Captain's Deck",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 6,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": "AMENDED (Captain Order 1): Deck also gets a 'Voyage' tab rendering progress.json live (file-watched)."
+    },
+    {
+      "id": 4,
+      "title": "Bridge phase 1",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 3,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 5,
+      "title": "Bridge phase 2",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 3,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 6,
+      "title": "Bridge phase 3",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 4,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 7,
+      "title": "Settings manager",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 4,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 8,
+      "title": "Crew — Bridge phase 4",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 4,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 9,
+      "title": "Bridge console",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 2,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 10,
+      "title": "Scheduler productization",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 3,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 11,
+      "title": "Skill analytics",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 3,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 12,
+      "title": "Sea Chest code-complete",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 5,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    },
+    {
+      "id": 13,
+      "title": "Comm phase 1",
+      "status": "pending",
+      "stage_progress": 0,
+      "difficulty": null,
+      "remaining_guess_h": 3,
+      "updated_at": "2026-07-05T13:24:00+02:00",
+      "note": ""
+    }
+  ]
+}
