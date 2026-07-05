@@ -524,6 +524,79 @@ describe('round-trip engine — fixture-based no-op + single-edit suite (plan §
       expect(occurrences).toBe(2);
     });
   });
+
+  // Fix for the second tracked follow-up in DECISIONS-NEEDED.md's block-reorder entry (the
+  // "smaller, pre-existing whitespace-only defect"): the denser positional gap-alignment pass in
+  // `reconstructFile` used to *overwrite* a reorder pairing's implied original index with a purely
+  // positional one whenever the reordered block landed inside an equal-length inter-anchor region.
+  // The reordered block then masqueraded as positionally continuous with its new neighbor and
+  // inherited an original gap that no longer applies (whitespace only -- block content was never
+  // affected). The fill is now reorder-aware: it never overwrites an index already claimed by a
+  // `matchReorderedBlocks` pairing.
+  describe('whitespace-gap quirk on reorder (DECISIONS-NEEDED.md whitespace-only defect, now fixed)', () => {
+    // The exact DECISIONS-NEEDED repro shape: heading -> block A (with an unusual 3-blank-line gap
+    // after the heading) -> unrelated blocks -> block B; then A and B are swapped. The unrelated
+    // blocks are required: they become the LCS anchors, so the swapped blocks each sit alone in an
+    // equal-length (1:1) inter-anchor region -- exactly the configuration where the positional
+    // fill used to clobber the reorder pairing.
+    const THREE_BLANK_GAP = '\n\n\n\n\n'; // block terminator + 3 blank lines + next block's start
+    const rawReorder =
+      '# Title' + THREE_BLANK_GAP + 'Block A text.\n\nUnrelated one.\n\nUnrelated two.\n\nBlock B text.\n';
+
+    it('reordering does not leak the original heading->A 3-blank-line gap onto the new heading->B adjacency', () => {
+      const before = segmentDocument(rawReorder);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+
+      // Pure drag-reorder: swap A (index 1) and B (index 4), no other edit.
+      [children[1], children[4]] = [children[4], children[1]];
+      const editedDoc = engine.schema.topNodeType.create(null, children);
+
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      // The new heading->B adjacency is a genuinely new one the user created by reordering, so it
+      // gets the documented DEFAULT_GAP -- NOT the original heading->A gap's 3 blank lines. The
+      // pre-fix code produced '# Title' + THREE_BLANK_GAP + 'Block B text.' here.
+      expect(result).not.toContain('# Title' + THREE_BLANK_GAP + 'Block B text.');
+      expect(result).toBe(
+        '# Title\n\nBlock B text.\n\nUnrelated one.\n\nUnrelated two.\n\nBlock A text.\n',
+      );
+    });
+
+    it('no-reorder unusual spacing still preserves original gaps (no over-skip regression)', () => {
+      // Guard against over-correcting: with NO reorder in play, the positional fill must still do
+      // its original job -- edited-in-place blocks (which never appear in the LCS) must keep their
+      // original unusual inter-block spacing rather than collapsing to DEFAULT_GAP.
+      const raw = '# Title' + THREE_BLANK_GAP + 'Alpha para.' + THREE_BLANK_GAP + 'Beta para.\n';
+      const before = segmentDocument(raw);
+
+      // Baseline: the no-op round trip stays byte-identical, unusual gaps and all.
+      const noopDoc = buildDocNodeFromBlocks(engine, before.blocks);
+      expect(reconstructFile(engine, before, extractCurrentBlocks(engine, noopDoc))).toBe(raw);
+
+      // Edit BOTH paragraphs in place so neither lands in the LCS -- the equal-length-region
+      // positional fill is then the only thing standing between the original gaps and DEFAULT_GAP.
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+      children[1] = replaceTextInNode(children[1], 'Alpha', 'Alpha-EDITED')!;
+      children[2] = replaceTextInNode(children[2], 'Beta', 'Beta-EDITED')!;
+      expect(children[1]).toBeTruthy();
+      expect(children[2]).toBeTruthy();
+      const editedDoc = engine.schema.topNodeType.create(null, children);
+
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      expect(result).toBe(
+        '# Title' + THREE_BLANK_GAP + current[1].text + THREE_BLANK_GAP + current[2].text + '\n',
+      );
+      expect(current[1].text).toContain('Alpha-EDITED');
+      expect(current[2].text).toContain('Beta-EDITED');
+    });
+  });
 });
 
 describe('matchReorderedBlocks — second-pass reorder matching, pure-function unit tests', () => {
