@@ -85,6 +85,25 @@ client fields, Sidebar accepting id-less docs, and `associate`/`open` commands.
   expected ≥177, as the regression floor).
 - Whether package 2's `repo-register` route landed with any CSRF guard (if not, §4.5 adds one).
 
+## 0-DEVIATIONS (implementation, visible per charter)
+
+1. **§6.1 "kill by pid; both discovery files cleared"** — on Windows `process.kill` is
+   TerminateProcess (signal handlers never run), so no external kill can demonstrate graceful
+   cleanup. `deck-boot.mjs` splits honestly: Phase A proves the real spawned bin serves
+   everything on one port (+ guards + discovery files written + live voyage), teardown by pid;
+   Phase B drives `hull.stop()` in-process — the exact code the SIGINT handler runs — and
+   asserts both discovery files cleared.
+2. **Voyage watcher startup race** (found empirically): a rename-over landing before chokidar's
+   `ready` fires NO event. `VoyageBackend.start()` now awaits `ready` and re-loads once —
+   regression-tested in voyage.test.ts.
+3. **needsYouCount phase-1 semantics** — see 0-REFRESH item 7 (id-keyed, matches today's inbox;
+   v1.2 slice upgrades both).
+4. **suite-conventions/ship are `private: true`** — R6: npm `ship` taken, publishing is
+   Captain-only; private guards against accidental publish. Consequence (noted for the Captain):
+   `chartroom` gained a `workspace:*` dep on suite-conventions, so publishing chartroom to npm
+   now requires publishing (and naming) suite-conventions first — parked in DECISIONS-NEEDED
+   already as the naming decision.
+
 ## 1. Scope
 
 1. **NEW `packages/suite-conventions`** (reduced scope per kickoff): `~/.suite/services.json`
