@@ -1,0 +1,185 @@
+:root {
+  color-scheme: light dark;
+  --crm-bg: #ffffff;
+  --crm-fg: #1a1a1a;
+  --crm-muted: #6b7280;
+  --crm-border: #e5e7eb;
+  --crm-accent: #2563eb;
+  --crm-surface: #f7f7f8;
+  --crm-tombstone-bg: #fef2f2;
+  --crm-tombstone-fg: #991b1b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --crm-bg: #16181d;
+    --crm-fg: #e5e7eb;
+    --crm-muted: #9ca3af;
+    --crm-border: #2a2d34;
+    --crm-accent: #60a5fa;
+    --crm-surface: #1d2027;
+    --crm-tombstone-bg: #2a1414;
+    --crm-tombstone-fg: #fca5a5;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--crm-bg);
+  color: var(--crm-fg);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  line-height: 1.55;
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-shell__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.app-shell__main {
+  flex: 1;
+  padding: 24px 32px;
+  min-width: 0;
+}
+
+.app-shell__error {
+  color: var(--crm-tombstone-fg);
+}
+
+.app-shell__placeholder {
+  color: var(--crm-muted);
+}
+
+.repo-switcher {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--crm-border);
+  background: var(--crm-surface);
+}
+
+.repo-switcher__brand {
+  font-weight: 600;
+}
+
+.repo-switcher__list {
+  display: flex;
+  gap: 8px;
+}
+
+.repo-switcher__repo {
+  border: 1px solid var(--crm-border);
+  background: transparent;
+  color: var(--crm-fg);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.repo-switcher__repo--active {
+  border-color: var(--crm-accent);
+  color: var(--crm-accent);
+}
+
+.sidebar {
+  width: 260px;
+  flex: none;
+  border-right: 1px solid var(--crm-border);
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.sidebar__heading {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--crm-muted);
+  margin: 16px 0 8px;
+}
+
+.sidebar__doc-list,
+.sidebar__toc {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar__doc-link,
+.backlinks-panel__link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--crm-fg);
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.sidebar__doc-link--active {
+  color: var(--crm-accent);
+  font-weight: 600;
+}
+
+.doc-view__tombstones {
+  margin: 12px 0 20px;
+}
+
+.tombstone-badge {
+  display: flex;
+  gap: 8px;
+  background: var(--crm-tombstone-bg);
+  color: var(--crm-tombstone-fg);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.llm-block {
+  border-left: 3px solid var(--crm-accent);
+  padding: 8px 12px;
+  margin: 12px 0;
+  background: var(--crm-surface);
+}
+
+.llm-block__tldr {
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.human-block {
+  margin: 12px 0;
+}
+
+.directive-fallback {
+  margin: 12px 0;
+  color: var(--crm-muted);
+}
+
+.backlinks-panel {
+  margin-top: 32px;
+  border-top: 1px solid var(--crm-border);
+  padding-top: 16px;
+}
+
+.backlinks-panel__empty {
+  color: var(--crm-muted);
+}
