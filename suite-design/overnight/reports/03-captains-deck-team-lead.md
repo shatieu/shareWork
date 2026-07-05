@@ -76,3 +76,86 @@ Mode respected: no code, no commits, no checkouts. All repo facts read via
   security design §4.5, acceptance demonstration §6, researcher questions §7).
 - Reviewer fan-out summaries are reflected in §3 verdicts; per-file hazards quoted there.
 - DECISIONS-NEEDED: new "Package 3 (Captain's Deck) planning" section.
+
+---
+
+# IMPLEMENTATION (2026-07-05/06, branch `ship-wave1-deck` off 3c8de99)
+
+Scope: FO-approved phase 1 ONLY (§10 cut line). Phase 2 stays on the quarantine branch,
+proposed as Chart Room v1.2 (Captain pending).
+
+## Step 0 — refresh pass (committed da7e1e4)
+
+Re-verified every seam against the merged v1.1 tree; results in plan `0-REFRESH` section.
+Key facts: `buildServer` was already a clean composition; `repo-register` landed with NO CSRF
+guard (retrofit confirmed needed); merged `interactiveBlocks` is id-keyed (phase-1 stats use
+id-keyed semantics matching today's inbox; v1.2 upgrades both surfaces together).
+Baseline test floors captured on 3c8de99: **chartroom 248/35 files, chartroom-ui 144/16**.
+
+## Backend commits (mine, in order)
+
+- `2ca8e1d` suite-conventions: services-json (atomic write, corrupt-tolerant), station contract,
+  hook-event zod schemas (loose, discriminated union), voyage schema + weighted-progress formula,
+  `isAllowedHostHeader` + `DECK_CLIENT_HEADER`. 35 tests.
+- `824c194` chartroom extraction: `registerChartroomRoutes` (all /api routes), `buildServer`
+  thinned to Fastify+static+routes, `src/station.ts` (`createChartroomStation` — factory reads
+  registry + rebuilds; start = watchers + daemon.json WITH HOST PORT; stop = daemon.json delete
+  first, then watcher close), `chartroom serve` refactored onto the station (one codepath),
+  `"./station"` export + suite-conventions dep. 6 station tests; full suite 254 green.
+- `9b948f9` repos stats (docCount incl. unidentified, brokenLinkCount, needsYouCount inlined with
+  today's inbox definition) + repos-stats tests (WIP test ADAPTED: id-less-doc counting case
+  removed — that's the cut v1.2 slice; noted in code comment). server.test.ts pinned new shape.
+- `cb1c0cf` claude-session hardened salvage per researcher R1-R3: wt branch = DIRECT
+  `spawn('wt.exe',['-w','new','-d',repo,'cmd','/k','claude'])` (no `cmd /c start` wrapper; wt
+  can't resolve .cmd shims so the command rides in `cmd /k`); fallback = `cmd /c start <title>
+  cmd /k claude` with `cwd:` (no `cd /d`); `;`-paths routed to fallback; env hygiene mirrors the
+  vendor binary (strip CLAUDECODE + 3 session vars + ENTRYPOINT + AI_AGENT, INVOCATION_ID='');
+  wt detection = `where wt` + LOCALAPPDATA existsSync; darwin per-request launcher (TOCTOU fix);
+  ActivityLog param dropped (parked). CSRF: route 403s without `x-ship-deck`; same guard
+  retrofitted onto `POST /api/repos/register`; `chartroom open` sends the header. 10 new tests
+  incl. spaces-in-path, `;`-path, env-strip, darwin/linux argv, 403. chartroom suite 268 green.
+- `d2ae02e` packages/ship: `createHull` (Host-allowlist onRequest guard w/ port pinning after
+  listen, UI static skip-if-absent, `/api/hull/stations`, duplicate-tab boot error, HostContext
+  getContract, services.json write on start / clear FIRST on stop), voyage backend
+  (`/api/voyage` parse-tolerant last-good+stale, SSE via `reply.hijack()` per R4, 25s heartbeat,
+  chokidar single-file watch per R5), `ship serve` (127.0.0.1 bind, 4317+ walk, voyage default
+  `./suite-design/overnight/progress.json`), README (route ownership + security posture +
+  naming note), copy-ui-dist script + turbo task. 13 tests (SSE disconnect via real ephemeral
+  listen — inject can't propagate destroy, per R4; comment pinned in test).
+- `638fbb6` acceptance `packages/ship/acceptance/deck-boot.mjs` — see deviations.
+- `1de1f03` plan deviations recorded (see plan `0-DEVIATIONS`): (1) Windows kill-by-pid can't
+  run signal handlers → acceptance Phase B drives `hull.stop()` in-process for the
+  cleared-files assertion; (2) found+fixed a real startup race: chokidar rename-over BEFORE
+  watcher 'ready' fires NO event → `VoyageBackend.start()` awaits ready + re-loads (empirically
+  reproduced, regression-tested); (3) undici fetch drops Host overrides → acceptance evil-Host
+  probe uses raw node:http.
+
+## Acceptance evidence (backend half)
+
+`node acceptance/deck-boot.mjs` — ALL PASS (18 assertions): real `ship serve` bin on ONE port
+served Deck html, `/api/hull/stations` (docs tab), `/api/repos` (stats), a doc, `/api/voyage`;
+`Host: evil.com → 403`; claude-session w/o header → 403; scratch-home `services.json` +
+`daemon.json` both registered with the hull port; atomic rename-over of progress.json reflected
+live; Phase B: `hull.stop()` cleared both discovery files.
+
+All 6 chartroom acceptance scripts PASS unchanged (git-mv, two-repo, editor/ask-me round-trips,
+agent-surface e2e, open-associate e2e incl. warm-daemon live registration through the new CSRF
+header) — standalone `chartroom serve` behavior preserved.
+
+## Chip proof (real machine, this Windows box, 2026-07-05 ~23:25)
+
+In-process hull composition over a scratch registry pointing at the REAL repo
+`C:/thisismydesign/shareWork`; spawner = real `child_process.spawn` wrapped only to record argv.
+Sequence: `POST /api/repos/wrong-repo/claude-session` (with header) → **404**; POST without
+header → **403**; POST with `x-ship-deck: 1` → **200 {"ok":true}**. Recorded argv:
+`wt.exe -w new -d C:/thisismydesign/shareWork cmd /k claude` (detached, stdio ignore,
+CLAUDECODE stripped, INVOCATION_ID ''). Observed: WindowsTerminal MainWindowTitle became
+"Claude Code"; process tree `WindowsTerminal(7768) → cmd.exe "cmd /k claude"(22656) →
+claude.exe(33052, npm shim bin path)` — a real interactive claude session in the right repo.
+Cleanup: Stop-Process 33052 + 22656 only (nothing else touched).
+
+## Full gates
+
+`pnpm turbo build lint test` → **12/12 tasks green** (suite-conventions, chartroom,
+chartroom-ui, ship × build/lint/test; the "no output files for test" turbo warnings are the
+pre-existing coverage-outputs pattern, all packages alike).
