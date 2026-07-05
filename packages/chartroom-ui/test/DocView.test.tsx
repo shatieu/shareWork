@@ -49,6 +49,8 @@ See [Gone](gone.md "id:gone") for details.
 
 function fixtureDetail(): DocDetail {
   return {
+    id: 'doc-a',
+    key: 'doc-a',
     doc: {
       path: 'doc-a.md',
       title: 'Doc A',
@@ -117,6 +119,8 @@ describe('DocView', () => {
     // `<Checkbox>` directly and previously never exercised that real `disabled` prop), this test
     // goes through the full real pipeline `DocView` actually uses in production.
     const rawWithChecklist: DocDetail = {
+      id: 'doc-c',
+      key: 'doc-c',
       doc: {
         path: 'doc-c.md',
         title: 'Doc C',
