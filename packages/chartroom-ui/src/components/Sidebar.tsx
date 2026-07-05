@@ -26,21 +26,24 @@ export function Sidebar({ docs, activeDocId, onSelectDoc, raw }: SidebarProps): 
     <nav className="sidebar" aria-label="Doc navigation">
       <h2 className="sidebar__heading">Docs</h2>
       <ul className="sidebar__doc-list">
-        {docs
-          .filter((doc): doc is DocSummary & { id: string } => doc.id !== null)
-          .map((doc) => (
-            <li key={doc.id}>
+        {/* v1.1: id-less docs are listed too, addressed by their doc key (`id ?? path`) -- the
+            daemon's routes resolve either form (doc-lookup.ts::findDoc). */}
+        {docs.map((doc) => {
+          const key = doc.id ?? doc.path;
+          return (
+            <li key={key}>
               <button
                 type="button"
                 className={
-                  doc.id === activeDocId ? 'sidebar__doc-link sidebar__doc-link--active' : 'sidebar__doc-link'
+                  key === activeDocId ? 'sidebar__doc-link sidebar__doc-link--active' : 'sidebar__doc-link'
                 }
-                onClick={() => onSelectDoc(doc.id)}
+                onClick={() => onSelectDoc(key)}
               >
                 {doc.title}
               </button>
             </li>
-          ))}
+          );
+        })}
       </ul>
 
       {toc.length > 0 && (

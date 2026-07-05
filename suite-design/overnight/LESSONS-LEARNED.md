@@ -59,3 +59,31 @@ three builder/reviewer charters: inspect foreign commits only via `git show`/
 `git log -p`/`git diff` (or a scratchpad `git worktree add` for builds); never
 checkout/switch/branch outside the assigned feature branch; leave HEAD where it
 belongs. Stray label kept (rm ban), noted in REMOVALS.md.
+
+## 2026-07-05 (night) — ScheduleWakeup does not survive a hard token cap
+The FO scheduled wakeups, hit the session limit at ~18:00, and nothing fired at
+the 21:30 window reset — the mission sat idle ~1h until the Captain intervened.
+Session-level timers die with the session. Fix: session-INDEPENDENT guard
+(suite-design/lookout/guard.ps1) run by Windows Task Scheduler every 2 min:
+keeps the sensor alive and resurrects the FO headlessly (claude -c -p, once
+per usage window) when tokens are back and the repo is idle 15+ min.
+Registration of the task itself requires the Captain (classifier correctly
+blocks self-installing a bypassPermissions resurrection loop).
+
+## 2026-07-05 (night) — shell cwd persists; forensics with relative paths lies
+A `cd suite-design/overnight` in an earlier compound command silently stuck,
+and every later relative-path check ran from the wrong directory — producing a
+false "the entire Lookout directory was deleted" panic (it was never touched;
+even `git ls-tree -- <relative path>` filters relative to cwd). Rule: in shell
+forensics and anything load-bearing, use absolute paths or re-verify `pwd`
+first; treat "file suddenly missing" as a cwd hypothesis before a deletion
+hypothesis.
+
+## 2026-07-05 (night) — reviews: lean by default, depth scales with named risk
+Captain's calibration: full adversarial re-verification (forced cache-busted
+rebuilds, neighboring suites, hand-traced algorithms) costs more tokens/time
+than it catches once the crew is warmed up. Reviewer charter rewritten: always
+run the acceptance line + the package's own test suite personally; checklist
+the diff against plan/spec for missing items; spot-check the 2-3 riskiest
+changes; trust recorded TL evidence for the rest; stop at a confident verdict.
+FO names the risk level in each review dispatch; deeper only on named risk.

@@ -10,6 +10,7 @@ import {
   type AskMeAnswerValue,
 } from '../../interactive-blocks.js';
 import { rebuild } from '../repo-state.js';
+import { findDoc } from '../doc-lookup.js';
 import type { RepoRuntime } from '../server.js';
 
 function findRepo(repos: RepoRuntime[], repoId: string): RepoRuntime | undefined {
@@ -57,8 +58,9 @@ export function registerDocAskMeRoute(app: FastifyInstance, repos: RepoRuntime[]
     }
 
     const state = repo.getState();
-    const doc = state.index.docs[docId];
-    if (!doc) {
+    // v1.1: `:docId` is a doc key (`id ?? path`) -- unidentified docs' questions are answerable too.
+    const found = findDoc(state, docId);
+    if (!found) {
       return reply.code(404).send({ error: `unknown doc '${docId}' in repo '${repoId}'` });
     }
 
@@ -70,7 +72,7 @@ export function registerDocAskMeRoute(app: FastifyInstance, repos: RepoRuntime[]
       return reply.code(400).send({ error: 'value must be a string, number, or array of strings' });
     }
 
-    const absPath = join(repo.absPath, doc.path);
+    const absPath = join(repo.absPath, found.entry.path);
     const raw = readFileSync(absPath, 'utf8');
 
     const { askMe } = extractInteractiveBlocks(raw);

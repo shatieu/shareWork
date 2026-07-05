@@ -5,7 +5,7 @@ import { readFrontmatter } from './frontmatter.js';
 import { extractFirstH1, extractHeadings, extractImages, extractLinks } from './markdown.js';
 import { discoverDocFiles, normalizeSlashes } from './repo.js';
 import { computeExpectedHref, normalizeHref } from './link-paths.js';
-import { emptyIndex, readIndex, type ChartRoomIndex, type DocEntry } from './index-schema.js';
+import { emptyIndex, readIndex, type ChartRoomIndex, type DocEntry, type DocStaleness } from './index-schema.js';
 
 export interface DuplicateIdIssue {
   id: string;
@@ -38,6 +38,30 @@ interface ParsedDoc {
   headings: string[];
   links: ReturnType<typeof extractLinks>;
   images: ReturnType<typeof extractImages>;
+  staleness?: DocStaleness;
+}
+
+/**
+ * Lift the staleness opt-ins (`ttl_days:`, `sources:`) from parsed frontmatter (v1.1, spec §6).
+ * Captured for identified AND unidentified docs. Malformed values are ignored silently
+ * (consistent with the indexer's existing frontmatter tolerance): `ttl_days` must be a positive
+ * finite number; `sources` entries must be non-empty strings (non-string/empty entries are
+ * dropped, and an array with no valid entry is treated as absent).
+ */
+function liftStaleness(data: Record<string, unknown>): DocStaleness | undefined {
+  const out: DocStaleness = {};
+  const ttl = data.ttl_days;
+  if (typeof ttl === 'number' && Number.isFinite(ttl) && ttl > 0) {
+    out.ttlDays = ttl;
+  }
+  const sources = data.sources;
+  if (Array.isArray(sources)) {
+    const valid = sources.filter((s): s is string => typeof s === 'string' && s.trim().length > 0);
+    if (valid.length > 0) {
+      out.sources = valid;
+    }
+  }
+  return out.ttlDays !== undefined || out.sources !== undefined ? out : undefined;
 }
 
 function readDocRaw(repoRoot: string, relPath: string, overrides?: Map<string, string>): string {
@@ -70,6 +94,7 @@ function parseDoc(repoRoot: string, relPath: string, overrides?: Map<string, str
     headings: extractHeadings(raw),
     links: extractLinks(raw),
     images: extractImages(raw),
+    staleness: liftStaleness(fm.data),
   };
 }
 
@@ -147,7 +172,11 @@ export function buildFreshIndex(repoRoot: string, options: BuildIndexOptions = {
       }
       return { targetId, hrefAsWritten: link.href, stale };
     });
-    return { path: doc.relPath, title: doc.title, headings: doc.headings, outbound };
+    const entry: DocEntry = { path: doc.relPath, title: doc.title, headings: doc.headings, outbound };
+    if (doc.staleness) {
+      entry.staleness = doc.staleness;
+    }
+    return entry;
   }
 
   const docs: Record<string, DocEntry> = {};

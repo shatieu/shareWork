@@ -48,6 +48,10 @@ export interface BrokenLinkIssue {
 }
 
 export interface DocDetail {
+  /** frontmatter id, or null for an unidentified (id-less) doc -- v1.1 contract. */
+  id: string | null;
+  /** canonical doc key (`id ?? path`) -- what belongs in this doc's own URLs. */
+  key: string;
   doc: DocEntry;
   raw: string;
   backlinks: BacklinkEntry[];

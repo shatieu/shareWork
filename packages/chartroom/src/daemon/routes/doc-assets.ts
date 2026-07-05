@@ -3,12 +3,30 @@ import { join, relative } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { computeExpectedHref } from '../../link-paths.js';
 import { normalizeSlashes } from '../../repo.js';
+import { findDoc } from '../doc-lookup.js';
 import type { RepoRuntime } from '../server.js';
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
 function findRepo(repos: RepoRuntime[], repoId: string): RepoRuntime | undefined {
   return repos.find((repo) => repo.id === repoId);
+}
+
+/**
+ * Folder name under `assets/` for a doc's pasted images. Identified docs keep the exact
+ * `assets/<doc-id>/` convention (which `fix-links.ts::computeImageFixes` mechanism 2 depends on).
+ * An unidentified doc's key is a repo-relative *path* -- not usable as a single directory segment
+ * verbatim -- so it degrades to a flat, slug-like folder name derived from that path. Such docs
+ * don't get the id-keyed image-repair fallback anyway (no id to survive a `git mv`), so nothing
+ * downstream depends on this exact shape; it only has to be stable and collision-unlikely.
+ */
+function assetFolderName(id: string | null, key: string): string {
+  if (id) return id;
+  return key
+    .replace(/\.md$/i, '')
+    .split(/[\\/]/)
+    .join('--')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-');
 }
 
 /**
@@ -48,8 +66,9 @@ export function registerDocAssetsRoute(app: FastifyInstance, repos: RepoRuntime[
     }
 
     const state = repo.getState();
-    const doc = state.index.docs[docId];
-    if (!doc) {
+    // v1.1: `:docId` is a doc key (`id ?? path`) -- pasting into an unidentified doc works too.
+    const found = findDoc(state, docId);
+    if (!found) {
       return reply.code(404).send({ error: `unknown doc '${docId}' in repo '${repoId}'` });
     }
 
@@ -61,14 +80,14 @@ export function registerDocAssetsRoute(app: FastifyInstance, repos: RepoRuntime[
       return reply.code(413).send({ error: `payload exceeds the ${MAX_BYTES}-byte safety cap` });
     }
 
-    const assetDirAbs = join(repo.absPath, 'assets', docId);
+    const assetDirAbs = join(repo.absPath, 'assets', assetFolderName(found.id, found.key));
     mkdirSync(assetDirAbs, { recursive: true });
     const filename = `${Date.now()}.png`;
     const assetAbsPath = join(assetDirAbs, filename);
     writeFileSync(assetAbsPath, bytes);
 
     const assetRelPath = normalizeSlashes(relative(repo.absPath, assetAbsPath));
-    const href = computeExpectedHref(doc.path, assetRelPath);
+    const href = computeExpectedHref(found.entry.path, assetRelPath);
 
     return { href };
   });

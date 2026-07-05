@@ -334,6 +334,17 @@ export function reconstructFile(
   // assumed to correspond 1:1 positionally — covering the overwhelmingly common "N blocks modified
   // in place, nothing inserted/deleted/reordered" case exactly, while still falling back to the
   // safe default gap for genuine insertions/deletions/reorders where lengths don't line up.
+  //
+  // The fill is reorder-aware: it never overwrites an implied index already claimed by a
+  // `matchReorderedBlocks` pairing (the only entries seeded above that can fall *inside* an
+  // inter-anchor region -- LCS matches are the anchors themselves). Without the guard, a reordered
+  // block sitting alone in an equal-length region would be re-mapped to the *positional* original
+  // index it now occupies, masquerading as positionally continuous with its new neighbor and
+  // inheriting an original gap that no longer applies (the whitespace-only defect tracked in
+  // DECISIONS-NEEDED.md's block-reorder entry: heading -> A with a 3-blank-line gap, A/B swapped,
+  // and the new heading -> B adjacency leaked A's 3-blank gap instead of `DEFAULT_GAP`). A
+  // reordered block's adjacencies are genuinely new ones the user created, so they must fall
+  // through to `DEFAULT_GAP` -- same reasoning as the anchor-list comment above.
   const impliedOrigIdxForCurrent = new Map<number, number>(matchedForCurrent);
   {
     let prevOrigEnd = 0;
@@ -344,7 +355,9 @@ export function reconstructFile(
       const curRegionLen = ci - prevCurEnd;
       if (origRegionLen === curRegionLen && origRegionLen > 0) {
         for (let k = 0; k < curRegionLen; k += 1) {
-          impliedOrigIdxForCurrent.set(prevCurEnd + k, prevOrigEnd + k);
+          if (!impliedOrigIdxForCurrent.has(prevCurEnd + k)) {
+            impliedOrigIdxForCurrent.set(prevCurEnd + k, prevOrigEnd + k);
+          }
         }
       }
       prevOrigEnd = oi + 1;

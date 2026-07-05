@@ -15,12 +15,29 @@ export interface OutboundLink {
   stale: boolean;
 }
 
+/**
+ * Per-doc staleness opt-ins lifted from frontmatter (v1.1, spec §6). Both fields are optional
+ * and additive — absent for docs that never opted in — so the index schema stays at version 1
+ * (readers already tolerate absent fields).
+ */
+export interface DocStaleness {
+  /** frontmatter `ttl_days:` — the doc is stale when its own last change is older than this. */
+  ttlDays?: number;
+  /**
+   * frontmatter `sources:` — gitignore-syntax globs; the doc is stale when any matching tracked
+   * file changed after the doc did.
+   */
+  sources?: string[];
+}
+
 export interface DocEntry {
   /** repo-root-relative, forward-slash-normalized path */
   path: string;
   title: string;
   headings: string[];
   outbound: OutboundLink[];
+  /** present only when the doc opted into staleness checking via frontmatter (v1.1). */
+  staleness?: DocStaleness;
 }
 
 export interface AssetEntry {
