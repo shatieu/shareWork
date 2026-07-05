@@ -23,22 +23,22 @@
     {
       "id": 2,
       "title": "Chart Room v1.1",
-      "status": "in review",
-      "stage_progress": 80,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "L",
-      "remaining_guess_h": 8,
-      "updated_at": "2026-07-05T20:45:26.013Z",
-      "note": "19 commits, all gates green, real-agent e2e live PASS; lean review dispatched"
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-05T20:52:55.732Z",
+      "note": "merged after lean-review PASS; interactive double-click step parked user-only"
     },
     {
       "id": 3,
       "title": "Hull refactor → Captain's Deck",
-      "status": "plan approved",
-      "stage_progress": 25,
+      "status": "implementing",
+      "stage_progress": 60,
       "difficulty": "XL",
       "remaining_guess_h": 10,
-      "updated_at": "2026-07-05T15:22:29.980Z",
-      "note": "plan approved with section-10 cut line; researcher R1-R6 in flight; awaits v1.1 merge"
+      "updated_at": "2026-07-05T20:52:55.732Z",
+      "note": "Deck implementation dispatching; rebase refresh against merged v1.1 first"
     },
     {
       "id": 4,
