@@ -53,9 +53,11 @@ describe('buildServer (Fastify app.inject(), no real TCP listener)', () => {
     const response = await app.inject({ method: 'GET', url: '/api/repos' });
     expect(response.statusCode).toBe(200);
     const body = response.json();
+    // Stats fields (docCount/brokenLinkCount/needsYouCount) have their own dedicated suite
+    // (repos-stats.test.ts); here we pin identity + zero-stats for two clean repos.
     expect(body).toEqual([
-      { id: 'repo-a', name: 'repo-a', absPath: repoARoot },
-      { id: 'repo-b', name: 'repo-b', absPath: repoBRoot },
+      { id: 'repo-a', name: 'repo-a', absPath: repoARoot, docCount: 1, brokenLinkCount: 0, needsYouCount: 0 },
+      { id: 'repo-b', name: 'repo-b', absPath: repoBRoot, docCount: 1, brokenLinkCount: 0, needsYouCount: 0 },
     ]);
   });
 
