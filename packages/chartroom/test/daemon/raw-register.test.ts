@@ -83,9 +83,32 @@ describe('GET /api/repos/:repoId/raw/* (dynamic raw route)', () => {
 });
 
 describe('POST /api/repos/register (live registration route)', () => {
+  // Registration persists registry state, so it carries the Deck's CSRF guard (plan 03 §4.5):
+  // every legitimate client (`chartroom open`, the Deck UI) attaches the x-ship-deck header.
+  const deckHeaders = { 'x-ship-deck': '1' };
+
+  it('403s without the x-ship-deck header, and the registrar is never invoked', async () => {
+    const calls: string[] = [];
+    const app = buildServer([], {
+      registrar: async (absPath: string) => {
+        calls.push(absPath);
+        return { id: 'new-repo', name: 'new-repo', absPath, alreadyRegistered: false };
+      },
+    });
+    const res = await app.inject({ method: 'POST', url: '/api/repos/register', payload: { path: repoRoot } });
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as { error: string }).error).toContain('x-ship-deck');
+    expect(calls).toEqual([]);
+  });
+
   it('501s without a registrar, 400s on a missing path, and passes a valid path through', async () => {
     const noRegistrar = buildServer([]);
-    const r501 = await noRegistrar.inject({ method: 'POST', url: '/api/repos/register', payload: { path: repoRoot } });
+    const r501 = await noRegistrar.inject({
+      method: 'POST',
+      url: '/api/repos/register',
+      headers: deckHeaders,
+      payload: { path: repoRoot },
+    });
     expect(r501.statusCode).toBe(501);
 
     const calls: string[] = [];
@@ -96,10 +119,15 @@ describe('POST /api/repos/register (live registration route)', () => {
       },
     });
 
-    const bad = await app.inject({ method: 'POST', url: '/api/repos/register', payload: {} });
+    const bad = await app.inject({ method: 'POST', url: '/api/repos/register', headers: deckHeaders, payload: {} });
     expect(bad.statusCode).toBe(400);
 
-    const ok = await app.inject({ method: 'POST', url: '/api/repos/register', payload: { path: repoRoot } });
+    const ok = await app.inject({
+      method: 'POST',
+      url: '/api/repos/register',
+      headers: deckHeaders,
+      payload: { path: repoRoot },
+    });
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ id: 'new-repo', alreadyRegistered: false });
     expect(calls).toEqual([repoRoot]);
@@ -111,7 +139,12 @@ describe('POST /api/repos/register (live registration route)', () => {
         throw new Error('not a git repository (or any parent up to filesystem root)');
       },
     });
-    const res = await app.inject({ method: 'POST', url: '/api/repos/register', payload: { path: repoRoot } });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/repos/register',
+      headers: deckHeaders,
+      payload: { path: repoRoot },
+    });
     expect(res.statusCode).toBe(400);
     expect((res.json() as { error: string }).error).toContain('not a git repository');
   });

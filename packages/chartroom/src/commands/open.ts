@@ -152,7 +152,9 @@ export async function openFile(fileArg: string, printUrl: boolean, deps: OpenDep
         try {
           const response = await fetchFn(`http://127.0.0.1:${port}/api/repos/register`, {
             method: 'POST',
-            headers: { 'content-type': 'application/json' },
+            // x-ship-deck: the daemon's CSRF guard on state-changing routes (plan 03 §4.5) --
+            // presence is the proof; a browser page can't attach a custom header cross-origin.
+            headers: { 'content-type': 'application/json', 'x-ship-deck': '1' },
             body: JSON.stringify({ path: repo.absPath }),
             signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS * 4),
           });

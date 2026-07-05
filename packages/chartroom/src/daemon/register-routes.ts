@@ -10,11 +10,14 @@ import { registerInboxRoute } from './routes/inbox.js';
 import { registerMcpRoute } from './routes/mcp.js';
 import { registerRawRoute } from './routes/raw.js';
 import { registerRepoRegisterRoute, type RepoRegistrar } from './routes/repo-register.js';
+import { registerClaudeSessionRoute, type ClaudeSessionRouteOptions } from './routes/claude-session.js';
 
 export interface ChartroomRouteOptions {
   /** Live-registration callback owned by the serve command / station lifecycle (v1.1). When
    * absent, `POST /api/repos/register` answers 501 -- tests and embedded servers opt in. */
   registrar?: RepoRegistrar;
+  /** Seams for the claude-session spawn route (plan 03 §4.5) -- tests inject a fake spawner. */
+  claudeSession?: ClaudeSessionRouteOptions;
 }
 
 /**
@@ -49,4 +52,5 @@ export function registerChartroomRoutes(
   registerInboxRoute(app, repos);
   registerMcpRoute(app, repos);
   registerRepoRegisterRoute(app, options.registrar);
+  registerClaudeSessionRoute(app, repos, options.claudeSession);
 }

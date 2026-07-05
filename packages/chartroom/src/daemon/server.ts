@@ -6,6 +6,7 @@ import fastifyStatic from '@fastify/static';
 import type { RepoState } from './repo-state.js';
 import { registerChartroomRoutes } from './register-routes.js';
 import type { RepoRegistrar } from './routes/repo-register.js';
+import type { ClaudeSessionRouteOptions } from './routes/claude-session.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
@@ -35,6 +36,8 @@ export interface BuildServerOptions {
    * against an already-running daemon). When absent, `POST /api/repos/register` answers 501 --
    * tests and embedded servers opt in. */
   registrar?: RepoRegistrar;
+  /** Seams for the claude-session spawn route (plan 03 §4.5) -- tests inject a fake spawner. */
+  claudeSession?: ClaudeSessionRouteOptions;
 }
 
 /**
@@ -58,7 +61,7 @@ export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = 
     });
   }
 
-  registerChartroomRoutes(app, repos, { registrar: options.registrar });
+  registerChartroomRoutes(app, repos, { registrar: options.registrar, claudeSession: options.claudeSession });
 
   return app;
 }
