@@ -41,3 +41,94 @@ No Captain-only decisions parked; nothing added to DECISIONS-NEEDED.md (dogfood 
 
 - `suite-design/overnight/plans/01-housekeeping-dogfood-plan.md` (new — the plan)
 - `suite-design/overnight/reports/01-housekeeping-team-lead.md` (this file)
+
+---
+
+# IMPLEMENTATION (2026-07-05, post FO approval)
+
+**Verdict: IMPLEMENTED — 8 commits on `ship-wave1-dogfood`, all gates green, acceptance line proven.**
+
+## Commits (ship-wave1..ship-wave1-dogfood)
+
+- `0441b4c` feat(chartroom): honor .chartroomignore during doc discovery
+- `8ed1d74` chore(dogfood): scope chart-room doc discovery for shareWork
+- `f5d331f` chore(dogfood): assign chart-room ids to repo docs (chartroom init)
+- `eafb12f` feat(dogfood): install chart-room skill; add Chart Room section to CLAUDE.md
+- `1fad2cd` chore(dogfood): assign chart-room id to root CLAUDE.md
+- `22408e6` test(dogfood): acceptance script + changelog fragment
+- `ecd3277` docs(dogfood): record hook-install parking and plan deviations
+- (`56c538d` docs(marathon): amend Lookout rule — **FO-authored**, landed on this branch because the
+  FO committed in the shared working copy at 13:32:53, seconds after the branch was cut. Docs-only;
+  merges up with the package. Flagged for FO awareness, nothing to fix crew-side.)
+
+## What was done, step by step
+
+1. **`.chartroomignore` support** (approved enabling change): `packages/chartroom/src/repo.ts` —
+   `loadGitignore()` became `loadIgnoreRules()`, additionally feeding a repo-root `.chartroomignore`
+   into the same `ignore` matcher. Zero new deps, zero API change; init/index/check/fix-links/hook/
+   daemon all inherit it via `discoverDocFiles`. `runInit` exported from `commands/init.ts` for
+   direct testing. New `test/chartroomignore.test.ts` (4 tests): discovery exclusion additive with
+   .gitignore; `runInit` leaves excluded file byte-identical + unindexed; `runCheck` doesn't count
+   excluded docs; no-file = unchanged behavior. README subsection added. chartroom suite: 181/181.
+2. **Root `.chartroomignore`** committed exactly as the FO-approved §4 list (team-tasks/,
+   team-tasks-starter/, skill-template/, editor fixtures, .claude/, lookout/, kickoff prompts).
+3. **`init --no-hook`** (per FO direction 2 — no `.git/hooks` touch): assigned 49 ids, indexed 49.
+   Step-3 audit: `git diff --numstat -- '*.md'` — all 48 tracked md diffs exactly `4 0` (pure
+   4-line frontmatter prepends), zero surprises; 49th id went to untracked
+   `suite-design/overnight/LESSONS-LEARNED.md` (left uncommitted per R6). team-tasks/*: no md
+   touched (exclusion verified live). Editor fixtures untouched (round-trip suite green below).
+4. **Id commit staging:** the plan's R2 index-blob partial-staging protocol was NOT needed — the 3
+   previously-annotated suite-design files were clean on `ship-wave1` by execution time. Plain
+   `git add -u -- '*.md'`; pre-existing dirt (watchdog.log, team-tasks/*) left unstaged/untouched.
+5. **Agent surfaces:** `install-skill` OK → `.claude/skills/chart-room/SKILL.md` (verbatim from
+   skill-template; committed). Root `CLAUDE.md` created with the README's template section + a
+   .chartroomignore note; `check` then correctly flagged CLAUDE.md itself as id-less → `init
+   --no-hook` re-run (idempotent, 1 id, `id: sharework`), committed.
+   **DEVIATION — `install-agent-hook` blocked:** the session permission system denied writing
+   `.claude/hooks/chartroom-post-tool-use.mjs` + `.claude/settings.json` (agent self-modification
+   of live agent-loaded config; denied for both the CLI command and a manual file copy). Not worked
+   around. Parked in CAPTAIN-TODO.md as a one-line human step
+   (`node packages/chartroom/dist/cli.js install-agent-hook`, idempotent); deviation recorded in
+   plan §10. The post-merge `.git/hooks/pre-commit` install is also logged in CAPTAIN-TODO.md per
+   FO direction.
+6. **`chartroom check`:** `chartroom check: clean -- no broken links, missing ids, or duplicate ids
+   found.` Exit 0. **`chartroom register`:** `registered 'sharework' -> C:\thisismydesign\shareWork`
+   (machine-local `~/.chartroom/repos.json`, left registered on purpose — that IS the dogfood).
+
+## Acceptance evidence (`packages/chartroom/acceptance/dogfood-sharework.mjs`, exit 0)
+
+```
+step 1 OK: check clean; 8 changelog entries id-keyed in raw index.json
+step 2 OK: git mv self-heals -- 'product-suite-research-synthesis-july-2026' resolved at both paths, index followed
+step 3 OK: changelog directory renders via daemon routes (8 entries; sampled 'package-0-monorepo-scaffold')
+chartroom acceptance: dogfood-sharework -- ALL ASSERTIONS PASSED
+```
+
+- Step 2 = the acceptance line's first half: `git mv suite-design/Product-Suite_Research-Synthesis.md`
+  → `chartroom resolve <id>` returns the NEW path (matchType `id`) AND the raw `.docs/index.json`
+  contains the new path; moved back, resolves to the original. Net-zero: `git status` on the file
+  is clean. **Two `git mv`s executed and reverted, recorded here per crew rules.**
+- Step 3 = second half: real daemon `buildServer` + `app.inject()` — `/api/repos` lists sharework,
+  `/api/repos/sharework/docs` carries all 8 changelog entries id-keyed, and a sampled entry's
+  detail route returns 200 with its raw content (same evidence pattern as phases 2–5 precedent;
+  no real-browser pass — consistent with the mission-wide known gap).
+
+## Gates
+
+- `pnpm turbo run build lint test`: **6/6 tasks successful** — chartroom build+lint+test (25 files,
+  181 tests) and chartroom-ui build+lint+test (15 files, 139 tests). The editor round-trip fixture
+  suite passing post-init is the canary that fixtures were never touched.
+
+## Remaining working-tree state (deliberate, not ours)
+
+- `suite-design/overnight/watchdog.log`, `team-tasks/*` modifications, untracked FO/session files
+  (`.claude/agents/first-officer.md`, `.claude/skills/lookout/`, `suite-design/Chart Room.html`,
+  `suite-design/overnight/LESSONS-LEARNED.md` (id injected, uncommitted), `usage.json`) — all
+  pre-existing, all left alone.
+
+## Open items for FO
+
+1. Merge gate: independent wave-reviewer pass, then FO merge (crew never merges).
+2. Post-merge: `chartroom init` once on `ship-wave1` (installs pre-commit hook; CAPTAIN-TODO.md).
+3. Human step: `install-agent-hook` (permission-blocked for agents; CAPTAIN-TODO.md).
+4. Note `56c538d` (FO's own Lookout-rule commit) rides along on this branch.
