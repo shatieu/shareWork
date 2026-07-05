@@ -74,7 +74,17 @@ export function registerDocAskMeRoute(app: FastifyInstance, repos: RepoRuntime[]
     const raw = readFileSync(absPath, 'utf8');
 
     const { askMe } = extractInteractiveBlocks(raw);
-    const question = askMe.find((q) => q.directiveId === body.directiveId);
+    const matches = askMe.filter((q) => q.directiveId === body.directiveId);
+    // `.find()` always resolves to the first match -- against a doc with two `:::ask-me` blocks
+    // sharing the same `id` (authoring mistake, or a copy-pasted block never re-numbered), that
+    // would silently answer whichever one happens to come first while the second stays forever
+    // unreachable via this route. Fail loudly instead of guessing which block the caller meant.
+    if (matches.length > 1) {
+      return reply.code(409).send({
+        error: `ambiguous ask-me directive id '${body.directiveId}': ${matches.length} blocks in doc '${docId}' share this id, refusing to guess which one to answer`,
+      });
+    }
+    const question = matches[0];
     if (!question) {
       return reply.code(404).send({ error: `unknown ask-me directive id '${body.directiveId}' in doc '${docId}'` });
     }

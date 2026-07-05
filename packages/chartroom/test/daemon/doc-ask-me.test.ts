@@ -153,6 +153,38 @@ describe('PATCH /api/repos/:repoId/docs/:docId/ask-me (plan §3.2)', () => {
     expect(response.statusCode).toBe(404);
   });
 
+  it('409 on a duplicate ask-me directive id, rather than silently answering the first match', async () => {
+    const docWithDuplicateIds = [
+      '---',
+      'id: doc-b',
+      '---',
+      '',
+      '# B',
+      '',
+      ':::ask-me{id="dup" type="yesno"}',
+      'Ready to ship the first one?',
+      ':::',
+      '',
+      ':::ask-me{id="dup" type="yesno"}',
+      'Ready to ship the second one?',
+      ':::',
+      '',
+    ].join('\n');
+    writeDoc('b.md', docWithDuplicateIds);
+    const state = rebuild(repoRoot);
+    const app = buildServer([runtimeFor('repo-b', state)], { uiDistDir: join(repoRoot, 'no-such-ui-dist') });
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/api/repos/repo-b/docs/doc-b/ask-me',
+      payload: { directiveId: 'dup', value: 'yes', author: 'X' },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().error).toContain('dup');
+    // File must be left completely untouched -- no answer applied to either block.
+    expect(readFileSync(join(repoRoot, 'b.md'), 'utf8')).toBe(docWithDuplicateIds);
+  });
+
   it('400 on a malformed body', async () => {
     writeDoc('a.md', DOC_WITH_ASK_ME);
     const state = rebuild(repoRoot);
