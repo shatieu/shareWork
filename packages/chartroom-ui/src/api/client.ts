@@ -8,12 +8,24 @@ export interface RepoSummary {
   id: string;
   name: string;
   absPath: string;
+  /** total indexed docs in this repo (id-less docs included). */
+  docCount: number;
+  /** unresolved id-links across the repo -- drives the red alert badge in the repo tree. */
+  brokenLinkCount: number;
+  /** unanswered ask-me + unchecked actions items -- the amber half of the alert badge. */
+  needsYouCount: number;
 }
 
 export interface DocSummary {
   id: string | null;
   path: string;
   title: string;
+}
+
+/** Doc route-key convention shared with the daemon: a doc is addressed by its stable id when it
+ * has one, else by its repo-relative path -- the daemon accepts either on every doc endpoint. */
+export function docKeyOf(doc: Pick<DocSummary, 'id' | 'path'>): string {
+  return doc.id ?? doc.path;
 }
 
 export interface OutboundLink {
@@ -220,6 +232,79 @@ export function resolveAuthorName(): string | undefined {
     /* ignore -- the daemon falls back to os.userInfo().username */
   }
   return undefined;
+}
+
+export interface ClaudeSessionResponse {
+  ok: true;
+}
+
+/** CSRF proof header for spawning/mutating Deck routes -- the daemon 403s without it. A
+ * cross-origin form/fetch cannot attach a custom header without a CORS preflight, and the
+ * daemon enables no CORS, so browser-borne CSRF dies here. */
+const DECK_CLIENT_HEADER = 'x-ship-deck';
+
+/** `POST /api/repos/:repoId/claude-session` -- spawns a terminal running `claude` in that repo's
+ * working directory. 404 unknown repo, 500 with a readable error body on spawn failure. */
+export async function openClaudeSession(repoId: string): Promise<ClaudeSessionResponse> {
+  const response = await fetch(`/api/repos/${encodeURIComponent(repoId)}/claude-session`, {
+    method: 'POST',
+    headers: { [DECK_CLIENT_HEADER]: '1' },
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(body || `chartroom-ui: claude-session failed with status ${response.status}`);
+  }
+  return (await response.json()) as ClaudeSessionResponse;
+}
+
+/* ── Captain's Deck hull endpoints (absent under standalone `chartroom serve`) ── */
+
+export interface HullStationTab {
+  id: string;
+  title: string;
+}
+
+export interface HullStation {
+  name: string;
+  /** Deck tab registration; stations without a tab contribute routes only. */
+  tab?: HullStationTab;
+}
+
+/** `GET /api/hull/stations` -- the hull's mounted-station list (plain array). Fails/404s under
+ * standalone `chartroom serve`, which the shell treats as single-tab (Docs-only) mode. */
+export function fetchHullStations(): Promise<HullStation[]> {
+  return getJson<HullStation[]>('/api/hull/stations');
+}
+
+export type VoyageDifficulty = 'S' | 'M' | 'L' | 'XL';
+
+/** One mission package (or, later, ledger item) in the Voyage view. Shape mirrors
+ * suite-conventions' VoyageItem -- duplicated locally per this file's convention. */
+export interface VoyageItem {
+  id: number | string;
+  title: string;
+  status: string;
+  /** 0-100. */
+  stage_progress: number;
+  difficulty: VoyageDifficulty | null;
+  remaining_guess_h: number | null;
+  updated_at?: string;
+  note?: string;
+  source?: 'mission' | 'ledger';
+}
+
+export interface VoyageResponse {
+  file: string;
+  updatedAt: string;
+  /** true when the watched file currently fails to parse and this is the last-good snapshot. */
+  stale?: boolean;
+  packages: VoyageItem[];
+}
+
+/** `GET /api/voyage` -- mission progress snapshot; 404 when no voyage file is configured (the
+ * shell hides the Voyage tab). Live updates ride `GET /api/voyage/events` (SSE). */
+export function fetchVoyage(): Promise<VoyageResponse> {
+  return getJson<VoyageResponse>('/api/voyage');
 }
 
 export interface UploadAssetResponse {
