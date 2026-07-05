@@ -14,16 +14,21 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-ui-dist.mjs",
     "dev": "tsc -w -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:acceptance": "node acceptance/git-mv-resolution.mjs"
+    "test:acceptance": "node acceptance/git-mv-resolution.mjs && node acceptance/two-repo-browse.mjs"
   },
   "dependencies": {
+    "@fastify/static": "^9.1.3",
+    "chokidar": "^4.0.3",
     "commander": "^13.1.0",
+    "fastify": "^5.9.0",
     "gray-matter": "^4.0.3",
     "ignore": "^6.0.2",
+    "remark-directive": "^4.0.0",
+    "remark-directive-rehype": "^1.0.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
@@ -33,6 +38,7 @@
   "devDependencies": {
     "@eslint/js": "^9.19.0",
     "@types/node": "^22.10.7",
+    "chartroom-ui": "workspace:*",
     "eslint": "^9.19.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0",

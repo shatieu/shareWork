@@ -1,0 +1,68 @@
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import Fastify, { type FastifyInstance } from 'fastify';
+import fastifyStatic from '@fastify/static';
+import type { RepoState } from './repo-state.js';
+import { registerReposRoute } from './routes/repos.js';
+import { registerDocsRoutes } from './routes/docs.js';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+/** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
+ * `chartroom-ui` bundle to (plan §2/§4.1) so a bare `npm install chartroom` is self-contained. */
+const DEFAULT_UI_DIST_DIR = join(HERE, '..', '..', 'dist', 'public');
+
+/** One registered repo's identity plus a live accessor for its current in-memory state -- the
+ * accessor indirection (rather than a plain `state` field) means chokidar-triggered rebuilds
+ * (plan §4.2) can swap the snapshot without the server/routes holding a stale reference. */
+export interface RepoRuntime {
+  id: string;
+  name: string;
+  absPath: string;
+  getState: () => RepoState;
+}
+
+export interface BuildServerOptions {
+  /** Overrides where the UI static bundle is served from -- tests point this at a temp/missing
+   * directory rather than depending on `chartroom-ui` actually being built. */
+  uiDistDir?: string;
+}
+
+/**
+ * Fastify app factory (plan §4.1): registers the built UI static mount (prefix `/`), one raw-asset
+ * static mount per registered repo (prefix `/api/repos/<repoId>/raw/`, root: that repo's absolute
+ * path), and the JSON API routes. Returns the app *without* calling `.listen()` so both
+ * `commands/serve.ts` and tests can drive it -- tests via `app.inject()`, never a real TCP socket.
+ */
+export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = {}): FastifyInstance {
+  const app = Fastify({ logger: false });
+  const uiDistDir = options.uiDistDir ?? DEFAULT_UI_DIST_DIR;
+
+  // `@fastify/static` decorates `reply` with `sendFile` on first registration; every subsequent
+  // registration (the UI mount, if present, is always first) must pass `decorateReply: false` to
+  // avoid a "reply.sendFile already exists" conflict (plan §1.1/§4.1).
+  let isFirstStaticRegistration = true;
+
+  if (existsSync(uiDistDir)) {
+    void app.register(fastifyStatic, {
+      root: uiDistDir,
+      prefix: '/',
+      decorateReply: isFirstStaticRegistration,
+    });
+    isFirstStaticRegistration = false;
+  }
+
+  for (const repo of repos) {
+    void app.register(fastifyStatic, {
+      root: repo.absPath,
+      prefix: `/api/repos/${repo.id}/raw/`,
+      decorateReply: isFirstStaticRegistration,
+    });
+    isFirstStaticRegistration = false;
+  }
+
+  registerReposRoute(app, repos);
+  registerDocsRoutes(app, repos);
+
+  return app;
+}
