@@ -130,3 +130,64 @@ from diffing the previous on-disk index against a fresh scan, with no special-ca
 
 See `acceptance/README.md` for a runnable, end-to-end proof of the `git mv` + resolve + hook
 behavior described above.
+
+## Agent surface (phase 5): MCP server, skill, hook, `llms-txt`
+
+Phase 5 adds an agent-facing layer on top of everything above -- no new resolution/indexing logic,
+just new ways for an agent (rather than a human running the CLI) to reach it.
+
+### `chartroom mcp`
+Runs a Chart Room MCP server over stdio, scoped to the cwd's git repo (same "nearest ancestor
+`.git`" convention as every other command). Point an MCP client at it (e.g. via `.mcp.json`:
+`{ "mcpServers": { "chart-room": { "command": "npx", "args": ["chartroom", "mcp"] } } }`), or launch
+it as a subprocess directly. Exposes five read-only tools: `resolve`, `read_doc`, `search`,
+`list_unanswered_questions`, `answer_status` -- see `src/mcp/server.ts` for each tool's exact
+description/schema. The same tool implementations are also served over HTTP, per registered repo,
+by `chartroom serve` at `ALL /api/repos/:repoId/mcp` (stateless `StreamableHTTPServerTransport`, no
+auth -- loopback-only, matching every other daemon route).
+
+### `chartroom llms-txt [--out <path>]`
+Emits an [`llms.txt`](https://llmstxt.org)-shaped index of every doc in the repo (id-keyed and
+unidentified alike), sorted by path, with a repo-relative link per doc (this convention is normally
+written for a hosted site's public URLs; Chart Room emits repo-relative paths instead, the
+pragmatic reading for a local git repo). Prints to stdout by default; `--out <path>` writes to a
+repo-relative file instead.
+
+### `chartroom install-agent-hook`
+Installs `.claude/hooks/chartroom-post-tool-use.mjs` (a standalone, dependency-free script) and
+merges a `PostToolUseFailure`/`Read` entry into `.claude/settings.json`. When a `Read` on a `.md`
+file fails, the hook shells out to `chartroom resolve` on the same path and, if it finds a
+corrected path or a tombstone, surfaces that as `additionalContext` so the calling agent doesn't
+have to ask a human where the file went. **Note:** this is registered on `PostToolUseFailure`, not
+`PostToolUse` -- Claude Code's own hooks only fire `PostToolUse` on tool *success*; a distinct
+`PostToolUseFailure` event fires "after a tool call fails". The hook script's own header comment
+documents this finding and what about its failure-payload shape remains unconfirmed. Refuses to
+overwrite a differently-authored file already at the hook script path; safe to re-run (idempotent,
+never duplicates the settings.json entry, never removes an unrelated hook entry).
+
+### `chartroom install-skill [target-dir]`
+Copies the packaged `chart-room` skill (`skill-template/chart-room/SKILL.md`) into
+`[target-dir]/.claude/skills/chart-room/SKILL.md` (defaults to the cwd's git root). Documents the
+standing agent behavior for a Chart-Room-managed repo: resolving a dead path, writing links in
+`id:` format, skipping `:::human` blocks for token efficiency, and posting/checking `:::ask-me`
+questions. Refuses to overwrite a differently-authored file at the same path; safe to re-run.
+
+### CLAUDE.md template line
+Not installed by any command -- copy this into a consuming repo's own `CLAUDE.md` by hand:
+
+```markdown
+## Chart Room (managed markdown docs)
+
+This repo's markdown docs are managed by Chart Room. Doc links carry a hidden `id:` (see the link's
+title attribute, `"id:<id>"`) that survives moves/renames -- if a linked path 404s, don't ask the
+human where it went: read `.docs/index.json` directly, or run `chartroom resolve <id-or-path>`. See
+the `chart-room` skill for the full workflow (id-based links, `:::llm`/`:::human` blocks, `:::ask-me`
+questions).
+```
+
+### What phase 5 does *not* do
+Dogfooding Chart Room onto this actual `shareWork` monorepo (running `chartroom init` /
+`install-skill` / `install-agent-hook` against `suite-design/`'s own docs) is a deliberate, explicit
+non-goal of this phase -- see `suite-design/overnight/DECISIONS-NEEDED.md` ("Package 5") for why.
+Every command above is exercised only against disposable scratch repos in this package's own tests
+and `acceptance/agent-surface-e2e.mjs`.

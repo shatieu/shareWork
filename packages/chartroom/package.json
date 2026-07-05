@@ -18,7 +18,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "hook-template",
+    "skill-template"
   ],
   "engines": {
     "node": ">=20"
@@ -29,10 +31,11 @@
     "dev": "tsc -w -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:acceptance": "node acceptance/git-mv-resolution.mjs && node acceptance/two-repo-browse.mjs && node acceptance/editor-round-trip.mjs && node acceptance/ask-me-round-trip.mjs"
+    "test:acceptance": "node acceptance/git-mv-resolution.mjs && node acceptance/two-repo-browse.mjs && node acceptance/editor-round-trip.mjs && node acceptance/ask-me-round-trip.mjs && node acceptance/agent-surface-e2e.mjs"
   },
   "dependencies": {
     "@fastify/static": "^9.1.3",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "chokidar": "^4.0.3",
     "commander": "^13.1.0",
     "fastify": "^5.9.0",
@@ -44,7 +47,8 @@
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
-    "unist-util-visit": "^5.1.0"
+    "unist-util-visit": "^5.1.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.19.0",
