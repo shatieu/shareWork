@@ -17,3 +17,6 @@ coverage/
 
 # Lookout runtime state (suite-design/lookout/lookout.ps1)
 suite-design/lookout/state/
+
+# Chart Room runtime index (suite-design/ChartRoom_Spec.md §2.3, rebuilt by `chartroom index`)
+.docs/
