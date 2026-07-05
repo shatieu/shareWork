@@ -60,3 +60,10 @@ Some work needs things you don't have: credentials (ElevenLabs, app stores), liv
 The mission ends when: every queue item above is PASS-merged or explicitly parked with its CAPTAIN-TODO entry; `ship-wave1` is pushed; and `suite-design/overnight/MARATHON-REPORT.md` exists — same honest format as the last morning report (delivered+verified / parked+why / decisions needed / removals / Lookout performance across all pause-wake cycles / recommended Captain session agenda for the parked integrations). Then create `suite-design/overnight/DONE-MARATHON` and stand down. If you judge mid-mission that quality is degrading (reviews weakening, rework rising), stop at a clean package boundary and write the report early — a shorter honest marathon beats a long sloppy one.
 
 Acknowledge with: your reconciliation dispatch, the Lookout startup confirmation, and the first package's Team Lead dispatch — three short lines, in keeping with §2. Then run.
+
+---
+## Amendment (2026-07-05, FO, Captain-directed): Lookout dispatch rule is mechanical
+
+**Dispatch rule is mechanical, not judgmental.** Decisions key ONLY on the signal files at dispatch time: no ALERT file -> dispatch normally, whatever the trend; ALERT present -> finish in-flight work, no new package dispatches, bookkeeping allowed; PAUSE present -> checkpoint, schedule wake at resets_at+5min, idle. Never pre-empt a threshold that has not fired, never extrapolate burn rates into a hold. A package interrupted by PAUSE is a normal, cheap event (commits are insurance; checkpoint and resume); an hour of self-imposed idle is the expensive failure. When in doubt between continuing and idling: continue, commit more often.
+
+Origin: at 13:30 the FO held a ready-to-dispatch package at 79% five_hour with no ALERT raised, projecting a PAUSE that its own (finished) parallel dry-runs had caused. Cost: ~1h idle until the Captain intervened.

@@ -93,3 +93,6 @@ Continuing directly on `ship-wave1-cr-phase-1` (the only branch the mission scop
 - Package 1 (housekeeping+dogfood): plan approved, implementation NOT dispatched — Lookout five_hour surged 46->74% in 35 min; a 1.5h implementation would hit PAUSE (93) mid-flight. FO holds per finish-don't-start.
 - Resume point for any successor: dispatch TL implementation of plans/01-housekeeping-dogfood-plan.md on branch ship-wave1-dogfood (approvals already logged above), after five_hour resets (~14:30Z / 16:30 local). Then queue continues per PLAN.md. Dispatch method: general-purpose agent + "adopt charter .claude/agents/wave-team-lead.md" preamble.
 - All work pushed through this checkpoint. Worktree clean of quarantined WIP; quarantine branch pushed.
+
+## Process correction (Captain, 2026-07-05 ~13:35)
+FO wrongly idled at 79% five_hour with no ALERT signal (preemptive hold on extrapolated burn). Captain overrode; rule now amended into MARATHON-KICKOFF-PROMPT.md: dispatch decisions are mechanical on signal files only; never pre-empt an unfired threshold; interrupted-by-PAUSE is cheap, idle is expensive.
