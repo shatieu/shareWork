@@ -21,7 +21,7 @@ interface InitSummary {
  * index, install the pre-commit hook. Idempotent -- re-running only touches docs still missing an
  * id; docs that already have one are left byte-for-byte alone.
  */
-function runInit(repoRoot: string, installHookFlag: boolean): InitSummary {
+export function runInit(repoRoot: string, installHookFlag: boolean): InitSummary {
   const files = discoverDocFiles(repoRoot);
 
   // Seed the existing-id set from a preliminary fresh scan so newly generated ids never collide

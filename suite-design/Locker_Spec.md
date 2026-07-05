@@ -1,3 +1,7 @@
+---
+id: the-sea-chest-design-spec-v1-formerly-the-locker-naming-settled-see-suite-architecture-and-website-spec-md
+---
+
 # The Sea Chest — Design Spec (v1) *(formerly "the Locker"; naming settled — see Suite-Architecture_and_Website_Spec.md)*
 
 **Prepared for:** Ondřej · **Date:** 4 July 2026

@@ -1,3 +1,7 @@
+---
+id: chart-room-design-spec-v1
+---
+
 # Chart Room — Design Spec (v1)
 
 **Prepared for:** Ondřej · **Date:** 4 July 2026

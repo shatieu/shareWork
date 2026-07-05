@@ -46,21 +46,31 @@ export function normalizeSlashes(p: string): string {
   return p.split(sep).join('/');
 }
 
-function loadGitignore(repoRoot: string): Ignore {
+/**
+ * Load ignore rules for doc discovery: the repo's top-level `.gitignore` plus an optional
+ * top-level `.chartroomignore` (same gitignore syntax, fed into the same matcher). The latter
+ * scopes Chart Room's *doc discovery* without making git itself ignore anything -- for content
+ * that is tracked in git but must never be treated as a managed doc (vendored apps, byte-exact
+ * test fixtures, templates copied verbatim into other repos, ...).
+ */
+function loadIgnoreRules(repoRoot: string): Ignore {
   const ig = ignore();
-  const gitignorePath = join(repoRoot, '.gitignore');
-  if (existsSync(gitignorePath)) {
-    ig.add(readFileSync(gitignorePath, 'utf8'));
+  for (const name of ['.gitignore', '.chartroomignore']) {
+    const p = join(repoRoot, name);
+    if (existsSync(p)) {
+      ig.add(readFileSync(p, 'utf8'));
+    }
   }
   return ig;
 }
 
 /**
  * Discover all *.md files under repoRoot, skipping built-in noise directories and anything
- * matched by the repo's own top-level .gitignore. Returns repo-root-relative, forward-slash paths.
+ * matched by the repo's own top-level .gitignore or .chartroomignore. Returns repo-root-relative,
+ * forward-slash paths.
  */
 export function discoverDocFiles(repoRoot: string): string[] {
-  const ig = loadGitignore(repoRoot);
+  const ig = loadIgnoreRules(repoRoot);
   const results: string[] = [];
 
   function walk(dir: string): void {

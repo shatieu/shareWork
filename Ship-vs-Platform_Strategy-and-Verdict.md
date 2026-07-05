@@ -1,3 +1,7 @@
+---
+id: ship-vs-the-coworking-platform-vs-getbetter-research-strategic-verdict
+---
+
 # Ship vs. the Coworking Platform (vs. getBetter) — Research & Strategic Verdict
 
 **Prepared for:** Ondřej

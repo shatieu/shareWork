@@ -1,3 +1,7 @@
+---
+id: agent-coworking-platform-research-solution-architecture
+---
+
 # Agent Coworking Platform — Research & Solution Architecture
 
 **Prepared for:** Ondřej

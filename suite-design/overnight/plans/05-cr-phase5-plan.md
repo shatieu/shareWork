@@ -1,3 +1,7 @@
+---
+id: package-5-chart-room-phase-5-agent-surface-polish-mcp-server-skill-hook-claude-md-line-llms-txt
+---
+
 # Package 5 — Chart Room Phase 5: Agent surface polish (MCP server, skill, hook, CLAUDE.md line, llms-txt)
 
 **Team Lead session.** Branch: `ship-wave1-cr-phase-5` (verified checked out, do not switch/create branches).

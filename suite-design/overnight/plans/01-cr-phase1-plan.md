@@ -1,3 +1,7 @@
+---
+id: package-1-chart-room-phase-1-indexer-cli-resolution-pre-commit-hook
+---
+
 # Package 1 — Chart Room Phase 1: Indexer + CLI + Resolution + Pre-commit Hook
 
 **Team Lead session.** Branch: `ship-wave1-cr-phase-1` (verified checked out, do not switch/create branches).

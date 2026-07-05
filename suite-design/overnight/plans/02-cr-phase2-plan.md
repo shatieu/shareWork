@@ -1,3 +1,7 @@
+---
+id: package-2-chart-room-phase-2-viewer-read-only
+---
+
 # Package 2 — Chart Room Phase 2: Viewer (read-only)
 
 **Team Lead session.** Branch: `ship-wave1-cr-phase-2` (verified checked out, do not switch/create branches).

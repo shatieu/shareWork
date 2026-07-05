@@ -1,3 +1,7 @@
+---
+id: mission-context-ship-marathon-crew-brief
+---
+
 # MISSION CONTEXT - Ship Marathon Crew Brief
 
 Read this first. Dispatches assume you know everything below.

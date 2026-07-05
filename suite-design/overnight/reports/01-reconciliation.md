@@ -1,3 +1,7 @@
+---
+id: reconciliation-report-marathon-start-2026-07-05-12-55
+---
+
 # Reconciliation report — marathon start (2026-07-05 ~12:55)
 
 Role: reconciliation officer, marathon package 0/1 preamble. Scope: ground truth vs tracking files

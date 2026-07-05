@@ -13,12 +13,12 @@
     {
       "id": 1,
       "title": "Housekeeping + dogfood",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "in review",
+      "stage_progress": 80,
       "difficulty": "S",
       "remaining_guess_h": 1.5,
-      "updated_at": "2026-07-05T11:29:32.177Z",
-      "note": "implementing on ship-wave1-dogfood per approved plan"
+      "updated_at": "2026-07-05T11:57:49.992Z",
+      "note": "review FAIL: render-progress.mjs strips PROGRESS.md id frontmatter -> check exit 1. Remediation queued: frontmatter-preserving generator, then scoped re-review."
     },
     {
       "id": 2,

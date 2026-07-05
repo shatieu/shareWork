@@ -1,3 +1,7 @@
+---
+id: 00b-progress-tracking-developer-report
+---
+
 # 00b-progress-tracking — Developer report
 
 Package: 00b-progress-tracking (Captain's Order 1, mission tooling)

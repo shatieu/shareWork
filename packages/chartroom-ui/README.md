@@ -1,3 +1,7 @@
+---
+id: chartroom-ui
+---
+
 # chartroom-ui
 
 Chart Room phase 2's read-only viewer frontend (React + Vite). This package is **private and

@@ -1,3 +1,7 @@
+---
+id: package-3-chart-room-phase-3-editor-milkdown-round-trip-image-paste-ctrl-k
+---
+
 # Package 3 — Chart Room Phase 3: Editor (Milkdown, round-trip, image paste, Ctrl+K)
 
 **Team Lead session.** Branch: `ship-wave1-cr-phase-3` (verified checked out, do not switch/create branches).

@@ -1,3 +1,7 @@
+---
+id: decisions-deferred-to-the-captain
+---
+
 # Decisions deferred to the Captain
 
 Format per entry: what, why it's deferred, default taken (if any), how to override.

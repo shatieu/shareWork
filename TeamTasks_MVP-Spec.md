@@ -1,3 +1,7 @@
+---
+id: team-tasks-mvp-spec-a-git-native-way-to-share-workload-across-repos
+---
+
 # Team Tasks — MVP Spec (a git-native way to share workload across repos)
 
 **Prepared for:** Ondřej · **Date:** 30 June 2026

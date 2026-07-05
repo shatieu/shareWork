@@ -1,3 +1,7 @@
+---
+id: package-0-monorepo-scaffold
+---
+
 # Package 0 — Monorepo Scaffold
 
 Added a pnpm workspace + Turborepo v2 scaffold at the repo root (`package.json`,

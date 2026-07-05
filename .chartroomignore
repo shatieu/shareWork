@@ -1,0 +1,14 @@
+# Captain's app -- mission hard constraint: never touched
+team-tasks/
+# starter-kit + template content copied verbatim into other repos
+team-tasks-starter/
+packages/chartroom/skill-template/
+# byte-exact editor round-trip fixtures -- frontmatter injection would invalidate the suite
+packages/chartroom-ui/test/editor/fixtures/
+# Claude Code config files (agents/skills/plans), not managed docs
+.claude/
+# the Lookout -- zero-touch guarantee for the live mission sensor
+suite-design/lookout/
+# session kickoff prompts -- pasted verbatim into terminals
+suite-design/*KICKOFF*.md
+suite-design/LOOKOUT-BUILD-PROMPT.md

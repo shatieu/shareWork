@@ -1,3 +1,7 @@
+---
+id: the-bridge-design-spec-v1
+---
+
 # The Bridge — Design Spec (v1)
 
 > **Naming update (later same day):** the suite itself is now **The Ship**; this product (fleet glue + console) is **the Bridge**. Service names `ship-*` in this doc are kept — they read as "the Ship's ledger" etc. See `Suite-Architecture_and_Website_Spec.md` for the canonical naming table.

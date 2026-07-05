@@ -1,3 +1,7 @@
+---
+id: team-tasks-mvp-product-spec-the-real-thing-vercel-supabase-fe-mcp
+---
+
 # Team Tasks — MVP Product Spec (the real thing: Vercel + Supabase + FE + MCP)
 
 **Prepared for:** Ondřej · **Date:** 30 June 2026
