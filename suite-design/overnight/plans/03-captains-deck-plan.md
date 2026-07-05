@@ -17,6 +17,52 @@ id: plan-03-captains-deck
   never the working tree. File-level details of chartroom's `server.ts`/`serve.ts`/UI are
   **provisional until the v1.1 merge** — see §0.
 
+## 0-REFRESH (implementation start, 2026-07-05, against merged `ship-wave1` head 3c8de99)
+
+Verified live in the worktree (v1.1 fully merged):
+
+1. **`server.ts` seam (confirmed clean):** `buildServer(repos, {uiDistDir, registrar})` =
+   `Fastify()` + skip-if-absent UI static + `registerRawRoute` + 8 API route registrations +
+   `registerRepoRegisterRoute`. Extraction per §4.4: move everything except `Fastify()`+static
+   into `registerChartroomRoutes(app, repos, opts)`; `buildServer` becomes the thin composition.
+2. **`serve.ts` seam (confirmed):** all startup lives inline in the action — registry read,
+   per-repo `rebuild`, mutable `runtimes` array, `registrar` closure, `startWatcher` per repo,
+   `listenOnFreePort(127.0.0.1, 4317+)`, `writeDaemonInfo({port,pid,startedAt})` after listen,
+   SIGINT/SIGTERM → `deleteDaemonInfo()`. Station extraction lifts exactly this into
+   `createChartroomStation`; `daemon-info.ts` already takes a `homeDir` override (test-friendly).
+3. **`repo-register.ts` landed with NO CSRF guard** → §4.5 retrofit confirmed needed (route +
+   test + `chartroom open`'s register call gains the header).
+4. **Sidebar vs RepoTree:** merged `Sidebar.tsx`/`RepoSwitcher.tsx` still exist and are what
+   `App.tsx` renders; merged App routes by `docId` (not yet `docKey`), no WIP concepts present.
+   WIP `RepoTree` consumes `docKeyOf` + `docsByRepo` lazy map — supersedes both components as
+   planned; merged `client.ts` already ships `DocDetail.id/key` (required, not optional — keep
+   the merged stricter typing when folding WIP fragments).
+5. **Test floors captured:** chartroom **248 tests / 35 files**, chartroom-ui **144 / 16**
+   (both green on 3c8de99, runs 22:55 local). Regression floor = 248+144.
+6. **Researcher R1–R6 folded** (report `03-captains-deck-researcher.md`): wt branch spawns
+   `wt.exe` DIRECTLY (`['-w','new','-d',repoAbsPath,'cmd','/k','claude']`) — no `cmd /c start`
+   wrapper; fallback `spawn('cmd',['/c','start',title,'cmd','/k','claude'],{cwd})`; `cd /d`
+   unnecessary (cwd propagates); wt cannot resolve `.cmd` shims → always wrap in `cmd /k`;
+   env hygiene mirrors vendor: strip `CLAUDECODE`, `CLAUDE_CODE_SESSION_ID`,
+   `CLAUDE_CODE_CHILD_SESSION`, `CLAUDE_CODE_BRIDGE_SESSION_ID` (+`CLAUDE_CODE_ENTRYPOINT`,
+   `AI_AGENT`), set `INVOCATION_ID:''`; wt detection = `where wt` + existsSync
+   `%LOCALAPPDATA%\Microsoft\WindowsApps\wt.exe` belt-and-braces; repo paths containing `;`
+   route to the cmd fallback (wt delimiter). SSE = `reply.hijack()` + `reply.raw`, defaults
+   safe, disconnect-cleanup tests need real ephemeral listen (inject streams don't propagate
+   destroy). chokidar 4.0.3 single-file watch survives atomic rename-over; keep
+   `awaitWriteFinish {150,50}`; treat recreate's `change` same as `add`. npm: `ship` TAKEN,
+   `captains-deck`/`ship-hull` free — internal names only, NO publishing (FO directive).
+7. **Approved scope = phase 1 ONLY** (FO cut at §10 line): §10 step 8 (phase-2 quality slice)
+   is OUT — proposed v1.2, Captain pending. §3.2 files stay on the quarantine branch. The
+   inbox-correctness slice + repos-stats salvage ride only if phase-1 RepoTree badges need the
+   stats fields — decision: **salvage repos.ts stats + repos-stats test ADAPTED to the merged
+   id-keyed `interactiveBlocks`** (needsYouCount inlined with the same definition as today's
+   `/api/inbox`; WIP `needs-you.ts` depends on the cut key-keyed repo-state rework, so it stays
+   parked — the v1.2 slice upgrades both surfaces together). RepoTree badges are part of the
+   approved shell.
+8. **Deck CSRF approved:** 127.0.0.1 bind + Host allowlist + `x-ship-deck` header (STATUS.md
+   "Package 3 plan APPROVED"). fs.ts stays parked.
+
 ## 0. Rebase assumption and stability map
 
 **Assumption (explicit):** implementation starts from `ship-wave1` *after* the package-2 merge.
