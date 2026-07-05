@@ -12,6 +12,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@milkdown/kit": "^7.21.2",
+    "@milkdown/react": "^7.21.2",
+    "chartroom": "workspace:*",
+    "fuse.js": "^7.4.2",
     "github-slugger": "^2.0.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
@@ -19,6 +23,7 @@
     "rehype-slug": "^6.0.0",
     "remark-directive": "^4.0.0",
     "remark-directive-rehype": "^1.0.0",
+    "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",

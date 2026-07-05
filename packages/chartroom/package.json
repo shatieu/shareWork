@@ -7,6 +7,12 @@
   "bin": {
     "chartroom": "./dist/cli.js"
   },
+  "exports": {
+    "./markdown": {
+      "types": "./dist/markdown.d.ts",
+      "import": "./dist/markdown.js"
+    }
+  },
   "files": [
     "dist"
   ],
@@ -14,11 +20,12 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && node scripts/copy-ui-dist.mjs",
+    "build": "tsc -p tsconfig.json",
+    "build:ui-bundle": "node scripts/copy-ui-dist.mjs",
     "dev": "tsc -w -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:acceptance": "node acceptance/git-mv-resolution.mjs && node acceptance/two-repo-browse.mjs"
+    "test:acceptance": "node acceptance/git-mv-resolution.mjs && node acceptance/two-repo-browse.mjs && node acceptance/editor-round-trip.mjs"
   },
   "dependencies": {
     "@fastify/static": "^9.1.3",
@@ -38,7 +45,6 @@
   "devDependencies": {
     "@eslint/js": "^9.19.0",
     "@types/node": "^22.10.7",
-    "chartroom-ui": "workspace:*",
     "eslint": "^9.19.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.21.0",
