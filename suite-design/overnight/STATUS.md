@@ -110,3 +110,6 @@ RESUME AFTER RESET, in order:
 2. Dispatch wave-reviewer, scope: remediation commit + re-run gates (check, acceptance script, turbo build/lint/test). PASS -> FO merges ship-wave1-dogfood into ship-wave1, push, changelog fragment check, CAPTAIN-INBOX check, post-merge FO step from CAPTAIN-TODO.md (`chartroom init` hook install on ship-wave1).
 3. Then package 2 (Chart Room v1.1) planning dispatch per PLAN.md; v1.1 TL must evaluate quarantine branch wip-quarantine-2026-07-05 for salvage (see DECISIONS-NEEDED).
 Lesson candidate after merge: generated docs + injected ids = landmine; generators must preserve frontmatter (bake into MISSION-CONTEXT/charters if it recurs).
+
+## Package 1 CLOSED: 2026-07-05 16:50 — PASS+merged c6588a5
+Re-review PASS (renderer frontmatter fix verified idempotent, all gates green, acceptance line held). Merged --no-ff, pre-commit hook installed post-merge (init: 0 new ids, 53 docs, check clean). Changelog fragment present (2026-07-05--dogfood.md). Parked human step in CAPTAIN-TODO: install-agent-hook. Package 2 (v1.1) planning in flight since 16:41. Lookout: fresh window (3% at 16:37), next reset 19:30Z.

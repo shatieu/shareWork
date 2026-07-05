@@ -13,22 +13,22 @@
     {
       "id": 1,
       "title": "Housekeeping + dogfood",
-      "status": "in review",
-      "stage_progress": 80,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "S",
-      "remaining_guess_h": 1.5,
-      "updated_at": "2026-07-05T11:57:49.992Z",
-      "note": "review FAIL: render-progress.mjs strips PROGRESS.md id frontmatter -> check exit 1. Remediation queued: frontmatter-preserving generator, then scoped re-review."
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-05T14:44:38.063Z",
+      "note": "merged c6588a5 after remediation re-review PASS; hook installed post-merge; install-agent-hook parked (CAPTAIN-TODO)"
     },
     {
       "id": 2,
       "title": "Chart Room v1.1",
-      "status": "pending",
-      "stage_progress": 0,
+      "status": "planning",
+      "stage_progress": 15,
       "difficulty": null,
       "remaining_guess_h": 4,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "updated_at": "2026-07-05T14:44:38.063Z",
+      "note": "v1.1 TL planning incl. quarantine salvage evaluation"
     },
     {
       "id": 3,
