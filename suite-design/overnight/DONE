@@ -1,0 +1,6 @@
+Session complete: all five Chart Room build-order phases (indexer/CLI, viewer, editor, interactive
+blocks + inbox, agent surface) plus one hardening pass (block-reorder round-trip fix) implemented,
+reviewed, and merged into ship-wave1. See MORNING-REPORT.md for full details, including two items
+flagged for the Captain's decision and known accepted gaps.
+
+Completed: 2026-07-05 09:xx local time.
