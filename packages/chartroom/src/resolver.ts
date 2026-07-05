@@ -14,7 +14,9 @@ export type ResolveResult =
 const FUZZY_MIN_SCORE = 0.5;
 const FUZZY_MIN_MARGIN = 0.15;
 
-function tokenize(s: string): Set<string> {
+/** Exported (phase 5, MCP `search` tool, plan §3.3) so `mcp/tools.ts` can reuse this exact
+ * heuristic against doc titles/headings rather than re-deriving a second tokenizer. */
+export function tokenize(s: string): Set<string> {
   return new Set(
     s
       .toLowerCase()
@@ -25,8 +27,9 @@ function tokenize(s: string): Set<string> {
 }
 
 /** Dice coefficient over lowercased word-token sets — small, dependency-free fuzzy heuristic
- * (plan §1.4/§6.1 step 4: no new fuzzy-matching dependency). */
-function diceCoefficient(a: Set<string>, b: Set<string>): number {
+ * (plan §1.4/§6.1 step 4: no new fuzzy-matching dependency). Exported for `mcp/tools.ts`'s
+ * `search` tool (phase 5 plan §3.3), same reasoning as `tokenize` above. */
+export function diceCoefficient(a: Set<string>, b: Set<string>): number {
   if (a.size === 0 || b.size === 0) return 0;
   let intersection = 0;
   for (const t of a) {

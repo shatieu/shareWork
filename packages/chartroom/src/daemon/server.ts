@@ -11,6 +11,7 @@ import { registerDocAssetsRoute } from './routes/doc-assets.js';
 import { registerDocCheckboxRoute } from './routes/doc-checkbox.js';
 import { registerDocAskMeRoute } from './routes/doc-ask-me.js';
 import { registerInboxRoute } from './routes/inbox.js';
+import { registerMcpRoute } from './routes/mcp.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
@@ -78,6 +79,7 @@ export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = 
   registerDocCheckboxRoute(app, repos);
   registerDocAskMeRoute(app, repos);
   registerInboxRoute(app, repos);
+  registerMcpRoute(app, repos);
 
   return app;
 }
