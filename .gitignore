@@ -14,3 +14,6 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+
+# Lookout runtime state (suite-design/lookout/lookout.ps1)
+suite-design/lookout/state/
