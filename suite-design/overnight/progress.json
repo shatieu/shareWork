@@ -23,12 +23,12 @@
     {
       "id": 2,
       "title": "Chart Room v1.1",
-      "status": "plan approved",
-      "stage_progress": 25,
+      "status": "implementing",
+      "stage_progress": 60,
       "difficulty": "L",
       "remaining_guess_h": 8,
-      "updated_at": "2026-07-05T14:56:32.792Z",
-      "note": "plan approved with 5 FO directions; researcher pass R1-R5 before implementation"
+      "updated_at": "2026-07-05T15:07:52.313Z",
+      "note": "R1-R5 all GO; TL implementing on ship-wave1-cr-v11"
     },
     {
       "id": 3,
