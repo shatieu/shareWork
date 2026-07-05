@@ -21,8 +21,8 @@ We stay in this repo for now: create the monorepo structure in place (`packages/
 **1. You orchestrate; teams execute — and every package is plan-first.** For each work package (one Chart Room phase = one package), the strict sequence is:
 
 1. Spawn the **Team Lead** alone. The Lead reads the relevant spec section and the current code, commissions a **Researcher** first if any library/API choice needs verification (e.g. Milkdown round-trip behavior, vscode-markdown-languageservice usage), and only then writes the package plan: files to create/change, approach, interfaces, test plan, risks, and an explicit mapping of each spec acceptance criterion to how it will be verified. **No developer exists yet at this point.**
-2. The Lead submits the plan to you. You challenge it (completeness vs the spec, scope creep, riskiest part first) and approve or send it back. **Nothing is implemented before your approval.**
-3. Only after approval does the Lead dispatch **Developers** (parallel only if their files don't overlap), watches their progress against the plan, and integrates.
+2. The Lead submits the plan to you **and saves it to `suite-design/overnight/packages/<package>-plan.md`** — plans must survive a session death and be reviewable in the morning. You challenge it (completeness vs the spec, scope creep, riskiest part first) and approve or send it back. **Nothing is implemented before your approval.**
+3. Only after approval does the Lead dispatch **Developers** (parallel only if their files don't overlap), watches their progress against the plan, and integrates. **Developers commit incrementally on the feature branch as they complete each coherent step** — never hold hours of work uncommitted; a killed session must lose minutes, not a package.
 4. The Lead then hands the result to the **Reviewer/Critic** — adversarial by default: reviews the diff against spec + plan, runs build + tests + the acceptance script, and returns an explicit PASS or FAIL with reasons. FAIL goes back to step 3 with the reasons as instructions.
 5. The Lead reports completion to you with the Reviewer's verdict. You accept only on PASS.
 
@@ -46,13 +46,15 @@ We stay in this repo for now: create the monorepo structure in place (`packages/
 - **No decisions that belong to the Captain.** If the specs leave something open: (a) if it's low-risk and trivially reversible, pick the conservative default and log it in DECISIONS-NEEDED.md as "defaulted, review tomorrow"; (b) otherwise park that package, log the question, and move to work that isn't blocked. Never guess on: schema shapes beyond the spec, external service signups, anything touching `team-tasks/`, publishing/naming.
 - No new external services, no paid APIs, no telemetry. Local SQLite/JSON only.
 
-## Rate limits & endurance (you are running under a watchdog)
+## Quota-aware pacing (you are running under a quota watchdog)
 
-An external watchdog (`overnight-watchdog.ps1`) relaunches this mission automatically whenever the session ends — usage limit, crash, anything — until it finds the file `suite-design/overnight/DONE`. This means:
+An external watchdog (`overnight-watchdog.ps1`) supervises this mission. It polls usage every few minutes; at **≥90% of the 5-hour window it creates `suite-design/overnight/PAUSE`**. When the session ends for any reason, the watchdog waits for the window reset and relaunches with a resume instruction, until it finds `suite-design/overnight/DONE`. Your obligations:
 
+- **Check for PAUSE at every dispatch decision** — before spawning a new team, approving a plan for implementation, or starting any new package or major delegation, check whether `suite-design/overnight/PAUSE` exists. If it does: **start nothing new.** Let in-flight developers finish their current commit-able step, integrate what is integrable, commit everything (WIP gets a `wip:` prefix), update STATUS.md with an explicit "paused at X, next action: Y" line, then **end the session cleanly** with a short closing statement. The watchdog resumes you on a fresh window. A graceful checkpoint beats a mid-thought death — that is the whole point of the pause.
 - **You may be a resumed instance.** First action on every start: if `suite-design/overnight/STATUS.md` exists, you are resuming — read STATUS.md + PLAN.md, run `git status` and `git log --oneline -10` on `ship-wave1` (via a subagent), reconcile reality with the board, and continue exactly where the previous instance left off. Do not redo accepted packages; do not restart in-progress packages from scratch if their feature branch has usable WIP.
-- **Commit relentlessly.** The session can die at any moment; anything uncommitted or untracked in STATUS.md is lost. Before any large delegation, make sure STATUS.md reflects the current position. If you notice the limit approaching, commit WIP to the feature branch with a `wip:` prefix and update STATUS.md immediately.
+- **Commit relentlessly.** The session can still die without warning (the usage endpoint is flaky; a hard limit may land before the poller sees 90%). Anything uncommitted or untracked in STATUS.md is lost.
 - **Create `suite-design/overnight/DONE`** (empty file) only after MORNING-REPORT.md is complete — this is what stops the watchdog. Never create it earlier.
+- **Dogfood note:** this pause/resume mechanism is the prototype of the suite's Scheduler (reset-detector + quota-aware dispatch). Record any friction you hit with it (wrong pause timing, bad reset detection, awkward checkpointing) in DECISIONS-NEEDED.md under a "Scheduler learnings" heading — it is product input.
 
 ## Tracking (create `suite-design/overnight/` first thing)
 

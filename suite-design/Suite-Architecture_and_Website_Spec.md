@@ -12,7 +12,8 @@
 | Name | What it is | Spec |
 |---|---|---|
 | **The Ship** | The suite / umbrella brand | this doc |
-| **Chart Room** | MD management: browser edit, interactive blocks, self-healing ID links, MCP | `ChartRoom_Spec.md` |
+| **Captain's Deck** | The hull's UI: ONE local app where every locally hosted station renders as a tab — Chart Room, inbox, settings manager, console, analytics, and anything else displayable. Keep it all simple: if it runs locally and has output, it shows on the Deck. | `Ship_Spec.md` §2 (hull revision) |
+| **Chart Room** | MD management: browser edit, interactive blocks, self-healing ID links, MCP — first tab on the Deck | `ChartRoom_Spec.md` |
 | **Bridge** | Fleet glue + console: ledger, changelog, human-action inbox, fleet view | `Ship_Spec.md` (product renamed Bridge; `ship-*` service names kept) |
 | **Crew** | The Claude Code plugin: First Officer + crew subagents, scrutiny presets, hooks | `Ship_Spec.md` §7 |
 | **Comm** | Voice fleet control from the phone (Council/Direct modes) | `VoiceBridge_Spec.md` |
@@ -25,8 +26,8 @@
 
 ## 2. The system map — what runs where
 
-**Local (npx, separate processes — decision; everything works with zero cloud):**
-Chart Room daemon · ship-ledger · ship-log · ship-inbox · ship-console · ship-voice · settings manager · skill analytics CLI · scheduler. Integration = HTTP/MCP contracts + `~/.suite/services.json` port registry. Kill any one → others degrade, never break.
+**Local (npx; everything works with zero cloud) — REVISED 5 July 2026 to ONE HULL:**
+One local process (`ship serve`), one port, one UI shell with tabs — Chart Room's daemon is the host; ship-ledger, ship-log, ship-inbox, ship-console, settings manager mount as encapsulated Fastify plugins. Each remains an independent package with its own storage and standalone `bin`; modules communicate only through the host's typed contracts. ship-voice, skill-analytics CLI, scheduler/Lookout remain separate processes by nature (voice daemon, CLI, sensor). See Ship_Spec §2 for the revision rationale.
 
 **Plugin-distributed (native Claude Code marketplace rail):**
 Crew plugin (subagents, skills, http hooks, presets) · chart-room skill · permission template packs. Distributed from Harbor's marketplace endpoints — suite-official packs and users' own Sea Chest items ride the same rail.

@@ -15,13 +15,13 @@ Four small services + one Claude Code plugin that together give you: a persisten
 ## 2. Architecture principles
 
 - **Observe, don't host.** Sessions are hosted by Claude Code's native supervisor (`claude agents`). The Ship reads `claude agents --json`, `~/.claude/jobs/`, `~/.claude/tasks/`, and JSONL transcripts (`~/.claude/projects/`), and receives events via **http hooks** installed by the plugin (`PermissionRequest`, `Notification`, `Stop`, `SessionStart/End`, `TaskCreated/TaskCompleted`).
-- **Separate processes** (decision): each module is a standalone service with its own port and storage. Integration = HTTP/MCP contracts only. Shared conventions live in one tiny package: `~/.suite/services.json` port registry + common event shapes. The Ship's inbox *pulls* Chart Room's questions via Chart Room's API; Chart Room knows nothing about the Ship.
+- ~~**Separate processes** (decision): each module is a standalone service with its own port and storage.~~ **REVISED (5 July 2026, after Chart Room v1 shipped): ONE HULL.** One local Fastify process, one port, one UI shell with tabs (Docs / Inbox / Settings / Console…) — the shell is named the **Captain's Deck**: the single place where every locally hosted station's output is displayed. Anything the suite runs locally that can be displayed, gets a Deck tab. Chart Room's daemon becomes the host; ship-ledger, ship-log, ship-inbox, ship-console, and the settings manager mount as **encapsulated Fastify plugins**. Modularity moves from the process level to the package level: each module remains its own package — independently developed, tested, versioned, with its own `bin` for standalone use — but the default runtime is one `ship serve`. Discipline rule: modules may not import each other's internals; they talk through the host's typed plugin contracts (the old HTTP contracts become in-process interfaces). Storage stays per-module (own SQLite/JSON files). `~/.suite/services.json` survives, reduced to registering the hull's port + event shapes.
 - **Native primitives over custom engines.** Approval memory = native permission rules. Crew = native subagents + agent teams. Profiles = native settings. If Anthropic ships a native equivalent of a module, that module gets deleted, not defended.
 
 ## 3. Ledger (service: `ship-ledger`)
 
 - SQLite (WAL) in `~/.ship/ledger.db`, exposed as an **MCP server** (agents read/write) + HTTP API (UI, other services).
-- Item: `id, title, spec_md, project, status, priority, source (human|agent|native-mirror), session_refs[], created_at, updated_at`.
+- Item: `id, title, spec_md, project, status, priority, source (human|agent|native-mirror), session_refs[], created_at, updated_at` — **plus progress fields (5 July): `stage_progress` (0–100, deterministic from status stage), `difficulty` (S/M/L/XL, estimated at claim/plan time), `remaining_guess_h` (honest guess, updated on stage change, never a promise).** These power the Deck's Voyage tab so the Captain can visually check done/pending/in-flight with progress bars at any time; the Quartermaster keeps them current and flags stale estimates.
 - Native Agent Teams task files (`~/.claude/tasks/`) are **mirrored in** via `TaskCreated/TaskCompleted` hooks — never written back.
 - **Schema deliberately aligned with Team Tasks' `tasks` table.** Two consequences:
   - **Cross-computer sync (core requirement):** "promote" pushes an item to your *personal team* on the hosted Team Tasks; the Ship on another machine pulls it. Team Tasks is the cloud spine of the suite — solo sync now, team handoff later, same tables.
@@ -46,6 +46,8 @@ One page aggregating everything that needs a human, across all projects:
 - Phone access v1 = this same page over Tailscale. The voice bridge (product #3) later drives this same queue — built once.
 
 ## 6. Console (service: `ship-console`)
+
+> **Note (5 July 2026, Ondřej — later improvement):** the overnight watchdog run exposed how bad the raw experience is: a wall of `stream-json` in a PowerShell window is the only live view of an orchestrated mission. We want this **visualized differently and better** — a live mission view in the console: current package, plan→approve→implement→review stage, subagent activity, PAUSE/quota state, tail of meaningful events (not raw JSON), and the STATUS.md board rendered live. The overnight tracking files (PLAN/STATUS/watchdog.log/usage.json) are already the data source; the console should read them. Treat the overnight-run experience as a first-class console use case, not just interactive fleets.
 
 Thin fleet view: sessions from `claude agents --json` (state, `waitingFor`, Anthropic's own Haiku row summaries), ledger sidebar, inbox badge, daily rollup, dispatch box (shells out to `claude agents`). **Most sherlockable module — kept deliberately thin**; if Anthropic ships a GUI Agent View, delete this and keep §3–5. Config-matrix UI (plugins × projects, toggle/sync) lands here in a later phase.
 
