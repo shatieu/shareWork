@@ -3,7 +3,7 @@
 // Plain Node (>=20), no dependencies. Run from anywhere:
 //   node suite-design/overnight/render-progress.mjs
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -46,6 +46,16 @@ function renderPackage(pkg) {
     `(${pkg.status}, ${remainingLabel(pkg.remaining_guess_h)})`;
   return pkg.note ? `${line}\n  - ${pkg.note}` : line;
 }
+
+// Preserve any existing leading YAML frontmatter block (e.g. the chart-room id)
+// so regeneration does not strip it. If none exists, emit none.
+function readExistingFrontmatter(path) {
+  if (!existsSync(path)) return "";
+  const existing = readFileSync(path, "utf8");
+  const match = existing.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n\r?\n?/);
+  return match ? match[0] : "";
+}
+const frontmatter = readExistingFrontmatter(outputPath);
 
 const data = JSON.parse(readFileSync(inputPath, "utf8"));
 const packages = [...data.packages].sort((a, b) => a.id - b.id);
@@ -99,5 +109,7 @@ for (const [key, heading] of sections) {
 
 lines.push(`---`, `Last updated: ${lastUpdated}`, "");
 
-writeFileSync(outputPath, lines.join("\n"), "utf8");
+const body = lines.join("\n");
+const separator = frontmatter && !frontmatter.endsWith("\n\n") ? "\n" : "";
+writeFileSync(outputPath, frontmatter + separator + body, "utf8");
 console.log(`Wrote ${outputPath} (mission ${overallPct}%)`);
