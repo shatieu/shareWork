@@ -321,7 +321,13 @@ export function extractInteractiveBlocks(raw: string): InteractiveBlocks {
     actions.push({
       directiveId,
       label,
-      checked: localCheckboxes[0]?.checked ?? false,
+      // An `:::actions` item is only fully done once *every* checkbox in its own body is checked
+      // (a directive with several checkboxes reads as one compound action, e.g. a checklist of
+      // sub-steps) -- reading only `localCheckboxes[0]` here would silently ignore any checkbox
+      // beyond the first, reporting a still-pending action as `checked: true` the moment its first
+      // sub-step is ticked. `.length > 0 &&` keeps the prior no-checkbox-found fallback of `false`
+      // (`.every()` on an empty array is vacuously `true`, which would be wrong here).
+      checked: localCheckboxes.length > 0 && localCheckboxes.every((c) => c.checked),
       blockRange: findRange(node) ?? { start: 0, end: 0 },
     });
   }

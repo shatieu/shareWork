@@ -316,6 +316,31 @@ describe(':::actions extraction (plan §5)', () => {
     expect(actions[0].checked).toBe(true);
   });
 
+  it('an :::actions item with two checkboxes reports checked: false unless ALL are checked (regression: only checkboxes[0] was previously consulted)', () => {
+    const partiallyChecked = [
+      ':::actions{id="rollout"}',
+      '- [x] Deploy to staging',
+      '- [ ] Deploy to production',
+      ':::',
+      '',
+    ].join('\n');
+    const { actions: partial, checkboxes: partialCheckboxes } = extractInteractiveBlocks(partiallyChecked);
+    expect(partialCheckboxes).toHaveLength(2);
+    expect(partialCheckboxes.map((c) => c.checked)).toEqual([true, false]);
+    // checkboxes[0] alone is checked, but the item as a whole must still be pending.
+    expect(partial[0].checked).toBe(false);
+
+    const fullyChecked = [
+      ':::actions{id="rollout"}',
+      '- [x] Deploy to staging',
+      '- [x] Deploy to production',
+      ':::',
+      '',
+    ].join('\n');
+    const { actions: full } = extractInteractiveBlocks(fullyChecked);
+    expect(full[0].checked).toBe(true);
+  });
+
   it('multiple actions directives each get their own within-directive checkbox index 0', () => {
     const doc = [
       ':::actions{id="first"}',
