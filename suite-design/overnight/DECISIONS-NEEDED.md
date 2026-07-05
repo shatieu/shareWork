@@ -141,3 +141,6 @@ Plan: `suite-design/overnight/plans/05-cr-phase5-plan.md`. Team Lead flagged 12 
 - **Default taken:** skip it. `packages/README.md` and `plugins/README.md` stubs (already in the plan) are enough documentation for now.
 - **Review tomorrow:** add a root `README.md` if/when the Captain wants one; trivial, reversible, no dependency on it from later packages.
 
+
+## 2026-07-05 marathon: quarantined WIP adjudication (FO default in motion)
+Unattributed uncommitted work over packages/chartroom + chartroom-ui found at marathon start (created 11:14-12:38, after the night session stood down; resembles queue items 2d/2e and 3: associate/open commands, claude-session/search/activity routes, RepoTree/SearchModal UI, Sidebar/RepoSwitcher deleted). Quarantined on `wip-quarantine-2026-07-05` (f34c297, pushed). FO default unless Captain overrides: v1.1 and Deck Team Leads evaluate salvage per-file during planning; anything not salvaged stays on the quarantine branch untouched. If this was YOUR work-in-progress, Captain, say so in CAPTAIN-INBOX.
