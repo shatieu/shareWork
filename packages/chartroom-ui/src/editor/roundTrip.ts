@@ -228,6 +228,70 @@ export function lcsMatch(keysA: string[], keysB: string[]): Array<[number, numbe
 const DEFAULT_GAP = '\n\n';
 
 /**
+ * Second-pass reorder matching — closes the gap tracked in `DECISIONS-NEEDED.md` ("Package 3
+ * (Chart Room phase 3): known round-trip gap on block reorder"). `lcsMatch` only ever returns index
+ * pairs that are strictly increasing in *both* sequences, because it is a longest-common-
+ * *subsequence* match — order-preserving by definition. That means a genuine one-for-one reorder of
+ * two existing blocks (e.g. dragging a bulleted list above an ordered list, no other edit) can only
+ * ever land ONE of the two swapped blocks in the LCS; whichever one doesn't land falls through to
+ * "unmatched," which `reconstructFile` (pre-fix) treated as brand-new content — using Milkdown's
+ * freshly re-serialized/canonicalized text instead of that block's own preserved original bytes.
+ *
+ * This pass runs after `lcsMatch` and looks only at what it left unmatched on both sides: for every
+ * still-unmatched *current* block, if some still-unmatched *original* block has the exact same
+ * canonical key (comparing the same `originalKeys`/`currentKeys` `reconstructFile` already computed
+ * for the LCS pass itself — canonicalized text for prose blocks, exact raw text for opaque blocks),
+ * pair them up too. Content-identical, just moved — so the moved block's own original bytes get
+ * preserved at its new position instead of falling back to fresh text. This never touches or
+ * second-guesses anything `lcsMatch` already matched, so it cannot change the outcome for a block
+ * that was already correctly matched (whether unchanged or genuinely edited-in-place).
+ *
+ * Duplicate-content tie-breaking (e.g. two originally-identical paragraphs, or two blocks that
+ * happen to canonicalize to the same key): candidates are paired in strict original-index order
+ * against strict current-index order — the first still-unmatched original with a given key pairs
+ * with the first still-unmatched current block carrying that key, the second with the second, and
+ * so on. This is deliberate and safe, not merely "undefined behavior picked arbitrarily": a pairing
+ * only ever happens between an original and a current block whose canonical *keys* are already
+ * exactly equal, so any two originals eligible to be paired with the same current slot are, by
+ * construction, canonically interchangeable content — pairing them "the other way round" can never
+ * splice one block's bytes in as a stand-in for a *different*, canonically-distinct original block.
+ * What positional tie-breaking does NOT attempt is inferring which *specific* physical instance a
+ * human would consider "the" one that moved when duplicate instances themselves get reordered
+ * relative to each other (see `roundTrip.test.ts`'s "duplicate-content blocks" cases for the
+ * concrete, deliberately-chosen behavior this produces) — positional order is the safe, fully
+ * deterministic default for that inherently ambiguous case, and since the two candidates are
+ * canonically identical, the visible/rendered output is unaffected either way.
+ */
+export function matchReorderedBlocks(
+  originalKeys: string[],
+  currentKeys: string[],
+  lcsMatches: Array<[number, number]>,
+): Array<[number, number]> {
+  const matchedOrig = new Set(lcsMatches.map(([oi]) => oi));
+  const matchedCur = new Set(lcsMatches.map(([, ci]) => ci));
+
+  const unmatchedOrigByKey = new Map<string, number[]>();
+  for (let oi = 0; oi < originalKeys.length; oi += 1) {
+    if (matchedOrig.has(oi)) continue;
+    const key = originalKeys[oi];
+    const list = unmatchedOrigByKey.get(key);
+    if (list) list.push(oi);
+    else unmatchedOrigByKey.set(key, [oi]);
+  }
+
+  const reorderPairs: Array<[number, number]> = [];
+  for (let ci = 0; ci < currentKeys.length; ci += 1) {
+    if (matchedCur.has(ci)) continue;
+    const candidates = unmatchedOrigByKey.get(currentKeys[ci]);
+    if (candidates && candidates.length > 0) {
+      const oi = candidates.shift()!;
+      reorderPairs.push([oi, ci]);
+    }
+  }
+  return reorderPairs;
+}
+
+/**
  * Reassembles the final saved file text (plan §3.1 steps 5-8): matches `currentBlocks` against
  * `original.blocks` via `lcsMatch` (using each prose block's canonicalized text, and each opaque
  * block's exact raw text, as the comparison key), then walks the *current* block order splicing in
@@ -246,8 +310,18 @@ export function reconstructFile(
   const currentKeys = currentBlocks.map((b) => b.text);
 
   const matches = lcsMatch(originalKeys, currentKeys);
+  const reorderMatches = matchReorderedBlocks(originalKeys, currentKeys, matches);
   const matchedForCurrent = new Map<number, number>();
   for (const [origIdx, curIdx] of matches) matchedForCurrent.set(curIdx, origIdx);
+  // Reorder pairs are layered in on top of (never overriding) the LCS pass's own matches — see
+  // `matchReorderedBlocks`'s doc comment. Deliberately *not* folded into `matches`/`anchors` below:
+  // the gap-preservation region algorithm requires its anchor list to stay strictly increasing in
+  // both sequences (an LCS invariant), which an out-of-order reorder pair would violate. A gap
+  // adjacent to a reordered block therefore falls back to `DEFAULT_GAP` rather than the original's
+  // preserved spacing — correct per `DEFAULT_GAP`'s own doc comment ("two blocks newly adjacent
+  // because something between them was deleted/reordered"), since reordering is itself a genuine
+  // structural change the user made, not a phantom one.
+  for (const [origIdx, curIdx] of reorderMatches) matchedForCurrent.set(curIdx, origIdx);
 
   // A *second*, denser alignment used only to decide which gap to preserve (never to decide block
   // *content*): LCS anchors alone lose positional continuity across an edited-in-place block (e.g.

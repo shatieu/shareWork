@@ -14,8 +14,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Fragment, type Node as PMNode } from '@milkdown/kit/prose/model';
 import {
   buildDocNodeFromBlocks,
+  canonicalizeBlock,
   createHeadlessEngine,
   extractCurrentBlocks,
+  matchReorderedBlocks,
   reconstructFile,
   type RoundTripEngine,
 } from '../../src/editor/roundTrip.js';
@@ -392,5 +394,185 @@ describe('round-trip engine — fixture-based no-op + single-edit suite (plan §
         'Leading new para.\n\n# Title\n\nFirst para.\n\nSecond para.\n\nThird para.\n\nTrailing new para.\n',
       );
     });
+  });
+
+  // Fix for the tracked follow-up in DECISIONS-NEEDED.md ("Package 3 (Chart Room phase 3): known
+  // round-trip gap on block reorder"): a genuine reorder of two (or more) existing blocks, with no
+  // other edit, must preserve each block's own original bytes at its new position -- not fall
+  // through to Milkdown's freshly re-serialized/canonicalized text the way `lcsMatch` alone (which
+  // only matches strictly-increasing index pairs, order-preserving by definition) would produce for
+  // whichever one of the two swapped blocks doesn't land in the LCS.
+  describe('block reorder (DECISIONS-NEEDED.md tracked follow-up, now fixed)', () => {
+    it('swapping two blocks with no other edit preserves each block\'s own original bytes', () => {
+      // A '+'-marker bullet list is a deliberate choice: Milkdown's commonmark serializer
+      // normalizes bullet markers to '-', so this block's canonical form provably diverges from
+      // its own original raw bytes -- exactly the condition the tracked bug report named as the
+      // trigger ("For any block whose canonical form diverges from how it was actually
+      // authored... this produces a spurious diff"). If the fix regresses, this block would come
+      // back re-serialized with '-' markers instead of its own original '+' markers.
+      const raw = '# Title\n\n+ one\n+ two\n+ three\n\n1. first\n2. second\n3. third\n';
+      const before = segmentDocument(raw);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+
+      // Simulate a pure drag-reorder: swap the two list nodes (indices 1 and 2), no other edit.
+      [children[1], children[2]] = [children[2], children[1]];
+      const editedDoc = engine.schema.topNodeType.create(null, children);
+
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      const plusListRaw = before.blocks[1].text; // '+ one\n+ two\n+ three'
+      const orderedListRaw = before.blocks[2].text; // '1. first\n2. second\n3. third'
+
+      // Sanity check: this fixture actually exercises the divergent-canonical-form trigger.
+      const plusListCanonical = canonicalizeBlock(engine, plusListRaw);
+      expect(plusListCanonical).not.toBe(plusListRaw);
+
+      // Both blocks' own original bytes appear verbatim, in the new (swapped) order.
+      expect(result).toContain(plusListRaw);
+      expect(result).toContain(orderedListRaw);
+      expect(result.indexOf(orderedListRaw)).toBeLessThan(result.indexOf(plusListRaw));
+
+      // The re-serialized/canonicalized form of the '+' list must NOT appear anywhere -- proof
+      // this isn't silently falling back to fresh Milkdown text for the reordered block.
+      expect(result).not.toContain(plusListCanonical);
+
+      // The only actual change versus the original is the ordering itself: every original block's
+      // own text is still present in full, and nothing outside the two swapped blocks changed.
+      expect(result.startsWith('# Title')).toBe(true);
+      expect(result.endsWith('\n')).toBe(true);
+    });
+
+    it('reorder composes correctly with a genuine insert (reorder two blocks AND add a new one)', () => {
+      const raw = '# Title\n\n+ one\n+ two\n+ three\n\n1. first\n2. second\n3. third\n';
+      const before = segmentDocument(raw);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+
+      // Swap the two lists AND insert a brand-new paragraph between them.
+      const newNode = engine.parse('Inserted para.').firstChild!;
+      const reordered = [children[0], children[2], newNode, children[1]];
+      const editedDoc = engine.schema.topNodeType.create(null, reordered);
+
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      const plusListRaw = before.blocks[1].text;
+      const orderedListRaw = before.blocks[2].text;
+      const plusListCanonical = canonicalizeBlock(engine, plusListRaw);
+
+      // The two reordered blocks keep their own original bytes...
+      expect(result).toContain(plusListRaw);
+      expect(result).toContain(orderedListRaw);
+      expect(result).not.toContain(plusListCanonical);
+      // ...the new block gets fresh content...
+      expect(result).toContain('Inserted para.');
+      // ...and the overall order is: heading, ordered list, inserted para, '+' list.
+      const iOrdered = result.indexOf(orderedListRaw);
+      const iInserted = result.indexOf('Inserted para.');
+      const iPlus = result.indexOf(plusListRaw);
+      expect(iOrdered).toBeLessThan(iInserted);
+      expect(iInserted).toBeLessThan(iPlus);
+    });
+
+    it('duplicate-content blocks: no-op round trip does not confuse or corrupt identical instances', () => {
+      // Two genuinely byte-identical paragraphs -- proves the matching logic doesn't get confused
+      // about "which original maps to which current instance" even when canonical keys collide,
+      // in the baseline (no reorder) case.
+      const raw = '# Title\n\nSame paragraph text.\n\nSame paragraph text.\n\nTail paragraph.\n';
+      const before = segmentDocument(raw);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const current = extractCurrentBlocks(engine, doc);
+      const result = reconstructFile(engine, before, current);
+
+      // No-op round trip: byte-identical to the original, exactly like every other fixture.
+      expect(result).toBe(raw);
+    });
+
+    it('duplicate-content blocks combined with a reorder: positional tie-break stays deterministic and lossless', () => {
+      // Two identical paragraphs plus a third, distinct block (an ordered list). The distinct
+      // block is dragged to the front, ahead of both duplicates. Documents the chosen, safe
+      // behavior for the inherently-ambiguous "which duplicate instance is 'the' one that moved"
+      // question (see `matchReorderedBlocks`'s doc comment): candidates are paired by position,
+      // which is always safe here because any two blocks eligible to be paired with the same slot
+      // are, by construction, canonically identical -- so it is impossible for this tie-breaking
+      // to splice in a *different*, canonically-distinct original block's bytes by mistake.
+      const raw = '# Title\n\nSame paragraph text.\n\nSame paragraph text.\n\n1. first\n2. second\n3. third\n';
+      const before = segmentDocument(raw);
+      const doc = buildDocNodeFromBlocks(engine, before.blocks);
+      const children: PMNode[] = [];
+      doc.forEach((child) => children.push(child));
+
+      // Move the ordered list (index 3) to the front of the two duplicate paragraphs (indices 1, 2).
+      const [orderedNode] = children.splice(3, 1);
+      children.splice(1, 0, orderedNode);
+      const editedDoc = engine.schema.topNodeType.create(null, children);
+
+      const current = extractCurrentBlocks(engine, editedDoc);
+      const result = reconstructFile(engine, before, current);
+
+      const orderedListRaw = before.blocks[3].text;
+      // The moved block keeps its own original bytes, now ahead of both duplicate paragraphs.
+      expect(result).toContain(orderedListRaw);
+      expect(result.indexOf(orderedListRaw)).toBeLessThan(result.indexOf('Same paragraph text.'));
+      // Both duplicate instances are still present exactly twice each -- nothing lost, nothing
+      // duplicated an extra time.
+      const occurrences = result.split('Same paragraph text.').length - 1;
+      expect(occurrences).toBe(2);
+    });
+  });
+});
+
+describe('matchReorderedBlocks — second-pass reorder matching, pure-function unit tests', () => {
+  it('pairs a genuine one-for-one swap that lcsMatch alone could not fully match', () => {
+    // originalKeys/currentKeys mimic a swap of blocks at indices 1 and 2 ('A','B' <-> 'B','A').
+    const originalKeys = ['H', 'A', 'B'];
+    const currentKeys = ['H', 'B', 'A'];
+    // lcsMatch itself can only match one of 'A'/'B' (order-preserving) -- simulate whichever one
+    // it picks; either is a valid LCS result for this input.
+    const lcsMatches: Array<[number, number]> = [[0, 0], [1, 2]]; // H, and A matched at its old slot
+    const reorderPairs = matchReorderedBlocks(originalKeys, currentKeys, lcsMatches);
+    expect(reorderPairs).toEqual([[2, 1]]); // original 'B' (idx2) <-> current 'B' (idx1)
+  });
+
+  it('does not invent a match for a genuinely new block with no corresponding original', () => {
+    const originalKeys = ['H', 'A'];
+    const currentKeys = ['H', 'A', 'NEW'];
+    const lcsMatches: Array<[number, number]> = [[0, 0], [1, 1]];
+    expect(matchReorderedBlocks(originalKeys, currentKeys, lcsMatches)).toEqual([]);
+  });
+
+  it('does not invent a match for a genuinely deleted block with no corresponding current', () => {
+    const originalKeys = ['H', 'A', 'GONE'];
+    const currentKeys = ['H', 'A'];
+    const lcsMatches: Array<[number, number]> = [[0, 0], [1, 1]];
+    expect(matchReorderedBlocks(originalKeys, currentKeys, lcsMatches)).toEqual([]);
+  });
+
+  it('breaks ties among canonically-identical duplicates by strict positional order', () => {
+    // Two unmatched originals share key 'DUP', two unmatched currents share key 'DUP' -- the
+    // first unmatched original should pair with the first unmatched current, in index order.
+    const originalKeys = ['DUP', 'DUP'];
+    const currentKeys = ['DUP', 'DUP'];
+    const lcsMatches: Array<[number, number]> = []; // force everything through the reorder pass
+    expect(matchReorderedBlocks(originalKeys, currentKeys, lcsMatches)).toEqual([
+      [0, 0],
+      [1, 1],
+    ]);
+  });
+
+  it('leaves surplus duplicate originals/currents unmatched when counts differ', () => {
+    // Three originals share a key, only one current does -- exactly one pairing, the other two
+    // originals are left unmatched (correctly treated as deleted, not guessed at).
+    const originalKeys = ['DUP', 'DUP', 'DUP'];
+    const currentKeys = ['DUP'];
+    expect(matchReorderedBlocks(originalKeys, currentKeys, [])).toEqual([[0, 0]]);
+
+    // The reverse: one original, three currents sharing a key -- one pairing, the other two
+    // currents are left unmatched (correctly treated as new content, not guessed at).
+    expect(matchReorderedBlocks(['DUP'], ['DUP', 'DUP', 'DUP'], [])).toEqual([[0, 0]]);
   });
 });
