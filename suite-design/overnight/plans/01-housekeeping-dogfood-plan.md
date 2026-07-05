@@ -117,3 +117,21 @@ Runs against THIS repo root; every mutation is restored in a `finally`; exits no
 - **Captain-only:** none new. The dogfood go-ahead itself (MORNING-REPORT §4.2) is taken as given by this package's presence in the PLAN.md queue and this dispatch. Nothing added to DECISIONS-NEEDED.md.
 - **FO approval needed for:** the `.chartroomignore` enabling change (§2–3, new product behavior in `packages/chartroom`), the §4 exclusion list (scope of which docs get ids), and the R3 post-merge hook-install step becoming an FO action.
 - Estimated size: ~6 commits, one small src change + tests, one repo-wide mechanical frontmatter commit.
+
+## 10. Implementation deviations (recorded during execution, 2026-07-05)
+
+- **§5 step 5, `install-agent-hook`: NOT executed.** The session permission system denied the
+  agent writing `.claude/hooks/chartroom-post-tool-use.mjs` + `.claude/settings.json` (agent
+  self-modification of live agent-loaded config). Not worked around; parked as a one-line human
+  step in CAPTAIN-TODO.md (`node packages/chartroom/dist/cli.js install-agent-hook`). `install-skill`
+  itself succeeded (`.claude/skills/chart-room/SKILL.md` committed).
+- **§5 step 4 partial-staging protocol: not needed.** By execution time the 3 previously-dirty
+  suite-design files (Ship_Spec, Suite-Architecture, Trio_Specs) were clean on `ship-wave1`
+  (Captain's annotations had been committed/reconciled); plain `git add -u -- '*.md'` was safe and
+  used instead of the index-blob technique. Pre-existing dirt (watchdog.log, `team-tasks/*`) left
+  unstaged and untouched.
+- **Root `CLAUDE.md` gets an id too** (50th, `id: sharework`): the newly created CLAUDE.md is
+  itself a discovered doc; `check` correctly flagged it, so `init --no-hook` was re-run (idempotent,
+  1 id) rather than excluding it.
+- **R6 untracked docs:** only `suite-design/overnight/LESSONS-LEARNED.md` was untracked at run
+  time; it received an id in the working tree and is deliberately left uncommitted (not ours).
