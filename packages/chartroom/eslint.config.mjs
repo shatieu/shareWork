@@ -36,6 +36,9 @@ export default tseslint.config(
         __dirname: 'readonly',
         __filename: 'readonly',
         Buffer: 'readonly',
+        // Node 20+ web globals used by acceptance/open-associate-e2e.mjs.
+        fetch: 'readonly',
+        AbortSignal: 'readonly',
       },
     },
   },
