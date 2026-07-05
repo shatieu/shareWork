@@ -1,16 +1,34 @@
-import { useState, type ReactElement } from 'react';
+import { useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkDirective from 'remark-directive';
 import remarkDirectiveRehype from 'remark-directive-rehype';
 import rehypeSlug from 'rehype-slug';
 import rehypeSectionize from '../rehype/rehype-sectionize.js';
-import { rawAssetUrl, type DocDetail, type DocSummary } from '../api/client.js';
+// Phase 4 plan §2.1: a real, non-type-only cross-package import of `chartroom`'s own executable
+// extraction/splice logic, verified safe against a real `vite build` (not just `tsc`) at the
+// Developer stage's own mandated checkpoint -- see that report for the checkpoint's findings.
+import {
+  extractInteractiveBlocks,
+  type AskMeAnswerValue as SharedAskMeAnswerValue,
+  type AskMeQuestion,
+  type CheckboxRef,
+} from 'chartroom/interactive-blocks';
+import {
+  rawAssetUrl,
+  resolveAuthorName,
+  submitAskMeAnswer,
+  toggleCheckbox,
+  type DocDetail,
+  type DocSummary,
+} from '../api/client.js';
 import { TombstoneBadge } from './TombstoneBadge.js';
 import { BacklinksPanel } from './BacklinksPanel.js';
 import { LlmBlock } from './LlmBlock.js';
 import { HumanBlock } from './HumanBlock.js';
-import { DirectiveFallback } from './DirectiveFallback.js';
+import { AskMeBlock } from './AskMeBlock.js';
+import { ActionsBlock } from './ActionsBlock.js';
+import { Checkbox } from './Checkbox.js';
 import { DocEditor } from '../editor/DocEditor.js';
 
 // Matches a leading YAML frontmatter block, same shape as phase-1's frontmatter.ts::FRONTMATTER_RE
@@ -66,21 +84,60 @@ export function DocView({ repoId, docId, detail, docs, onSelectDoc, onSaved }: D
   const [isEditing, setIsEditing] = useState(false);
   const body = stripFrontmatter(detail.raw);
   const docDir = docDirOf(detail.doc.path);
+  // Pre-parsed once per doc render (plan §4.3/§4.7) -- `AskMeBlock` is dispatched the structured
+  // `AskMeQuestion` object looked up from here by directive id, never react-markdown's own
+  // `children`/attribute props, since the `choices`/`min`/`max` shape isn't otherwise recoverable.
+  const interactiveBlocks = useMemo(() => extractInteractiveBlocks(body), [body]);
+
+  const handleToggleCheckbox = async (ref: CheckboxRef, checked: boolean): Promise<void> => {
+    await toggleCheckbox(repoId, docId, ref.scope, checked, ref.checked);
+    onSaved();
+  };
+
+  const handleSubmitAskMe = async (question: AskMeQuestion, value: SharedAskMeAnswerValue): Promise<void> => {
+    const author = resolveAuthorName();
+    await submitAskMeAnswer(repoId, docId, question.directiveId, value, author);
+    onSaved();
+  };
+
+  // Render-order counter into `interactiveBlocks.checkboxes` (plan §4.3): both this counter and
+  // `extractInteractiveBlocks`'s own array are driven by the identical document-order traversal,
+  // skipping an ask-me block's own choice-list checkboxes entirely (never rendered here either,
+  // since `AskMeBlock` dispatches to a structured widget instead of rendering `children` for an
+  // unanswered question) -- so the Nth checkbox actually rendered always corresponds to
+  // `checkboxes[N]`, with no separate scope-recomputation needed in `Checkbox` itself.
+  let checkboxCursor = 0;
 
   const components: Components = {
     img({ src, alt, ...props }) {
       const resolvedSrc = typeof src === 'string' ? resolveImageSrc(repoId, docDir, src) : src;
       return <img src={resolvedSrc} alt={alt ?? ''} {...props} />;
     },
-    // `remark-directive-rehype` produces non-standard tag names (llm, human, ask-me, ...) for
-    // parsed :::name directives -- react-markdown's `components` map dispatches on any lowercase
-    // key exactly like it does for standard tags (plan §1.4). Cast needed since `Components`'s own
-    // type is keyed against known HTML tag names only.
+    input(props) {
+      if (props.type !== 'checkbox') {
+        return <input {...props} />;
+      }
+      const ref = interactiveBlocks.checkboxes[checkboxCursor];
+      checkboxCursor += 1;
+      return <Checkbox {...props} checkboxData={ref} onCheckToggle={handleToggleCheckbox} />;
+    },
+    // `remark-directive-rehype` produces non-standard tag names (llm, human, ask-me, actions, ...)
+    // for parsed :::name directives -- react-markdown's `components` map dispatches on any
+    // lowercase key exactly like it does for standard tags (plan §1.4). Cast needed since
+    // `Components`'s own type is keyed against known HTML tag names only. Only `ask-me`/`actions`
+    // change in this phase -- `llm`/`human` rendering stays completely untouched.
     ...({
       llm: LlmBlock,
       human: HumanBlock,
-      'ask-me': DirectiveFallback,
-      actions: DirectiveFallback,
+      'ask-me': (props: { id?: string; children?: ReactNode }) => (
+        <AskMeBlock
+          question={interactiveBlocks.askMe.find((q) => q.directiveId === props.id)}
+          onSubmit={handleSubmitAskMe}
+        >
+          {props.children}
+        </AskMeBlock>
+      ),
+      actions: (props: { children?: ReactNode }) => <ActionsBlock>{props.children}</ActionsBlock>,
     } as Partial<Components>),
   };
 

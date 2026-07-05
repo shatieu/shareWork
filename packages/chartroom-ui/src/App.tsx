@@ -1,18 +1,23 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { fetchDoc, fetchDocs, fetchRepos, type DocDetail, type DocSummary, type RepoSummary } from './api/client.js';
+import { fetchDoc, fetchDocs, fetchInbox, fetchRepos, type DocDetail, type DocSummary, type RepoSummary } from './api/client.js';
 import { RepoSwitcher } from './components/RepoSwitcher.js';
 import { Sidebar } from './components/Sidebar.js';
 import { DocView } from './components/DocView.js';
+import { InboxPage } from './inbox/InboxPage.js';
 
 interface HashRoute {
   repoId?: string;
   docId?: string;
+  /** `#/inbox` (plan §6.2, additive) -- takes precedence over the repo/doc route fields above. */
+  isInbox?: boolean;
 }
 
-// Hash-based navigation (#/repo/<repoId>/doc/<docId>), no router dependency (plan §1.7) -- the
-// hash fragment never reaches the server, so @fastify/static's default "serve index.html for `/`"
-// behavior already handles deep-link refreshes with zero SPA-fallback config on the daemon side.
+// Hash-based navigation (#/repo/<repoId>/doc/<docId>, or #/inbox), no router dependency (plan
+// §1.7) -- the hash fragment never reaches the server, so @fastify/static's default "serve
+// index.html for `/`" behavior already handles deep-link refreshes with zero SPA-fallback config
+// on the daemon side.
 const ROUTE_RE = /^#\/repo\/([^/]+)(?:\/doc\/([^/]+))?$/;
+const INBOX_ROUTE = '#/inbox';
 
 function subscribeHash(callback: () => void): () => void {
   window.addEventListener('hashchange', callback);
@@ -24,6 +29,7 @@ function getHashSnapshot(): string {
 }
 
 function parseHash(hash: string): HashRoute {
+  if (hash === INBOX_ROUTE) return { isInbox: true };
   const match = ROUTE_RE.exec(hash);
   if (!match) return {};
   return {
@@ -38,6 +44,10 @@ function navigateTo(repoId: string, docId?: string): void {
     : `#/repo/${encodeURIComponent(repoId)}`;
 }
 
+function navigateToInbox(): void {
+  window.location.hash = INBOX_ROUTE;
+}
+
 export default function App(): ReactElement {
   const hash = useSyncExternalStore(subscribeHash, getHashSnapshot, getHashSnapshot);
   const route = useMemo(() => parseHash(hash), [hash]);
@@ -46,6 +56,17 @@ export default function App(): ReactElement {
   const [docs, setDocs] = useState<DocSummary[]>([]);
   const [detail, setDetail] = useState<DocDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [inboxCount, setInboxCount] = useState<number | null>(null);
+
+  const refreshInboxCount = useCallback(() => {
+    fetchInbox()
+      .then((items) => setInboxCount(items.length))
+      .catch(() => setInboxCount(null));
+  }, []);
+
+  useEffect(() => {
+    refreshInboxCount();
+  }, [refreshInboxCount]);
 
   useEffect(() => {
     fetchRepos()
@@ -107,18 +128,32 @@ export default function App(): ReactElement {
         .then(setDocs)
         .catch((err: unknown) => setError(String(err)));
     }
-  }, [refetchDoc, route.repoId]);
+    // A checkbox toggle or ask-me answer (both routed through this same callback, plan §4.3) can
+    // change the inbox's own unanswered/unchecked count, so refresh it alongside the doc refetch.
+    refreshInboxCount();
+  }, [refetchDoc, route.repoId, refreshInboxCount]);
 
   return (
     <div className="app-shell">
       <RepoSwitcher repos={repos} activeRepoId={route.repoId} onSelect={handleSelectRepo} />
       <div className="app-shell__body">
-        {route.repoId && (
+        {!route.isInbox && route.repoId && (
           <Sidebar docs={docs} activeDocId={route.docId} onSelectDoc={handleSelectDoc} raw={detail?.raw} />
         )}
         <main className="app-shell__main">
+          <nav className="app-shell__nav">
+            <button
+              type="button"
+              className={route.isInbox ? 'app-shell__inbox-link app-shell__inbox-link--active' : 'app-shell__inbox-link'}
+              onClick={navigateToInbox}
+            >
+              Inbox{inboxCount !== null && inboxCount > 0 ? ` (${inboxCount})` : ''}
+            </button>
+          </nav>
           {error && <p className="app-shell__error">{error}</p>}
-          {route.repoId && route.docId && detail ? (
+          {route.isInbox ? (
+            <InboxPage onNavigate={navigateTo} />
+          ) : route.repoId && route.docId && detail ? (
             <DocView
               repoId={route.repoId}
               docId={route.docId}
