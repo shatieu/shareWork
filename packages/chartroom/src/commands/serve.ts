@@ -63,6 +63,7 @@ export function registerServeCommand(program: Command): void {
         name: basename(repo.absPath),
         absPath: repo.absPath,
         getState: () => states.get(repo.id) as RepoState,
+        setState: (state: RepoState) => states.set(repo.id, state),
       }));
 
       const app = buildServer(runtimes);

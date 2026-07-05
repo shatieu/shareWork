@@ -6,6 +6,8 @@ import fastifyStatic from '@fastify/static';
 import type { RepoState } from './repo-state.js';
 import { registerReposRoute } from './routes/repos.js';
 import { registerDocsRoutes } from './routes/docs.js';
+import { registerDocSaveRoute } from './routes/doc-save.js';
+import { registerDocAssetsRoute } from './routes/doc-assets.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
@@ -20,6 +22,11 @@ export interface RepoRuntime {
   name: string;
   absPath: string;
   getState: () => RepoState;
+  /** Swaps this repo's in-memory state (plan §5.3) -- used by the new doc-save route so a save's
+   * own `rebuild()` is reflected immediately, synchronously with the save response, without
+   * waiting for chokidar's own debounced rebuild (which still fires too, redundantly and
+   * harmlessly, per plan §5.3's "do not suppress the watcher" decision). */
+  setState: (state: RepoState) => void;
 }
 
 export interface BuildServerOptions {
@@ -63,6 +70,8 @@ export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = 
 
   registerReposRoute(app, repos);
   registerDocsRoutes(app, repos);
+  registerDocSaveRoute(app, repos);
+  registerDocAssetsRoute(app, repos);
 
   return app;
 }

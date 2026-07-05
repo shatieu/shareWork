@@ -15,12 +15,15 @@ function writeDoc(repoRoot: string, relPath: string, content: string): void {
 }
 
 function runtimeFor(id: string, repoRoot: string, initialState: RepoState): RepoRuntime {
-  const state = initialState;
+  let state = initialState;
   return {
     id,
     name: id,
     absPath: repoRoot,
     getState: () => state,
+    setState: (next: RepoState) => {
+      state = next;
+    },
   };
 }
 
