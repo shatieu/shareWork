@@ -37,6 +37,14 @@ export interface ChartRoomIndex {
   version: typeof INDEX_SCHEMA_VERSION;
   generatedAt: string;
   docs: Record<string, DocEntry>;
+  /**
+   * Docs discovered on disk that carry no `id:` frontmatter at all. Per plan §4: such a doc "can't
+   * be looked up by id" so it is deliberately *not* a key in `docs` (which is keyed by id), but it
+   * must remain discoverable by path/filename (resolver steps 2-3) and still be scanned for broken
+   * outbound links by `check`. Additive beyond the plan's literal schema shape, needed to satisfy
+   * that same note without contradicting "docs is keyed by id".
+   */
+  unidentified: DocEntry[];
   assets: Record<string, AssetEntry>;
   deleted: Record<string, DeletedEntry>;
 }
@@ -46,6 +54,7 @@ export function emptyIndex(): ChartRoomIndex {
     version: INDEX_SCHEMA_VERSION,
     generatedAt: new Date().toISOString(),
     docs: {},
+    unidentified: [],
     assets: {},
     deleted: {},
   };
@@ -65,6 +74,11 @@ export function readIndex(repoRoot: string): ChartRoomIndex | undefined {
     if (parsed.version !== INDEX_SCHEMA_VERSION) return undefined;
     if (typeof parsed.docs !== 'object' || typeof parsed.deleted !== 'object' || typeof parsed.assets !== 'object') {
       return undefined;
+    }
+    // `unidentified` is an additive field (see interface comment) — tolerate its absence in an
+    // index.json written before it existed rather than treating the whole file as stale-shape.
+    if (!Array.isArray(parsed.unidentified)) {
+      parsed.unidentified = [];
     }
     return parsed as ChartRoomIndex;
   } catch {

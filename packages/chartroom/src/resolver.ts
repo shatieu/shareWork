@@ -45,26 +45,32 @@ export function resolve(index: ChartRoomIndex, query: string): ResolveResult {
     return { matchType: 'id', id: query, path: index.docs[query].path };
   }
 
+  // Candidates for steps 2-4 include every doc with an id, *and* docs with no `id:` frontmatter at
+  // all (plan §4: "still resolvable by path/filename" even though they can't be looked up by id).
+  const candidates: Array<{ id?: string; path: string; title: string }> = [
+    ...Object.entries(index.docs).map(([id, doc]) => ({ id, path: doc.path, title: doc.title })),
+    ...index.unidentified.map((doc) => ({ id: undefined, path: doc.path, title: doc.title })),
+  ];
+
   // Step 2: path as written (exact match against a doc's current path).
   const normalizedQuery = query.split('\\').join('/');
-  for (const [id, doc] of Object.entries(index.docs)) {
-    if (doc.path === normalizedQuery) {
-      return { matchType: 'path', id, path: doc.path };
+  for (const candidate of candidates) {
+    if (candidate.path === normalizedQuery) {
+      return { matchType: 'path', id: candidate.id, path: candidate.path };
     }
   }
 
   // Step 3: unique filename match — ambiguous (2+ matches) falls through, does not match.
   const queryBase = basename(normalizedQuery);
-  const filenameMatches = Object.entries(index.docs).filter(([, doc]) => basename(doc.path) === queryBase);
+  const filenameMatches = candidates.filter((candidate) => basename(candidate.path) === queryBase);
   if (filenameMatches.length === 1) {
-    const [id, doc] = filenameMatches[0];
-    return { matchType: 'filename', id, path: doc.path };
+    return { matchType: 'filename', id: filenameMatches[0].id, path: filenameMatches[0].path };
   }
 
   // Step 4: fuzzy title match — conservative threshold + unambiguous margin required.
   const queryTokens = tokenize(basename(normalizedQuery, '.md'));
-  const scored = Object.entries(index.docs)
-    .map(([id, doc]) => ({ id, doc, score: diceCoefficient(queryTokens, tokenize(doc.title)) }))
+  const scored = candidates
+    .map((candidate) => ({ id: candidate.id, doc: candidate, score: diceCoefficient(queryTokens, tokenize(candidate.title)) }))
     .sort((a, b) => b.score - a.score);
   if (scored.length > 0 && scored[0].score >= FUZZY_MIN_SCORE) {
     const runnerUpScore = scored.length > 1 ? scored[1].score : 0;
