@@ -31,7 +31,7 @@
     "dev": "tsc -w -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:acceptance": "node acceptance/git-mv-resolution.mjs && node acceptance/two-repo-browse.mjs && node acceptance/editor-round-trip.mjs && node acceptance/ask-me-round-trip.mjs && node acceptance/agent-surface-e2e.mjs"
+    "test:acceptance": "node acceptance/git-mv-resolution.mjs && node acceptance/two-repo-browse.mjs && node acceptance/editor-round-trip.mjs && node acceptance/ask-me-round-trip.mjs && node acceptance/agent-surface-e2e.mjs && node acceptance/open-associate-e2e.mjs"
   },
   "dependencies": {
     "@fastify/static": "^9.1.3",
