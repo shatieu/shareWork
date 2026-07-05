@@ -21,15 +21,25 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
  * an inert, disabled checkbox). Handles both a bare checklist item and an `:::actions` item's own
  * checkbox identically -- the `CheckboxRef`'s own `scope` already carries which one it is.
  */
-export function Checkbox({ checkboxData, onCheckToggle, disabled, node: _node, ...rest }: CheckboxProps): ReactElement {
+export function Checkbox({ checkboxData, onCheckToggle, disabled: _disabled, node: _node, ...rest }: CheckboxProps): ReactElement {
   if (!checkboxData) {
     return <input type="checkbox" disabled {...rest} />;
   }
+  // `disabled` is deliberately never forwarded from the caller here: `mdast-util-to-hast`'s own
+  // `listItem` handler hard-codes `disabled: true` in the hProperties of every GFM task-list
+  // checkbox (a fixed, upstream behavior of a library already bundled by `react-markdown`, not
+  // something this repo can change) -- react-markdown then spreads that straight through as a
+  // `disabled` prop on every checkbox `input` it renders, `DocView`'s own `input(props)` handler
+  // included. A real, resolved `checkboxData` here always means this checkbox genuinely is meant
+  // to be interactive (a bare checklist item or an `:::actions` item, plan §4.3) -- the only inert
+  // case is `!checkboxData` above, which stays hard-disabled. So the checkbox is unconditionally
+  // enabled whenever `checkboxData` resolves, regardless of whatever `disabled` value upstream
+  // parsing attached.
   return (
     <input
       type="checkbox"
       checked={checkboxData.checked}
-      disabled={disabled}
+      disabled={false}
       onChange={(event) => {
         void onCheckToggle?.(checkboxData, event.target.checked);
       }}
