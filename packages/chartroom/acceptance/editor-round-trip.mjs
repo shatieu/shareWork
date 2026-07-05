@@ -6,15 +6,16 @@
 // Scope note (an honest, deliberate narrowing, not an oversight): the "edit-save cycle produces
 // zero diff on untouched lines" half of the acceptance line is exhaustively proven by
 // chartroom-ui's own automated suite -- `packages/chartroom-ui/test/editor/roundTrip.test.ts`, 20
-// fixtures x 2 assertion classes = 40 passing tests, run under vitest+jsdom (which is what actually
-// gives Milkdown/ProseMirror the DOM primitives they need). `chartroom-ui`'s build output
-// (`vite build`) is a bundled SPA, not a set of Node-importable ES modules the way `chartroom`'s own
-// `tsc`-built `dist/` is -- so this plain Node `.mjs` script cannot re-exercise `roundTrip.ts`'s
-// pure functions directly the way phase-1/phase-2's acceptance scripts re-exercise `chartroom`'s
-// own CLI/daemon modules. Re-implementing an equivalent headless-Milkdown harness a second time
-// here (requiring `jsdom` as a new `chartroom` dependency, not on the approved list) would be
-// duplicative busywork for no additional confidence beyond what the 40 passing vitest assertions
-// already provide. This script instead focuses entirely on the *second* half of the acceptance
+// fixtures x 2 assertion classes (40 tests) plus 3 dedicated block-insertion/deletion cases = 43
+// passing tests, run under vitest+jsdom (which is what actually gives Milkdown/ProseMirror the DOM
+// primitives they need). `chartroom-ui`'s build output (`vite build`) is a bundled SPA, not a set
+// of Node-importable ES modules the way `chartroom`'s own `tsc`-built `dist/` is -- so this plain
+// Node `.mjs` script cannot re-exercise `roundTrip.ts`'s pure functions directly the way
+// phase-1/phase-2's acceptance scripts re-exercise `chartroom`'s own CLI/daemon modules.
+// Re-implementing an equivalent headless-Milkdown harness a second time here (requiring `jsdom` as
+// a new `chartroom` dependency, not on the approved list) would be duplicative busywork for no
+// additional confidence beyond what the 43 passing vitest assertions already provide. This script
+// instead focuses entirely on the *second* half of the acceptance
 // line -- the image-paste-then-git-mv self-heal path -- which lives entirely inside `chartroom`
 // (the daemon routes + `fix-links.ts`'s new image-repair extension) and is exactly the kind of
 // thing phase-1/phase-2's own disposable-scratch-git-repo acceptance pattern is built for.
@@ -158,7 +159,7 @@ async function main() {
     console.log('chartroom acceptance: editor-round-trip -- ALL ASSERTIONS PASSED');
     console.log(
       '  (no-op/single-edit round-trip byte-identity is proven separately by ' +
-        'packages/chartroom-ui/test/editor/roundTrip.test.ts, 40/40 passing -- see that suite for ' +
+        'packages/chartroom-ui/test/editor/roundTrip.test.ts, 43/43 passing -- see that suite for ' +
         'the full fixture-by-fixture breakdown; see this script\'s own header comment for why.)',
     );
   } finally {
