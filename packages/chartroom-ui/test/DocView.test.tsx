@@ -60,7 +60,7 @@ function fixtureDetail(): DocDetail {
 
 describe('DocView', () => {
   it('renders tombstone text for a broken link', () => {
-    render(<DocView repoId="repo-a" detail={fixtureDetail()} onSelectDoc={vi.fn()} />);
+    render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
     const note = screen.getByRole('note');
     expect(note).toHaveTextContent('gone.md');
     expect(note).toHaveTextContent('missing');
@@ -68,7 +68,7 @@ describe('DocView', () => {
   });
 
   it("renders the :::llm block's tldr visible with its body inside a closed <details>", () => {
-    const { container } = render(<DocView repoId="repo-a" detail={fixtureDetail()} onSelectDoc={vi.fn()} />);
+    const { container } = render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText('Quick summary of doc A')).toBeInTheDocument();
     const details = container.querySelector('details.llm-block__body');
     expect(details).not.toBeNull();
@@ -77,23 +77,23 @@ describe('DocView', () => {
   });
 
   it(':::human renders plainly, always visible, no collapsing chrome', () => {
-    const { container } = render(<DocView repoId="repo-a" detail={fixtureDetail()} onSelectDoc={vi.fn()} />);
+    const { container } = render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText('Human-only note, always visible.')).toBeInTheDocument();
     expect(container.querySelector('.human-block details')).toBeNull();
   });
 
   it('an unrecognized directive (:::ask-me) renders its plain content without throwing', () => {
-    render(<DocView repoId="repo-a" detail={fixtureDetail()} onSelectDoc={vi.fn()} />);
+    render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText('Some ask-me block content, unrecognized directive.')).toBeInTheDocument();
   });
 
   it('backlinks panel lists the expected entries', () => {
-    render(<DocView repoId="repo-a" detail={fixtureDetail()} onSelectDoc={vi.fn()} />);
+    render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.getByText('Doc B')).toBeInTheDocument();
   });
 
   it('frontmatter block is not rendered as visible content', () => {
-    render(<DocView repoId="repo-a" detail={fixtureDetail()} onSelectDoc={vi.fn()} />);
+    render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
     expect(screen.queryByText(/^id: doc-a/)).not.toBeInTheDocument();
   });
 });

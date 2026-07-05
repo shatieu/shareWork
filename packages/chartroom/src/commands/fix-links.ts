@@ -4,11 +4,11 @@ import type { Command } from 'commander';
 import { discoverDocFiles, findGitRoot, toRepoRelative } from '../repo.js';
 import { buildFreshIndex } from '../indexer.js';
 import { writeIndex } from '../index-schema.js';
-import { computeLinkFixes } from '../fix-links.js';
+import { computeImageFixes, computeLinkFixes } from '../fix-links.js';
 
 interface ReportedChange {
   file: string;
-  targetId: string;
+  targetId?: string;
   oldHref: string;
   newHref: string;
 }
@@ -46,14 +46,24 @@ export function registerFixLinksCommand(program: Command): void {
           const abs = join(repoRoot, relPath);
           if (!existsSync(abs)) continue;
           const raw = readFileSync(abs, 'utf8');
-          const result = computeLinkFixes(relPath, raw, index);
-          if (!result.changed) continue;
 
-          for (const change of result.changes) {
+          const linkResult = computeLinkFixes(relPath, raw, index);
+          for (const change of linkResult.changes) {
             allChanges.push({ file: relPath, ...change });
           }
+
+          // Image-href repair (plan §6.3) runs against the link-fix pass's own output text, so
+          // offsets are always computed against whatever text is about to actually be written —
+          // never against a stale pre-link-fix copy.
+          const imageResult = computeImageFixes(repoRoot, relPath, linkResult.newText, index);
+          for (const change of imageResult.changes) {
+            allChanges.push({ file: relPath, ...change });
+          }
+
+          if (!linkResult.changed && !imageResult.changed) continue;
+
           if (opts.write) {
-            writeFileSync(abs, result.newText, 'utf8');
+            writeFileSync(abs, imageResult.newText, 'utf8');
           }
         }
 
@@ -63,7 +73,8 @@ export function registerFixLinksCommand(program: Command): void {
           const verb = opts.write ? 'fixed' : 'found (dry-run; pass --write to apply)';
           console.log(`chartroom: ${allChanges.length} stale link(s) ${verb}:`);
           for (const change of allChanges) {
-            console.log(`  ${change.file}: ${change.oldHref} -> ${change.newHref} (id: ${change.targetId})`);
+            const suffix = change.targetId ? ` (id: ${change.targetId})` : ' (image asset)';
+            console.log(`  ${change.file}: ${change.oldHref} -> ${change.newHref}${suffix}`);
           }
         }
         process.exitCode = 0;

@@ -4,6 +4,10 @@
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
     "lint": { "dependsOn": ["^build"] },
     "test": { "dependsOn": ["build"], "outputs": ["coverage/**"] },
-    "dev": { "cache": false, "persistent": true }
+    "dev": { "cache": false, "persistent": true },
+    "chartroom#build:ui-bundle": {
+      "dependsOn": ["build", "chartroom-ui#build"],
+      "outputs": ["dist/public/**"]
+    }
   }
 }

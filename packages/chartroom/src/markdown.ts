@@ -9,8 +9,13 @@ import { visit } from 'unist-util-visit';
 const processor = unified().use(remarkParse).use(remarkGfm).use(remarkFrontmatter, ['yaml']);
 
 /** Minimal local node shape — avoids depending directly on @types/mdast (a transitive type-only
- * package pnpm's strict linking doesn't guarantee is directly resolvable from this package). */
-interface AstNode {
+ * package pnpm's strict linking doesn't guarantee is directly resolvable from this package).
+ *
+ * Exported (phase 3 plan §3.4 decision (b), approved in DECISIONS-NEEDED.md) so `chartroom-ui`'s
+ * editor round-trip engine can share this exact offset-bearing node contract for its own
+ * (separately-constructed, remark-directive-augmented) parse pipeline, rather than redefining an
+ * equivalent shape a second time. */
+export interface AstNode {
   type: string;
   value?: string;
   children?: AstNode[];
@@ -46,7 +51,9 @@ export function parseDocument(raw: string): AstNode {
   return processor.parse(raw) as unknown as AstNode;
 }
 
-function nodeText(node: AstNode): string {
+/** Exported alongside `AstNode` (see comment above) — a small, tested text-extraction helper
+ * `chartroom-ui`'s segmentation module can reuse instead of re-deriving an equivalent walk. */
+export function nodeText(node: AstNode): string {
   if (node.type === 'text' || node.type === 'inlineCode') {
     return node.value ?? '';
   }
@@ -56,7 +63,9 @@ function nodeText(node: AstNode): string {
   return '';
 }
 
-function visitType(tree: AstNode, type: string, fn: (node: AstNode) => void): void {
+/** Exported alongside `AstNode`/`nodeText` — thin, safe wrapper around `unist-util-visit` typed
+ * against this package's own `AstNode` shape. */
+export function visitType(tree: AstNode, type: string, fn: (node: AstNode) => void): void {
   // unist-util-visit's types want a `unist` Node; our local AstNode is structurally compatible
   // for every shape we actually produce, so a single `any` cast here keeps every call site clean.
   visit(tree as never, type, fn as never);
