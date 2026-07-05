@@ -12,7 +12,7 @@ integration branch. Kickoff briefing: `suite-design/MARATHON-KICKOFF-PROMPT.md`.
 | 0 | Charter the crew (`.claude/agents/wave-*.md` + `MISSION-CONTEXT.md`, dry-run proofs, commit) | **in progress** |
 | 1 | Housekeeping + dogfood (reconcile git vs tracking, push policy, Chart Room onto this repo) | pending |
 | 2 | Chart Room v1.1 (staleness rules, whitespace-gap fix, real-agent e2e proof, `associate`, `open`) | pending |
-| 3 | Hull refactor → Captain's Deck (one Fastify host, Chart Room as first plugin, Deck UI shell, claude chip) | pending |
+| 3 | Hull refactor → Captain's Deck (one Fastify host, Chart Room as first plugin, Deck UI shell, claude chip). AMENDED (Captain Order 1): Deck also gets a 'Voyage' tab rendering progress.json live (file-watched). | pending |
 | 4 | Bridge phase 1 (Crew plugin skeleton + http hooks + ship-log changelog capture) | pending |
 | 5 | Bridge phase 2 (ship-ledger + MCP + native task mirroring) | pending |
 | 6 | Bridge phase 3 (ship-inbox: permission queue, agent + Chart Room questions, always-allow) | pending |
