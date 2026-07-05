@@ -113,3 +113,6 @@ Lesson candidate after merge: generated docs + injected ids = landmine; generato
 
 ## Package 1 CLOSED: 2026-07-05 16:50 — PASS+merged c6588a5
 Re-review PASS (renderer frontmatter fix verified idempotent, all gates green, acceptance line held). Merged --no-ff, pre-commit hook installed post-merge (init: 0 new ids, 53 docs, check clean). Changelog fragment present (2026-07-05--dogfood.md). Parked human step in CAPTAIN-TODO: install-agent-hook. Package 2 (v1.1) planning in flight since 16:41. Lookout: fresh window (3% at 16:37), next reset 19:30Z.
+
+## Package 2 (Chart Room v1.1) plan APPROVED: 2026-07-05 17:05
+Plan: plans/02-chartroom-v11-plan.md. Difficulty L, ~8h guess. FO directions: (1) salvage mapping approved as proposed (14 WIP files into v1.1 with full test bar; ~25 mapped to package 3 - Deck TL inherits plan section 3); (2) open.ts live-register fix approved over WIP's restart cop-out; (3) doc-key addressing (id ?? path) approved as required scope; (4) researcher pass R1-R5 (plan section 7) dispatched BEFORE implementation - answers fold into plan; launcher fallback escalates to DECISIONS-NEEDED only if R1 fails; (5) real-agent e2e stays out of default acceptance chain. Worktree incident (stray ship-wave1-brass label) logged in LESSONS-LEARNED; charters hardened.

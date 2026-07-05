@@ -50,3 +50,12 @@ every ad-hoc dispatch.
 A feature branch cut from a stale point silently missed the Lookout files.
 Always branch off up-to-date ship-wave1; verify mission files exist on the
 working branch at session start.
+
+## 2026-07-05 — shared-worktree checkouts by crew agents leave the tree in a wrong state
+An agent inspecting the quarantine commit checked it out in the shared worktree
+(leaving detached HEAD, then a stray branch label `ship-wave1-brass` at f34c297
+— no unique commits, duplicate of the quarantine tip). Rule baked into all
+three builder/reviewer charters: inspect foreign commits only via `git show`/
+`git log -p`/`git diff` (or a scratchpad `git worktree add` for builds); never
+checkout/switch/branch outside the assigned feature branch; leave HEAD where it
+belongs. Stray label kept (rm ban), noted in REMOVALS.md.

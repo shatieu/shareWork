@@ -23,12 +23,12 @@
     {
       "id": 2,
       "title": "Chart Room v1.1",
-      "status": "planning",
-      "stage_progress": 15,
-      "difficulty": null,
-      "remaining_guess_h": 4,
-      "updated_at": "2026-07-05T14:44:38.063Z",
-      "note": "v1.1 TL planning incl. quarantine salvage evaluation"
+      "status": "plan approved",
+      "stage_progress": 25,
+      "difficulty": "L",
+      "remaining_guess_h": 8,
+      "updated_at": "2026-07-05T14:56:32.792Z",
+      "note": "plan approved with 5 FO directions; researcher pass R1-R5 before implementation"
     },
     {
       "id": 3,
