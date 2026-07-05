@@ -17,9 +17,11 @@ export interface RepoState {
   index: ChartRoomIndex;
   backlinks: Record<string, BacklinkEntry[]>;
   check: CheckResult;
-  /** Precomputed per-doc-id interactive-block index (phase 4 plan §3.4) -- computed once per
+  /** Precomputed per-doc interactive-block index (phase 4 plan §3.4) -- computed once per
    * rebuild rather than re-scanned on every `GET /api/inbox` request, so the inbox route is a pure
-   * in-memory aggregation with no re-parsing on its own read path. */
+   * in-memory aggregation with no re-parsing on its own read path. Keyed by doc *key*
+   * (`id ?? path`, doc-lookup.ts convention, wave 2) so unidentified docs' ask-me/actions blocks
+   * are first-class too, not just identified docs'. */
   interactiveBlocks: Record<string, InteractiveBlocks>;
 }
 
@@ -36,12 +38,16 @@ export function rebuild(repoRoot: string): RepoState {
   const backlinks = computeBacklinks(check.index);
 
   const interactiveBlocks: Record<string, InteractiveBlocks> = {};
-  for (const [id, doc] of Object.entries(check.index.docs)) {
+  const keyedDocs: Array<{ key: string; path: string }> = [
+    ...Object.entries(check.index.docs).map(([id, doc]) => ({ key: id, path: doc.path })),
+    ...check.index.unidentified.map((doc) => ({ key: doc.path, path: doc.path })),
+  ];
+  for (const doc of keyedDocs) {
     try {
       const raw = readFileSync(join(repoRoot, doc.path), 'utf8');
-      interactiveBlocks[id] = extractInteractiveBlocks(raw);
+      interactiveBlocks[doc.key] = extractInteractiveBlocks(raw);
     } catch {
-      interactiveBlocks[id] = { askMe: [], actions: [], checkboxes: [] };
+      interactiveBlocks[doc.key] = { askMe: [], actions: [], checkboxes: [] };
     }
   }
 

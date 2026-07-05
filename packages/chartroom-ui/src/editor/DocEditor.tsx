@@ -1,7 +1,20 @@
 // Milkdown WYSIWYG editor component (plan §1.5/§3/§6/§7): mounts the block-diff-and-splice
-// round-trip engine (`roundTrip.ts`) behind a real `@milkdown/react` editor, houses the Ctrl+K
-// link-picker keydown listener and the image paste/drop handler, and exposes an explicit Save
-// action (plan §5.2 — not autosave).
+// round-trip engine (`roundTrip.ts`) behind a real Milkdown editor, houses the Ctrl+K link-picker
+// keydown listener and the image paste/drop handler, and exposes an explicit Save action (plan
+// §5.2 — not autosave) to the host's paper-header button via `handleRef`.
+//
+// Two deliberate departures from the original @milkdown/react implementation, both fixing
+// "edit mode renders a blank document" (found in a real browser, reproduced in
+// test/editor/editor-mount.test.tsx):
+//  1. The editor lifecycle is managed manually with a ref + effect — under React 19,
+//     `useEditor`/`<Milkdown/>` never mounted the editor at all AND silently swallowed the error
+//     below, leaving an empty root div.
+//  2. The initial document is built with the LIVE editor's own schema after `.create()` and
+//     dispatched as a full-doc replace transaction — the previous headless-engine →
+//     `doc.toJSON()` → `defaultValueCtx {type:'json'}` handoff crossed two schema instances and
+//     threw `RangeError: Expected value of type boolean for attribute spread on type list_item`
+//     for any document containing a list (ProseMirror attribute validation), i.e. almost every
+//     real document.
 
 import {
   useCallback,
@@ -10,24 +23,28 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MutableRefObject,
   type ReactElement,
 } from 'react';
-import { Milkdown, MilkdownProvider, useEditor, useInstance } from '@milkdown/react';
+import type { Editor } from '@milkdown/kit/core';
 import { editorViewCtx } from '@milkdown/kit/core';
-import type { JSONRecord } from '@milkdown/kit/transformer';
 import {
   buildDocNodeFromBlocks,
   buildUncreatedEditor,
-  createHeadlessEngine,
   extractCurrentBlocks,
   reconstructFile,
   wrapEditorCtx,
 } from './roundTrip.js';
-import { segmentDocument, type SegmentedDocument } from './segmentBlocks.js';
+import { segmentDocument } from './segmentBlocks.js';
 import { createImageDropPasteHandlers } from './ImagePasteHandler.js';
 import { insertMarkdownAtCursor } from './insertAtCursor.js';
 import { LinkPickerModal } from './LinkPickerModal.js';
 import { saveDoc, type DocSummary } from '../api/client.js';
+
+/** Imperative surface the host (`DocView`) uses to trigger a save from its own header button. */
+export interface DocEditorHandle {
+  save: () => Promise<void>;
+}
 
 export interface DocEditorProps {
   repoId: string;
@@ -38,76 +55,78 @@ export interface DocEditorProps {
   /** Called after a successful save with the newly-saved raw text, so the host (`DocView`/`App`)
    * can refresh its own state (plan §5.1/§8's App.tsx wiring). */
   onSaveComplete: (newRaw: string) => void;
+  /** Host-owned ref populated with `{ save }` while the editor is mounted (null before/after) —
+   * lets the Save button live in the paper's meta header instead of inside the document body. */
+  handleRef?: MutableRefObject<DocEditorHandle | null>;
+  /** Mirrors the in-flight save state up to the host's header button. */
+  onSavingChange?: (saving: boolean) => void;
 }
 
-/** Builds the initial ProseMirror doc JSON once per (repoId, docId, raw) — async because it needs
- * a short-lived headless Milkdown engine (destroyed immediately after) purely to obtain a `Schema`
- * instance before the real, interactive editor exists (a Schema is only produced by creating an
- * Editor, so *some* editor has to exist first — plan §3.1 step 4's "concatenate blocks" design). */
-function useInitialDoc(raw: string): {
-  ready: boolean;
-  segmented: SegmentedDocument | null;
-  initialJson: JSONRecord | null;
-} {
-  const [state, setState] = useState<{ segmented: SegmentedDocument; initialJson: JSONRecord } | null>(
-    null,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    setState(null);
-    void (async () => {
-      const engine = await createHeadlessEngine();
-      try {
-        const segmented = segmentDocument(raw);
-        const doc = buildDocNodeFromBlocks(engine, segmented.blocks);
-        const initialJson = doc.toJSON() as JSONRecord;
-        if (!cancelled) setState({ segmented, initialJson });
-      } finally {
-        await engine.destroy();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [raw]);
-
-  return { ready: state !== null, segmented: state?.segmented ?? null, initialJson: state?.initialJson ?? null };
-}
-
-function EditorInner({
+export function DocEditor({
   repoId,
   docId,
   docPath,
+  raw,
   docs,
-  segmented,
-  initialJson,
   onSaveComplete,
-}: {
-  repoId: string;
-  docId: string;
-  docPath: string;
-  docs: DocSummary[];
-  segmented: SegmentedDocument;
-  initialJson: JSONRecord;
-  onSaveComplete: (newRaw: string) => void;
-}): ReactElement {
-  const [, getInstance] = useInstance();
+  handleRef,
+  onSavingChange,
+}: DocEditorProps): ReactElement {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const editorRef = useRef<Editor | null>(null);
+  const [editorReady, setEditorReady] = useState(false);
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [linkPickerSelectedText, setLinkPickerSelectedText] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  useEditor(
-    (root) => buildUncreatedEditor(root, { type: 'json', value: initialJson }),
-    [initialJson],
-  );
+  // Synchronous, pure segmentation — the round-trip engine's source of truth for which blocks are
+  // editable prose vs protected opaque bytes (reused verbatim at save time).
+  const segmented = useMemo(() => segmentDocument(raw), [raw]);
+
+  // Manual create/destroy of the interactive editor (see module doc comment). An in-flight create
+  // that loses a race with cleanup (unmount, doc switch, StrictMode's dev double-invoke) destroys
+  // its own instance instead of leaking it.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    let cancelled = false;
+    setEditorReady(false);
+    setError(null);
+    void (async () => {
+      try {
+        const editor = await buildUncreatedEditor(root, '').create();
+        if (cancelled) {
+          void editor.destroy();
+          return;
+        }
+        // Build the initial doc from the segmented blocks using the LIVE editor's schema and swap
+        // it in as one transaction (departure #2 in the module doc comment). No history plugin is
+        // installed, so this initial replace can't be undone into an empty document.
+        const engine = wrapEditorCtx(editor.ctx);
+        const doc = buildDocNodeFromBlocks(engine, segmented.blocks);
+        const view = editor.ctx.get(editorViewCtx);
+        view.dispatch(view.state.tr.replaceWith(0, view.state.doc.content.size, doc.content));
+        editorRef.current = editor;
+        setEditorReady(true);
+      } catch (err) {
+        if (!cancelled) setError(`editor failed to start: ${String(err)}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      const editor = editorRef.current;
+      editorRef.current = null;
+      setEditorReady(false);
+      if (editor) void editor.destroy();
+    };
+  }, [segmented]);
 
   const handleSave = useCallback(async () => {
-    const editor = getInstance();
+    const editor = editorRef.current;
     if (!editor) return;
     setSaving(true);
+    onSavingChange?.(true);
     setError(null);
     try {
       const engine = wrapEditorCtx(editor.ctx);
@@ -120,19 +139,29 @@ function EditorInner({
       setError(String(err));
     } finally {
       setSaving(false);
+      onSavingChange?.(false);
     }
-  }, [getInstance, segmented, repoId, docId, onSaveComplete]);
+  }, [segmented, repoId, docId, onSaveComplete, onSavingChange]);
+
+  // Publish the imperative save handle to the host's header button for the mounted lifetime.
+  useEffect(() => {
+    if (!handleRef) return;
+    handleRef.current = { save: handleSave };
+    return () => {
+      handleRef.current = null;
+    };
+  }, [handleRef, handleSave]);
 
   const imagePasteHandlers = useMemo(() => {
-    const editor = getInstance();
-    if (!editor) return undefined;
+    const editor = editorRef.current;
+    if (!editorReady || !editor) return undefined;
     return createImageDropPasteHandlers(editor.ctx, { repoId, docId });
-  }, [repoId, docId, getInstance]);
+  }, [editorReady, repoId, docId]);
 
   function handleKeyDown(event: ReactKeyboardEvent<HTMLDivElement>): void {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
       event.preventDefault();
-      const editor = getInstance();
+      const editor = editorRef.current;
       if (editor) {
         const { state } = editor.ctx.get(editorViewCtx);
         const { from, to, empty } = state.selection;
@@ -148,28 +177,28 @@ function EditorInner({
   }
 
   function handleInsertLink(markdown: string): void {
-    const editor = getInstance();
+    const editor = editorRef.current;
     if (!editor) return;
     insertMarkdownAtCursor(editor.ctx, markdown);
   }
 
   return (
     <div className="doc-editor">
-      <div className="doc-editor__toolbar">
-        <button type="button" onClick={() => void handleSave()} disabled={saving}>
-          {saving ? 'Saving…' : 'Save'}
-        </button>
-        {error && <span className="doc-editor__error">{error}</span>}
+      <div className="doc-editor__bar">
+        <span className="doc-editor__hint">Ctrl+K insert link · Ctrl+S save{saving ? ' · saving…' : ''}</span>
+        {error && (
+          <span className="doc-editor__error" role="alert">
+            {error}
+          </span>
+        )}
       </div>
       <div
         className="doc-editor__surface"
-        ref={containerRef}
+        ref={rootRef}
         onKeyDown={handleKeyDown}
         onPaste={imagePasteHandlers?.onPaste}
         onDrop={imagePasteHandlers?.onDrop}
-      >
-        <Milkdown />
-      </div>
+      />
       {linkPickerOpen && (
         <LinkPickerModal
           docs={docs}
@@ -180,27 +209,5 @@ function EditorInner({
         />
       )}
     </div>
-  );
-}
-
-export function DocEditor({ repoId, docId, docPath, raw, docs, onSaveComplete }: DocEditorProps): ReactElement {
-  const { ready, segmented, initialJson } = useInitialDoc(raw);
-
-  if (!ready || !segmented || !initialJson) {
-    return <p className="doc-editor__loading">Loading editor…</p>;
-  }
-
-  return (
-    <MilkdownProvider>
-      <EditorInner
-        repoId={repoId}
-        docId={docId}
-        docPath={docPath}
-        docs={docs}
-        segmented={segmented}
-        initialJson={initialJson}
-        onSaveComplete={onSaveComplete}
-      />
-    </MilkdownProvider>
   );
 }

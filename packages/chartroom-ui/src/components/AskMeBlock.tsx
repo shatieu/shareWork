@@ -51,9 +51,22 @@ export function AskMeBlock({ question, children, onSubmit }: AskMeBlockProps): R
     return <div className="directive-fallback">{children}</div>;
   }
 
+  const kicker = (state: string): ReactElement => (
+    <div className="ask-me-block__kicker">
+      <span className="ask-me-block__glyph" aria-hidden="true">
+        ✦
+      </span>
+      <span className="ask-me-block__kind">
+        ASK-ME · {state}
+        {question.directiveId ? ` · ${question.directiveId}` : ''}
+      </span>
+    </div>
+  );
+
   if (question.answered) {
     return (
       <section className="ask-me-block ask-me-block--answered">
+        {kicker('ANSWERED')}
         <h3 className="ask-me-block__prompt">{question.prompt}</h3>
         <p className="ask-me-block__answer">{question.answerText}</p>
       </section>
@@ -104,6 +117,7 @@ export function AskMeBlock({ question, children, onSubmit }: AskMeBlockProps): R
 
   return (
     <section className="ask-me-block">
+      {kicker('OPEN')}
       <h3 className="ask-me-block__prompt">{question.prompt}</h3>
       {widget}
       <div className="ask-me-block__actions">

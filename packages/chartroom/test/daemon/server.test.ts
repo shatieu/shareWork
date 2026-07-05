@@ -54,8 +54,8 @@ describe('buildServer (Fastify app.inject(), no real TCP listener)', () => {
     expect(response.statusCode).toBe(200);
     const body = response.json();
     expect(body).toEqual([
-      { id: 'repo-a', name: 'repo-a', absPath: repoARoot },
-      { id: 'repo-b', name: 'repo-b', absPath: repoBRoot },
+      { id: 'repo-a', name: 'repo-a', absPath: repoARoot, docCount: 1, brokenLinkCount: 0, needsYouCount: 0 },
+      { id: 'repo-b', name: 'repo-b', absPath: repoBRoot, docCount: 1, brokenLinkCount: 0, needsYouCount: 0 },
     ]);
   });
 

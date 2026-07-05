@@ -12,6 +12,13 @@ import { registerDocCheckboxRoute } from './routes/doc-checkbox.js';
 import { registerDocAskMeRoute } from './routes/doc-ask-me.js';
 import { registerInboxRoute } from './routes/inbox.js';
 import { registerMcpRoute } from './routes/mcp.js';
+import { registerActivityRoute } from './routes/activity.js';
+import { registerSearchRoute } from './routes/search.js';
+import { registerClaudeSessionRoute, type ClaudeSessionRouteOptions } from './routes/claude-session.js';
+import { registerRawRoute } from './routes/raw.js';
+import { registerFsRoutes } from './routes/fs.js';
+import { registerRepoRegisterRoute, type RepoRegistrar } from './routes/repo-register.js';
+import type { ActivityLog } from './activity.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
@@ -37,49 +44,54 @@ export interface BuildServerOptions {
   /** Overrides where the UI static bundle is served from -- tests point this at a temp/missing
    * directory rather than depending on `chartroom-ui` actually being built. */
   uiDistDir?: string;
+  /** The daemon's activity feed (wave 2). Optional so existing tests that don't care about the
+   * feed need no fake -- without it, `GET /api/activity` serves `[]` and nothing is logged. */
+  activity?: ActivityLog;
+  /** Test seams for the claude-session route (wave-2 feature 6) -- injectable spawner etc. so
+   * tests never actually open a terminal window. */
+  claudeSession?: ClaudeSessionRouteOptions;
+  /** Live-registration callback owned by `commands/serve.ts` (folder-picker registration). When
+   * absent, `POST /api/repos/register` answers 501 -- tests and embedded servers opt in. */
+  registrar?: RepoRegistrar;
 }
 
 /**
- * Fastify app factory (plan §4.1): registers the built UI static mount (prefix `/`), one raw-asset
- * static mount per registered repo (prefix `/api/repos/<repoId>/raw/`, root: that repo's absolute
- * path), and the JSON API routes. Returns the app *without* calling `.listen()` so both
- * `commands/serve.ts` and tests can drive it -- tests via `app.inject()`, never a real TCP socket.
+ * Fastify app factory (plan §4.1): registers the built UI static mount (prefix `/`), the dynamic
+ * per-repo raw-asset route (`/api/repos/:repoId/raw/*`, see routes/raw.ts), and the JSON API
+ * routes. Returns the app *without* calling `.listen()` so both `commands/serve.ts` and tests can
+ * drive it -- tests via `app.inject()`, never a real TCP socket. The `repos` array is shared and
+ * MUTABLE by design: the serve command's registrar pushes newly registered repos into it live.
  */
 export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = {}): FastifyInstance {
   const app = Fastify({ logger: false });
   const uiDistDir = options.uiDistDir ?? DEFAULT_UI_DIST_DIR;
 
-  // `@fastify/static` decorates `reply` with `sendFile` on first registration; every subsequent
-  // registration (the UI mount, if present, is always first) must pass `decorateReply: false` to
-  // avoid a "reply.sendFile already exists" conflict (plan §1.1/§4.1).
-  let isFirstStaticRegistration = true;
-
   if (existsSync(uiDistDir)) {
     void app.register(fastifyStatic, {
       root: uiDistDir,
       prefix: '/',
-      decorateReply: isFirstStaticRegistration,
     });
-    isFirstStaticRegistration = false;
   }
 
-  for (const repo of repos) {
-    void app.register(fastifyStatic, {
-      root: repo.absPath,
-      prefix: `/api/repos/${repo.id}/raw/`,
-      decorateReply: isFirstStaticRegistration,
-    });
-    isFirstStaticRegistration = false;
-  }
+  // Raw repo assets are served by a dynamic route over the (mutable) runtimes array rather than
+  // one boot-fixed `@fastify/static` mount per repo -- the one structural change that makes
+  // live registration (`POST /api/repos/register`, folder picker) possible at all, since fastify
+  // cannot add routes/mounts after `.listen()`.
+  registerRawRoute(app, repos);
 
   registerReposRoute(app, repos);
   registerDocsRoutes(app, repos);
-  registerDocSaveRoute(app, repos);
+  registerDocSaveRoute(app, repos, options.activity);
   registerDocAssetsRoute(app, repos);
   registerDocCheckboxRoute(app, repos);
   registerDocAskMeRoute(app, repos);
   registerInboxRoute(app, repos);
   registerMcpRoute(app, repos);
+  registerActivityRoute(app, options.activity);
+  registerSearchRoute(app, repos);
+  registerClaudeSessionRoute(app, repos, options.activity, options.claudeSession);
+  registerFsRoutes(app);
+  registerRepoRegisterRoute(app, options.registrar);
 
   return app;
 }

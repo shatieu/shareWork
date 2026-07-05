@@ -49,6 +49,8 @@ See [Gone](gone.md "id:gone") for details.
 
 function fixtureDetail(): DocDetail {
   return {
+    id: 'doc-a',
+    key: 'doc-a',
     doc: {
       path: 'doc-a.md',
       title: 'Doc A',
@@ -106,7 +108,10 @@ describe('DocView', () => {
 
   it('frontmatter block is not rendered as visible content', () => {
     render(<DocView repoId="repo-a" docId="doc-a" detail={fixtureDetail()} docs={[]} onSelectDoc={vi.fn()} onSaved={vi.fn()} />);
-    expect(screen.queryByText(/^id: doc-a/)).not.toBeInTheDocument();
+    // The frontmatter YAML itself must not be dumped as body prose (the `title:` line only ever
+    // appears inside the raw frontmatter block, never in rendered output). The doc's id *is*
+    // legitimately shown as the brass ref-tag chip, so we assert on the title line instead.
+    expect(screen.queryByText(/title: Doc A/)).not.toBeInTheDocument();
   });
 
   it('regression: a real GFM checklist item, parsed by the actual ReactMarkdown + remark-gfm pipeline, renders enabled and clickable', () => {
@@ -146,5 +151,68 @@ title: Doc C
 
     fireEvent.click(checkbox);
     expect(vi.mocked(toggleCheckbox)).toHaveBeenCalledWith('repo-a', 'doc-c', { directiveId: null, index: 0 }, true, false);
+  });
+});
+
+/* ── in-app doc links: resolution strategies + native new-tab behavior (wave-2 polish) ── */
+
+const LINKS_RAW = `# Links
+
+Doc-relative: [sibling](other.md).
+Root-relative: [root](docs/nested/deep.md).
+Basename only: [by name](deep.md).
+Nowhere: [ghost](missing/nope.md).
+`;
+
+function linksDetail(): DocDetail {
+  return {
+    id: null,
+    key: 'docs/host.md',
+    doc: { path: 'docs/host.md', title: 'Links', headings: ['Links'], outbound: [] },
+    raw: LINKS_RAW,
+    backlinks: [],
+    brokenLinks: [],
+  };
+}
+
+const LINK_DOCS = [
+  { id: null, path: 'docs/other.md', title: 'Other' },
+  { id: 'deep-doc', path: 'docs/nested/deep.md', title: 'Deep' },
+];
+
+describe('DocView in-app doc links', () => {
+  function renderLinks(onSelectDoc = vi.fn()) {
+    render(
+      <DocView repoId="repo-a" docId="docs/host.md" detail={linksDetail()} docs={LINK_DOCS} onSelectDoc={onSelectDoc} onSaved={vi.fn()} />,
+    );
+    return onSelectDoc;
+  }
+
+  it('resolves doc-relative, repo-root-relative, and unique-basename hrefs to real route hrefs', () => {
+    renderLinks();
+    expect(screen.getByText('sibling')).toHaveAttribute(
+      'href',
+      `#/repo/repo-a/doc/${encodeURIComponent('docs/other.md')}`,
+    );
+    // written repo-root-relative from a nested doc (the shape found in real docs)
+    expect(screen.getByText('root')).toHaveAttribute('href', '#/repo/repo-a/doc/deep-doc');
+    // bare unique filename
+    expect(screen.getByText('by name')).toHaveAttribute('href', '#/repo/repo-a/doc/deep-doc');
+  });
+
+  it('plain left click navigates in-app; ctrl+click falls through for native new-tab', () => {
+    const onSelectDoc = renderLinks();
+    const link = screen.getByText('sibling');
+    fireEvent.click(link, { button: 0 });
+    expect(onSelectDoc).toHaveBeenCalledWith('docs/other.md');
+    onSelectDoc.mockClear();
+    fireEvent.click(link, { button: 0, ctrlKey: true });
+    expect(onSelectDoc).not.toHaveBeenCalled();
+  });
+
+  it('an unresolvable relative link renders as broken, not as a dead anchor', () => {
+    renderLinks();
+    const broken = screen.getByText('ghost').closest('.link--broken');
+    expect(broken).not.toBeNull();
   });
 });

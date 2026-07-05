@@ -8,12 +8,24 @@ export interface RepoSummary {
   id: string;
   name: string;
   absPath: string;
+  /** total indexed docs in this repo (id-less docs included). */
+  docCount: number;
+  /** unresolved id-links across the repo -- drives the red alert badge in the repo tree. */
+  brokenLinkCount: number;
+  /** unanswered ask-me + unchecked actions items -- the other half of the alert badge. */
+  needsYouCount: number;
 }
 
 export interface DocSummary {
   id: string | null;
   path: string;
   title: string;
+}
+
+/** Doc route-key convention shared with the daemon: a doc is addressed by its stable id when it
+ * has one, else by its repo-relative path -- the daemon accepts either on every doc endpoint. */
+export function docKeyOf(doc: Pick<DocSummary, 'id' | 'path'>): string {
+  return doc.id ?? doc.path;
 }
 
 export interface OutboundLink {
@@ -52,6 +64,10 @@ export interface DocDetail {
   raw: string;
   backlinks: BacklinkEntry[];
   brokenLinks: BrokenLinkIssue[];
+  /** the doc's stable frontmatter id, `null` for id-less docs (new contract fields). */
+  id?: string | null;
+  /** the doc's canonical route key (`id ?? path`), echoed by the daemon. */
+  key?: string;
 }
 
 async function getJson<T>(url: string): Promise<T> {
@@ -187,6 +203,60 @@ export function fetchInbox(): Promise<InboxItem[]> {
   return getJson<InboxItem[]>('/api/inbox');
 }
 
+export type ActivityKind = 'repair' | 'rebuild' | 'check' | 'save' | 'session';
+
+export interface ActivityEvent {
+  /** ISO timestamp (or epoch ms) of the event. */
+  ts: string | number;
+  repoId: string;
+  repoName: string;
+  kind: ActivityKind;
+  summary: string;
+  detail?: string;
+  /** present when the event points at a specific doc -- makes the LATEST row clickable. */
+  docKey?: string;
+  path?: string;
+}
+
+/** `GET /api/activity?limit=N` -- newest-first fixer/save/check event feed for the LATEST panel.
+ * Repair events are how the user learns the fixer touched their files -- never dropped. */
+export function fetchActivity(limit = 50): Promise<ActivityEvent[]> {
+  return getJson<ActivityEvent[]>(`/api/activity?limit=${limit}`);
+}
+
+export type SearchMatchKind = 'id' | 'title' | 'heading' | 'path';
+
+export interface SearchResult {
+  repoId: string;
+  repoName: string;
+  docKey: string;
+  path: string;
+  title: string;
+  matchKind: SearchMatchKind;
+  heading?: string;
+  score: number;
+}
+
+/** `GET /api/search?q=…` -- cross-repo search over docs, ids, and headings (⌘K modal). */
+export function fetchSearch(q: string): Promise<SearchResult[]> {
+  return getJson<SearchResult[]>(`/api/search?q=${encodeURIComponent(q)}`);
+}
+
+export interface ClaudeSessionResponse {
+  ok: true;
+}
+
+/** `POST /api/repos/:repoId/claude-session` -- spawns a terminal running `claude` in that repo's
+ * working directory. 500 with a readable error body on failure. */
+export async function openClaudeSession(repoId: string): Promise<ClaudeSessionResponse> {
+  const response = await fetch(`/api/repos/${encodeURIComponent(repoId)}/claude-session`, { method: 'POST' });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(body || `chartroom-ui: claude-session failed with status ${response.status}`);
+  }
+  return (await response.json()) as ClaudeSessionResponse;
+}
+
 const AUTHOR_STORAGE_KEY = 'chartroom.authorName';
 
 export function getCachedAuthorName(): string | null {
@@ -240,4 +310,55 @@ export async function uploadAsset(repoId: string, docId: string, blob: Blob): Pr
     throw new Error(`chartroom-ui: uploadAsset failed with status ${response.status}${body ? `: ${body}` : ''}`);
   }
   return (await response.json()) as UploadAssetResponse;
+}
+
+/* ── folder picker + live registration (wave-2 polish) ── */
+
+export interface FsDirEntry {
+  name: string;
+  path: string;
+  /** true when this directory has a `.git` child, i.e. it can be registered as-is. */
+  isGitRepo: boolean;
+}
+
+export interface FsListResponse {
+  path: string | null;
+  parent: string | null;
+  home: string;
+  dirs: FsDirEntry[];
+}
+
+/** `GET /api/fs/list` — server-side folder browser feeding the register-repo picker (the browser
+ * sandbox can't produce real absolute paths from a native dialog; the local daemon can walk its
+ * own filesystem). No path → filesystem roots (drives on Windows). */
+export function fetchFsList(path?: string | null): Promise<FsListResponse> {
+  return getJson<FsListResponse>(path ? `/api/fs/list?path=${encodeURIComponent(path)}` : '/api/fs/list');
+}
+
+export interface RegisterRepoResult {
+  id: string;
+  name: string;
+  absPath: string;
+  alreadyRegistered: boolean;
+}
+
+/** `POST /api/repos/register` — registers a repo live (the daemon resolves the folder's git root,
+ * persists it, and starts watching immediately; no restart). */
+export async function registerRepoRequest(path: string): Promise<RegisterRepoResult> {
+  const response = await fetch('/api/repos/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    let message = body;
+    try {
+      message = (JSON.parse(body) as { error?: string }).error ?? body;
+    } catch {
+      /* non-JSON error body — use as-is */
+    }
+    throw new Error(message || `registration failed with status ${response.status}`);
+  }
+  return (await response.json()) as RegisterRepoResult;
 }

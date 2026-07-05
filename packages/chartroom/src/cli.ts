@@ -12,6 +12,8 @@ import { registerMcpCommand } from './commands/mcp.js';
 import { registerLlmsTxtCommand } from './commands/llms-txt.js';
 import { registerInstallAgentHookCommand } from './commands/install-agent-hook.js';
 import { registerInstallSkillCommand } from './commands/install-skill.js';
+import { registerOpenCommand } from './commands/open.js';
+import { registerAssociateCommand } from './commands/associate.js';
 
 const program = new Command();
 
@@ -33,6 +35,8 @@ registerMcpCommand(program);
 registerLlmsTxtCommand(program);
 registerInstallAgentHookCommand(program);
 registerInstallSkillCommand(program);
+registerOpenCommand(program);
+registerAssociateCommand(program);
 
 // Hidden command: manually invoke the pre-commit hook logic without going through a real git
 // commit. The installed `.git/hooks/pre-commit` shim (see install-hook.ts) does NOT go through

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { applyCheckboxToggle, type CheckboxScope } from '../../interactive-blocks.js';
 import { rebuild } from '../repo-state.js';
+import { findDoc } from '../doc-lookup.js';
 import type { RepoRuntime } from '../server.js';
 
 function findRepo(repos: RepoRuntime[], repoId: string): RepoRuntime | undefined {
@@ -48,8 +49,9 @@ export function registerDocCheckboxRoute(app: FastifyInstance, repos: RepoRuntim
     }
 
     const state = repo.getState();
-    const doc = state.index.docs[docId];
-    if (!doc) {
+    // Wave 2: `:docId` is a doc key (`id ?? path`) -- unidentified docs' checkboxes toggle too.
+    const found = findDoc(state, docId);
+    if (!found) {
       return reply.code(404).send({ error: `unknown doc '${docId}' in repo '${repoId}'` });
     }
 
@@ -60,7 +62,7 @@ export function registerDocCheckboxRoute(app: FastifyInstance, repos: RepoRuntim
     }
     const body = request.body as { scope: CheckboxScope; checked: boolean; expectedCurrent: boolean };
 
-    const absPath = join(repo.absPath, doc.path);
+    const absPath = join(repo.absPath, found.entry.path);
     const raw = readFileSync(absPath, 'utf8');
 
     const result = applyCheckboxToggle(raw, body.scope, body.checked);

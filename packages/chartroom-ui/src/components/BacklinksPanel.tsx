@@ -1,4 +1,4 @@
-import type { ReactElement } from 'react';
+import type { MouseEvent as ReactMouseEvent, ReactElement } from 'react';
 import type { BacklinkEntry } from '../api/client.js';
 
 export interface BacklinksPanelProps {
@@ -7,9 +7,16 @@ export interface BacklinksPanelProps {
   onSelectDoc: (docId: string) => void;
 }
 
-/** Renders the backlinks list for the current doc (plan §6.3) -- clicking a backlink navigates
- * within the same repo via the app's hash-route dispatch (no page reload). */
-export function BacklinksPanel({ repoId: _repoId, backlinks, onSelectDoc }: BacklinksPanelProps): ReactElement {
+/** Renders the backlinks list for the current doc (plan §6.3). Real `<a href>`s to the hash route
+ * so ctrl/middle-click opens a new tab like any browser link; a plain left click is intercepted
+ * for in-app navigation (no page reload). */
+export function BacklinksPanel({ repoId, backlinks, onSelectDoc }: BacklinksPanelProps): ReactElement {
+  function handleClick(event: ReactMouseEvent<HTMLAnchorElement>, id: string): void {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onSelectDoc(id);
+  }
+
   return (
     <section className="backlinks-panel">
       <h2>Backlinks</h2>
@@ -19,9 +26,13 @@ export function BacklinksPanel({ repoId: _repoId, backlinks, onSelectDoc }: Back
         <ul>
           {backlinks.map((b) => (
             <li key={b.id}>
-              <button type="button" className="backlinks-panel__link" onClick={() => onSelectDoc(b.id)}>
+              <a
+                className="backlinks-panel__link"
+                href={`#/repo/${encodeURIComponent(repoId)}/doc/${encodeURIComponent(b.id)}`}
+                onClick={(event) => handleClick(event, b.id)}
+              >
                 {b.title}
-              </button>
+              </a>
             </li>
           ))}
         </ul>
