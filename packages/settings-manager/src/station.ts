@@ -3,8 +3,10 @@ import { resolve as resolvePath } from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { DECK_CLIENT_HEADER, type HostContext, type StationDescriptor } from 'suite-conventions';
+import { getCatalog } from './catalog.js';
 import {
   applyEdit,
+  computeAddSettings,
   computeAdditiveRules,
   computeRemoveAllowRule,
   hashContent,
@@ -72,6 +74,22 @@ const templatePreviewBodySchema = z.object({
   id: z.string().min(1),
   scope: writableScopeEnum,
   project: z.string().optional(),
+});
+
+const addPreviewBodySchema = z.object({
+  scope: writableScopeEnum,
+  project: z.string().optional(),
+  additions: z.object({
+    values: z.record(z.string(), z.unknown()).optional(),
+    defaultMode: z.string().optional(),
+    permissions: z
+      .object({
+        allow: z.array(z.string().min(1).max(1000)).optional(),
+        deny: z.array(z.string().min(1).max(1000)).optional(),
+        ask: z.array(z.string().min(1).max(1000)).optional(),
+      })
+      .optional(),
+  }),
 });
 
 const revokePreviewBodySchema = z.object({
@@ -288,6 +306,31 @@ export function createSettingsManagerStation(options: SettingsManagerStationOpti
         const backup = readBackup(request.query.id, homeDir);
         if (!backup) return reply.code(404).send({ error: 'no such backup' });
         return backup;
+      });
+
+      /* ── add-modal: catalog + batched add preview (plan 14) ── */
+
+      app.get('/api/settings-manager/catalog', async () => getCatalog());
+
+      app.post('/api/settings-manager/add/preview', async (request, reply) => {
+        const parsed = addPreviewBodySchema.safeParse(request.body);
+        if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+        const targetPath = resolveTargetPath(parsed.data.scope, parsed.data.project, reply);
+        if (targetPath === null) return reply;
+        const current = readScopeFile(parsed.data.scope, targetPath);
+        if (current.error) {
+          return reply.code(409).send({ error: `target is malformed: ${current.error}`, code: 'malformed-target' });
+        }
+        try {
+          const result = computeAddSettings(current.raw, parsed.data.additions);
+          const preview = previewEdit({ targetPath, newContent: result.newContent }, { homeDir });
+          return { ...result, preview };
+        } catch (err) {
+          if (err instanceof SettingsEditError) {
+            return reply.code(editErrorStatus(err.code)).send({ error: err.message, code: err.code });
+          }
+          throw err;
+        }
       });
 
       /* ── template packs ── */

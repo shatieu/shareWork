@@ -25,8 +25,10 @@ export {
   type RuleContext,
   type ToolCall,
 } from './rules.js';
+export { getCatalog, SETTINGS_CATALOG, RULE_TEMPLATES, type Catalog, type CatalogEntry, type RuleTemplate } from './catalog.js';
 export {
   applyEdit,
+  computeAddSettings,
   computeAdditiveRules,
   computeRemoveAllowRule,
   hashContent,
@@ -38,10 +40,12 @@ export {
   type ApplyResult,
   type BackupEntry,
   type EditPreview,
+  type AddSettingsResult,
   type EditorOptions,
+  type SettingsAdditions,
   type SettingsEditErrorCode,
 } from './editor.js';
-export { structuralSchema, PERMISSION_MODES, type SchemaProvider, type ValidationResult } from './schema.js';
+export { structuralSchema, KNOWN_TOP_LEVEL, PERMISSION_MODES, type KeyKind, type SchemaProvider, type ValidationResult } from './schema.js';
 export { diffLines, formatUnifiedDiff, countChanges, type DiffOp } from './diff.js';
 export { loadTemplatePacks, getTemplatePack, type TemplatePack } from './templates.js';
 export { createSettingsManagerStation, type SettingsManagerStationOptions } from './station.js';

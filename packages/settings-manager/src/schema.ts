@@ -31,11 +31,12 @@ export interface SchemaProvider {
   validate(document: Record<string, unknown>): ValidationResult;
 }
 
-type KeyKind = 'string' | 'boolean' | 'number' | 'object' | 'string-array' | 'array' | 'string-or-boolean' | 'any';
+export type KeyKind = 'string' | 'boolean' | 'number' | 'object' | 'string-array' | 'array' | 'string-or-boolean' | 'any';
 
 /** Known top-level settings keys → expected shape (docs settings table, fetched 2026-07-06).
- * `any` = documented key whose value grammar is CC-owned and too volatile to pin. */
-const KNOWN_TOP_LEVEL: Record<string, KeyKind> = {
+ * `any` = documented key whose value grammar is CC-owned and too volatile to pin.
+ * Exported for catalog.ts (the add-modal's search source) -- a test pins the two in sync. */
+export const KNOWN_TOP_LEVEL: Record<string, KeyKind> = {
   $schema: 'string',
   advisorModel: 'string',
   agent: 'string',
