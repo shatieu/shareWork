@@ -161,6 +161,16 @@ describe('station identity', () => {
     expect(station.name).toBe('ship-voice');
     expect(station.tab).toBeUndefined();
   });
+
+  it('offers its own fleet reader as the fleetSource contract (console seam, package 9)', async () => {
+    const source: FleetSource = { list: async () => FLEET };
+    const station = createShipVoiceStation({ fleetSource: source });
+    const contract = station.contracts?.fleetSource as FleetSource;
+    expect(contract).toBe(source);
+    expect(await contract.list()).toEqual(FLEET);
+    // Default construction still offers one (the production `claude agents --json` reader).
+    expect(createShipVoiceStation().contracts?.fleetSource).toBeDefined();
+  });
 });
 
 describe('fleet_status (§9.1 acceptance tool)', () => {
