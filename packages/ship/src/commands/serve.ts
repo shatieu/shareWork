@@ -4,6 +4,7 @@ import type { Command } from 'commander';
 import type { FastifyInstance } from 'fastify';
 import { createChartroomStation } from 'chartroom/station';
 import { createSettingsManagerStation } from 'settings-manager/station';
+import { createShipConsoleStation } from 'ship-console/station';
 import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
 import { createShipLogStation } from 'ship-log/station';
@@ -79,8 +80,12 @@ export function registerServeCommand(program: Command): void {
         // The Comm's laptop half (VoiceBridge_Spec §9.1): headless, text-mode voice toolset.
         const shipVoice = createShipVoiceStation();
         const settingsManager = createSettingsManagerStation();
+        // The Bridge console (Ship_Spec §6): thin Console tab over ship-voice's fleetSource
+        // contract + inbox badge + ship-log rollup. Mounted after its contract providers, though
+        // order is irrelevant (contracts resolve lazily per request).
+        const shipConsole = createShipConsoleStation();
         const hull = await createHull(
-          [chartroom, shipLog, shipLedger, shipInbox, shipVoice, settingsManager],
+          [chartroom, shipLog, shipLedger, shipInbox, shipVoice, settingsManager, shipConsole],
           { voyageFile },
         );
 

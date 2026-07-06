@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App.js';
 import {
+  fetchConsoleOverview,
   fetchDoc,
   fetchDocs,
   fetchHullStations,
@@ -24,6 +25,7 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
     fetchInbox: vi.fn(),
     fetchHullStations: vi.fn(),
     fetchVoyage: vi.fn(),
+    fetchConsoleOverview: vi.fn(),
     openClaudeSession: vi.fn(),
   };
 });
@@ -35,6 +37,7 @@ const mocks = {
   fetchInbox: vi.mocked(fetchInbox),
   fetchHullStations: vi.mocked(fetchHullStations),
   fetchVoyage: vi.mocked(fetchVoyage),
+  fetchConsoleOverview: vi.mocked(fetchConsoleOverview),
   openClaudeSession: vi.mocked(openClaudeSession),
 };
 
@@ -72,6 +75,7 @@ beforeEach(() => {
   mocks.fetchInbox.mockResolvedValue([]);
   mocks.fetchHullStations.mockRejectedValue(new Error('no hull (standalone chartroom serve)'));
   mocks.fetchVoyage.mockRejectedValue(new Error('404'));
+  mocks.fetchConsoleOverview.mockRejectedValue(new Error('404 (no ship-console station)'));
   mocks.openClaudeSession.mockResolvedValue({ ok: true });
 });
 
@@ -115,6 +119,29 @@ describe('Deck shell tabs', () => {
     expect(await screen.findByRole('heading', { name: 'Voyage' })).toBeInTheDocument();
     // the voyage deep link must NOT be hijacked by auto-select-first-repo
     expect(window.location.hash).toBe('#/voyage');
+  });
+
+  it('hull mode with ship-console: Console tab from the station list; selecting it routes to #/console', async () => {
+    mocks.fetchHullStations.mockResolvedValue([
+      { name: 'chartroom', tab: { id: 'docs', title: 'Docs' } },
+      { name: 'ship-console', tab: { id: 'console', title: 'Console' } },
+    ]);
+    mocks.fetchConsoleOverview.mockResolvedValue({
+      available: true,
+      sessions: [
+        { sessionId: 'aaaa', name: 'auth refactor', repo: 'auth-service', cwd: null, kind: null, state: 'busy', startedAt: null },
+      ],
+      counts: { total: 1, busy: 1, idle: 0, blocked: 0, done: 0 },
+      pending: { permissionsPending: 0, questionsOpen: 0 },
+      rollup: null,
+      generatedAt: '2026-07-06T12:00:00.000Z',
+    });
+    render(<App />);
+    const consoleTab = await screen.findByRole('tab', { name: 'Console' });
+    fireEvent.click(consoleTab);
+    expect(window.location.hash).toBe('#/console');
+    expect(await screen.findByRole('heading', { name: 'Console' })).toBeInTheDocument();
+    expect(await screen.findByText('auth refactor')).toBeInTheDocument();
   });
 
   it('auto-selects the first repo on a bare hash (deep-link behavior preserved)', async () => {

@@ -4,9 +4,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createChartroomStation } from 'chartroom/station';
 import { createSettingsManagerStation } from 'settings-manager/station';
+import { createShipConsoleStation } from 'ship-console/station';
 import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
 import { createShipLogStation } from 'ship-log/station';
+import { createShipVoiceStation } from 'ship-voice/station';
+import type { FleetSource } from 'ship-voice';
 import { readServices } from 'suite-conventions';
 import { createHull } from '../src/hull.js';
 
@@ -301,6 +304,70 @@ describe('hull + real chartroom station over a temp registry (plan 03 §5 integr
       expect(applied.statusCode).toBe(200);
       expect(applied.json().backupPath).toContain(join(home, '.suite', 'settings-backups'));
       expect(readFileSync(join(repoRoot, '.claude', 'settings.json'), 'utf8')).toBe(newContent);
+    } finally {
+      await hull.stop();
+      await hull.app.close();
+    }
+  });
+
+  it('ship-console under the hull: fleet via ship-voice contract, badge via ship-inbox, rollup seam via ship-log (package 9)', async () => {
+    // The thin console (Ship_Spec §6) proven over the REAL sibling stations: only the fleet
+    // reader is injected (deterministic seam -- the production reader shells out to
+    // `claude agents --json`, machine state this test must not depend on).
+    const fleetSource: FleetSource = {
+      list: async () => [
+        { sessionId: 'aaaa1111-2222-4333-8444-555555555555', name: 'auth refactor', cwd: repoRoot, status: 'busy' },
+        { sessionId: 'bbbb1111-2222-4333-8444-555555555555', cwd: 'C:\\repos\\team-tasks', state: 'blocked' },
+      ],
+    };
+    const shipLog = createShipLogStation({ homeDir: home });
+    const shipInbox = createShipInboxStation({ homeDir: home });
+    const shipVoice = createShipVoiceStation({ fleetSource });
+    const shipConsole = createShipConsoleStation();
+    const hull = await createHull([shipLog, shipInbox, shipVoice, shipConsole], {
+      homeDir: home,
+      uiDistDir: join(home, 'no-ui'),
+    });
+    const headers = { host: '127.0.0.1', 'x-ship-deck': '1' };
+
+    try {
+      const stations = await hull.app.inject({ method: 'GET', url: '/api/hull/stations', headers });
+      expect(stations.json()).toContainEqual({
+        name: 'ship-console',
+        tab: { id: 'console', title: 'Console' },
+      });
+
+      // Raise one real pending item so the badge is a live count, not a fixture echo.
+      const notified = await hull.app.inject({
+        method: 'POST',
+        url: '/api/ship-log/events',
+        headers,
+        payload: {
+          v: 1,
+          hook_event_name: 'Notification',
+          session_id: 'aaaa1111-2222-4333-8444-555555555555',
+          cwd: repoRoot,
+          emitted_at: new Date().toISOString(),
+          payload: {
+            session_id: 'aaaa1111-2222-4333-8444-555555555555',
+            notification_type: 'agent_needs_input',
+            message: 'Which auth provider?',
+          },
+        },
+      });
+      expect(notified.statusCode).toBe(202);
+
+      const overview = await hull.app.inject({ method: 'GET', url: '/api/ship-console/overview', headers });
+      expect(overview.statusCode).toBe(200);
+      const body = overview.json();
+      expect(body.available).toBe(true);
+      expect(body.sessions).toHaveLength(2);
+      expect(body.sessions[0]).toMatchObject({ name: 'auth refactor', state: 'busy' });
+      expect(body.sessions[1]).toMatchObject({ name: 'team-tasks', repo: 'team-tasks', state: 'blocked' });
+      expect(body.counts).toEqual({ total: 2, busy: 1, idle: 0, blocked: 1, done: 0 });
+      expect(body.pending).toEqual({ permissionsPending: 0, questionsOpen: 1 });
+      // ship-log is mounted but no rollup has been built today -- the seam answers null, honestly.
+      expect(body.rollup).toBeNull();
     } finally {
       await hull.stop();
       await hull.app.close();

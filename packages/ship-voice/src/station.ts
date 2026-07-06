@@ -149,6 +149,12 @@ export function createShipVoiceStation(options: ShipVoiceStationOptions = {}): S
     name: 'ship-voice',
     // Headless: no Deck tab in phase 1 (the Comm's UI is the phone, phases 2-4).
 
+    /** Fleet seam for the console (Ship_Spec §6, package 9): the exact fleet reader this station
+     * itself uses (injected in tests, `claude agents --json` in production), offered as an
+     * in-process contract -- siblings consume it via `getContract('ship-voice', 'fleetSource')`,
+     * never by importing this package (suite-conventions' station discipline). */
+    contracts: { fleetSource },
+
     registerRoutes(app: FastifyInstance, ctx: HostContext) {
       appRef = app;
 
