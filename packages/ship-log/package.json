@@ -29,9 +29,11 @@
     "dev": "tsc -w -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:acceptance": "node acceptance/two-repo-log.mjs"
+    "test:acceptance": "node acceptance/two-repo-log.mjs",
+    "test:acceptance:quartermaster": "node acceptance/quartermaster-mcp.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^12.11.1",
     "commander": "^13.1.0",
     "fastify": "^5.9.0",

@@ -359,6 +359,9 @@ importers:
 
   packages/ship-log:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
       better-sqlite3:
         specifier: ^12.11.1
         version: 12.11.1
@@ -476,6 +479,9 @@ importers:
       typescript-eslint:
         specifier: ^8.21.0
         version: 8.62.1(eslint@9.39.4)(typescript@5.9.3)
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)
 
 packages:
 

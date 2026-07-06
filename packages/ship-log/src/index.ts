@@ -30,3 +30,10 @@ export {
   type ClaudeSpawn,
 } from './summarize.js';
 export { createShipLogStation, type ShipLogStation, type ShipLogStationOptions } from './station.js';
+export {
+  createShipLogMcpServer,
+  queryEntries,
+  listRecentSessions,
+  listRollupDates,
+  type QueryEntriesFilter,
+} from './mcp.js';
