@@ -148,6 +148,21 @@ page beyond deep-linking (answering stays on the doc page).
   (they're now consumed); stated in report.
 - No new deps beyond what ship-ledger already uses (better-sqlite3, fastify, zod, commander).
 
+## 4b. Deviations during implementation (visible, per charter)
+
+1. `permission.mjs` uses stdlib `node:http` (`agent: false`) instead of global fetch: undici's
+   keep-alive pool crashes libuv on `process.exit()` under Windows/Node 24.14
+   ("Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)") — reproduced deterministically in
+   the resolver e2e test's deadline path, fixed by dropping undici. emit.mjs (single fetch,
+   proven in pkg 4) is untouched.
+2. Body-less POSTs (ack/expire) must NOT send `content-type: application/json` — fastify 400s
+   an empty JSON body. Client + acceptance send the header only with a body.
+3. Live proof refined R1: in `-p` mode, a permission denial fires NEITHER PermissionRequest NOR
+   Notification/permission_prompt even with the plugin loaded (run C evidence). Interactive
+   sessions DO emit Notification/permission_prompt (this working session's own prompt landed in
+   the live inbox). The dispatch's "headless-visible signal" is thus: visible to the headless
+   HULL from interactive sessions — not emittable from inside `-p`.
+
 ## 5. Gates
 Full `pnpm turbo build lint test --force` (floors: chartroom 268, chartroom-ui 172+, ship 14+,
 ship-log 81+, suite-conventions 35, ship-ledger 35, ship-inbox new), all acceptance scripts

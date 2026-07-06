@@ -206,3 +206,20 @@ trivially retunable.
    path portably). Exact `claude mcp add` / `--mcp-config` commands are in
    `packages/ship-ledger/README.md`; wiring it into the plugin/marketplace is a Harbor-rail
    question. If you want it registered user-scope on this machine now, it's one command.
+
+## Package 6 (Bridge phase 3) — defaults taken, FYI only (2026-07-06)
+
+Plan: `suite-design/overnight/plans/06-bridge-phase3-plan.md`. Nothing blocking; both retunable.
+
+1. **Resolver deadline default: 25 s (`SHIP_INBOX_WAIT_MS`).** Whether the terminal permission
+   dialog renders WHILE a PermissionRequest hook blocks is empirically unverifiable headlessly
+   (the event never fires in `-p`, researcher R1). The short default hedges the unfavorable
+   answer (terminal waits at most 25 s before the native dialog); browser-first workflow wants
+   it raised (e.g. 300000). One env var / one constant in
+   `plugins/crew/hooks/permission.mjs` — retune after the README's manual verification pass
+   answers the question.
+2. **Deny decisions send `{behavior:"deny"}` only** — no message/updatedInput fields in the
+   hook's stdout JSON. R1 documented only `behavior`/`updatedInput`; inventing a message field
+   against an unverified schema risked breaking the one interactive surface we can't test. The
+   human's deny reason IS stored on the queue row (visible in the inbox history). Extend after
+   interactive verification if the schema tolerates it.
