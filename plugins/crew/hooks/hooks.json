@@ -12,6 +12,9 @@
     "Notification": [
       { "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/emit.mjs"] }] }
     ],
+    "PermissionRequest": [
+      { "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/permission.mjs"] }] }
+    ],
     "TaskCreated": [
       { "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/hooks/emit.mjs"] }] }
     ],
