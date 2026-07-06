@@ -53,6 +53,47 @@ guard, voyage routes), `chartroom/station`, and the Deck UI shell.
    suite-conventions suites) — recorded as the regression floor for this package.
 7. **CAPTAIN-INBOX.md** at the package boundary (FO does this; noting the dependency).
 
+### §0 rebase-refresh verdict (developer stage, 2026-07-06, against merged `ship-wave1-bridge1`
+which already carries the package-3 merge — commit `5abb16d`, tip `5448f40`)
+
+1. **`StationDescriptor`/`HostContext` (verified, `packages/suite-conventions/src/station.ts`):**
+   matches the plan's §3.3 assumption almost exactly. `StationDescriptor = { name, tab?: {id,
+   title}, registerRoutes(app, ctx): void|Promise<void>, start?(ctx), stop?(), contracts?:
+   Record<string, unknown> }`. `HostContext = { port?: number, getContract<T>(station, name):
+   T|undefined, log(line) }`. No deltas — §3.3/§3.5 bind as written.
+2. **`suite-conventions/src/events.ts` (real content read, delta found — folding here):** the
+   merged file is NOT raw-CLI-shaped. It's already a *suite-envelope convention* layer: a
+   `shipHookEventSchema` discriminated union on an `event` literal (`PermissionRequest`,
+   `Notification`, `Stop`, `SessionStart`, `SessionEnd`, `TaskCreated`, `TaskCompleted`), each with
+   a camelCase `eventCore` (`sessionId`, `project?`, `cwd?`, `timestamp`) + a `.looseObject`
+   payload — NOT the raw snake_case CLI stdin shape the researcher's R1 captured empirically
+   (`session_id`, `hook_event_name`, `transcript_path`, `reason`, `task_subject`, etc.). This is a
+   **different layer than plan §3.2's envelope** (`{v:1, hook_event_name, session_id,
+   transcript_path, cwd, emitted_at, payload}`) — the plan's `HookEventEnvelope` (§1.4) is the
+   *wire* envelope emit.mjs POSTs; `events.ts`'s `ShipHookEvent` union is a *higher-level, already
+   summarized* shape apparently anticipating packages 5/6's consumption. Decision: keep both,
+   additive. `events.ts` gets a new export `hookEventEnvelopeSchema`/`HookEventEnvelope` (the raw
+   wire shape emit.mjs sends and ship-log's ingest route validates) alongside the existing
+   `ShipHookEvent` union (untouched — plan 03's design for a later package, not this one's
+   problem to reconcile further). No existing export renamed or removed.
+3. **Hull composition (verified, `packages/ship/src/hull.ts` + `src/commands/serve.ts`):**
+   `createHull(stations: StationDescriptor[], options)` exactly as plan 03 §4.3 assumed;
+   `serve.ts` currently calls `createHull([chartroom], { voyageFile })`. This package's mount is
+   a literal one-line array addition: `createHull([chartroom, shipLog], { voyageFile })` plus the
+   `ship-log` workspace dependency in `packages/ship/package.json`.
+4. **Route ownership (verified):** stations own `/api/<station>/*`; `DECK_CLIENT_HEADER` +
+   `isAllowedHostHeader` live in `suite-conventions/src/security.ts`, both plain exported
+   functions/constants — directly reusable per-route by ship-log's ingest route as planned.
+5. **`~/.suite/services.json` shape (verified, `services-json.ts`):** `{version:1, hull?:
+   {port, pid, startedAt, stations: string[]}}` — matches plan exactly; `readServices(homeDir?)`
+   is the discovery read emit.mjs performs.
+6. **Regression floor:** `pnpm turbo build lint test` on the pre-existing tree (before this
+   package's changes) — recorded as the floor this package must not regress below; see developer
+   report for the exact counts captured at implementation start.
+7. CAPTAIN-INBOX.md dependency note: FO's responsibility, not re-verified here.
+
+Everything else in §1-§10 below stands as designed; no other deltas found.
+
 ## 1. Scope
 
 1. **NEW `plugins/crew`** — the Crew plugin skeleton (plugin name `ship-crew` per Ship_Spec §7;
