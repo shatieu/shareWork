@@ -223,3 +223,18 @@ Plan: `suite-design/overnight/plans/06-bridge-phase3-plan.md`. Nothing blocking;
    against an unverified schema risked breaking the one interactive surface we can't test. The
    human's deny reason IS stored on the queue row (visible in the inbox history). Extend after
    interactive verification if the schema tolerates it.
+
+## Package 7 (settings manager): schema validation seam + template-pack home
+
+- **What (a):** Trio_Specs §B demands schema validation "against the installed CC version
+  (live-generated, not the chronically stale published schema)" before any write. There is no
+  supported mechanism to extract a settings schema from the installed `claude` binary.
+- **Default taken (a):** v1 ships a structural validator (typed per the current docs' settings
+  table; unknown keys = warnings, never blockers, matching CC's own tolerant parsing) behind a
+  `SchemaProvider` seam in `packages/settings-manager/src/schema.ts` — a future live-generated
+  provider drops in without touching the rails. Override: name a preferred extraction approach
+  (e.g. vendored json.schemastore.org snapshot per CC release, or a `claude doctor`-derived probe).
+- **What (b):** §B says template packs are "versioned in the suite's marketplace repo"; no
+  marketplace repo exists yet. **Default taken (b):** packs ship as data files inside
+  `packages/settings-manager/templates/` with a `version` field; moving them to the marketplace
+  repo later is a file move, the apply pipeline is source-agnostic.
