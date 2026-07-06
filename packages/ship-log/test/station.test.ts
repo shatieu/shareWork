@@ -79,7 +79,7 @@ describe('POST /api/ship-log/events', () => {
       payload: envelopeBody('SessionStart', 'sess-http-1', process.cwd()),
     });
     expect(res.statusCode).toBe(202);
-    expect(res.json()).toEqual({ queued: false });
+    expect(res.json()).toEqual({ queued: false, stored: 'captured' });
 
     // No polling: the snapshot must already be committed when the reply lands.
     expect(getSession(station.db, 'sess-http-1')).toBeTruthy();
@@ -114,6 +114,70 @@ describe('POST /api/ship-log/events', () => {
     await vi.waitFor(() => {
       expect(existsSync(unknownSidecarPath(fakeHome))).toBe(true);
     });
+  });
+
+  it('forwards a claimed event to a mounted hookEventConsumer synchronously (Bridge phase 2 fan-out)', async () => {
+    const seen: string[] = [];
+    const consumerCtx: HostContext = {
+      port: undefined,
+      log: () => {},
+      getContract: <T,>(stationName: string, contractName: string): T | undefined => {
+        if (stationName === 'ship-ledger' && contractName === 'hookEventConsumer') {
+          return {
+            events: ['TaskCreated', 'TaskCompleted'],
+            consume: (envelope: { hook_event_name: string }) => {
+              seen.push(envelope.hook_event_name);
+            },
+          } as T;
+        }
+        return undefined;
+      },
+    };
+    station = createShipLogStation({ homeDir: fakeHome });
+    app = Fastify({ logger: false });
+    await station.registerRoutes(app, consumerCtx);
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ship-log/events',
+      headers: { [DECK_CLIENT_HEADER]: '1' },
+      payload: envelopeBody('TaskCreated', 'sess-task-1', process.cwd(), {
+        task_id: '1',
+        task_subject: 'mirror me',
+      }),
+    });
+    expect(res.statusCode).toBe(202);
+    // Sync before the 202 -- delivered by reply time, and never sidecarred.
+    expect(res.json()).toEqual({ queued: false, stored: 'forwarded' });
+    expect(seen).toEqual(['TaskCreated']);
+    expect(existsSync(unknownSidecarPath(fakeHome))).toBe(false);
+  });
+
+  it('answers 500 when a consumer throws (emitter spools; mirror events are never lost)', async () => {
+    const consumerCtx: HostContext = {
+      port: undefined,
+      log: () => {},
+      getContract: <T,>(): T | undefined =>
+        ({
+          events: ['TaskCreated'],
+          consume: () => {
+            throw new Error('ledger unavailable');
+          },
+        }) as T,
+    };
+    station = createShipLogStation({ homeDir: fakeHome });
+    app = Fastify({ logger: false });
+    await station.registerRoutes(app, consumerCtx);
+    await app.ready();
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ship-log/events',
+      headers: { [DECK_CLIENT_HEADER]: '1' },
+      payload: envelopeBody('TaskCreated', 'sess-task-2', process.cwd(), { task_id: '2' }),
+    });
+    expect(res.statusCode).toBe(500);
   });
 });
 

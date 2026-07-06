@@ -2,7 +2,9 @@ import type { FastifyInstance } from 'fastify';
 import type Database from 'better-sqlite3';
 import {
   DECK_CLIENT_HEADER,
+  HOOK_EVENT_CONSUMER_CONTRACT,
   hookEventEnvelopeSchema,
+  type HookEventConsumer,
   type HostContext,
   type StationDescriptor,
 } from 'suite-conventions';
@@ -21,6 +23,11 @@ export interface ShipLogStationOptions {
   rollupSummarizer?: typeof defaultRollupSummarizer;
   now?: () => Date;
   fragmentPolicy?: 'changed-only' | 'always';
+  /** Station names probed (lazily, per event) for a `hookEventConsumer` contract -- the
+   * in-process fan-out targets for hook events ship-log itself doesn't capture (Bridge phase 2:
+   * ship-ledger mirrors TaskCreated/TaskCompleted). Names, not imports: stations never import
+   * each other's internals (Ship_Spec §2 discipline rule). */
+  consumerStations?: readonly string[];
 }
 
 export interface ShipLogStation extends StationDescriptor {
@@ -44,6 +51,15 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
     now,
     fragmentPolicy: options.fragmentPolicy,
   });
+  const consumerStations = options.consumerStations ?? ['ship-ledger'];
+
+  /** Resolve the mounted hook-event consumers at call time (never captured at registration:
+   * `getContract` searches the hull's full station array, and standalone mode's stub context
+   * simply returns undefined -> Task events fall through to the unknown sidecar as in phase 1). */
+  const consumersFrom = (ctx: HostContext): HookEventConsumer[] =>
+    consumerStations
+      .map((name) => ctx.getContract<HookEventConsumer>(name, HOOK_EVENT_CONSUMER_CONTRACT))
+      .filter((c): c is HookEventConsumer => c !== undefined);
 
   const station: ShipLogStation = {
     name: 'ship-log',
@@ -81,9 +97,11 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
         // safe: the emitter times out -> spools -> the next drain re-delivers, and
         // upsertSessionStart preserves the original head_start/started_at on conflict
         // (no clobber, no loss).
+        // Task events (TaskCreated/TaskCompleted) ride the same sync path: cheap SQLite writes
+        // in the ledger's consumer, and Created->Completed ordering matters.
         try {
-          await ingestEnvelope(captureCtx, envelope, homeDir);
-          return reply.code(202).send({ queued: false });
+          const result = await ingestEnvelope(captureCtx, envelope, homeDir, consumersFrom(ctx));
+          return reply.code(202).send({ queued: false, stored: result.stored });
         } catch (err) {
           // Fail loud (non-2xx), not fail-silent: the emitter treats non-2xx as undelivered and
           // spools the event for the next drain instead of losing it behind a lying 202.
@@ -133,7 +151,7 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
             return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
           }
           await drainSpool(async (raw) => {
-            await ingestEnvelope(captureCtx, raw, homeDir);
+            await ingestEnvelope(captureCtx, raw, homeDir, consumersFrom(ctx));
           }, homeDir); // plan §3.7
           await sweepOrphans(captureCtx); // orphan sweep before rollup build, plan §3.8
           const row = await buildRollup({ db, date: request.params.date, summarizer: rollupSummarizer, now });
@@ -148,9 +166,9 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
       }));
     },
 
-    async start(_ctx: HostContext) {
+    async start(ctx: HostContext) {
       await drainSpool(async (raw) => {
-        await ingestEnvelope(captureCtx, raw, homeDir);
+        await ingestEnvelope(captureCtx, raw, homeDir, consumersFrom(ctx));
       }, homeDir);
       await sweepOrphans(captureCtx);
     },
