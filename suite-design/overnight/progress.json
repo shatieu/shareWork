@@ -143,12 +143,12 @@
     {
       "id": 14,
       "title": "Settings add-flow rewrite: modal + search + multiselect (Captain order)",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "M",
-      "remaining_guess_h": 2,
-      "updated_at": "2026-07-06T13:21:00.233Z",
-      "note": "post-mission Captain order; combined dispatch to the package-7 TL"
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T16:03:31.876Z",
+      "note": "merged; 30/30 acceptance, 1151 workspace tests; overwrite badged not refused (tighten via correctMe if wanted)"
     }
   ]
 }
