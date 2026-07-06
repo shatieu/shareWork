@@ -276,6 +276,66 @@ async function main() {
     const backups = await getJson(`${base}/api/settings-manager/backups`);
     assert(backups.length >= 4, `every replacing write left a backup (${backups.length} accumulated, none deleted)`);
 
+    console.log('--- Phase 6 (package 14): the add-modal API chain, one batched write ---');
+    const catalog = await getJson(`${base}/api/settings-manager/catalog`);
+    assert(
+      catalog.settings.length > 60 &&
+        catalog.settings.some((e) => e.key === 'cleanupPeriodDays' && e.kind === 'number') &&
+        catalog.ruleTemplates.some((t) => t.id === 'webfetch-domain') &&
+        Array.isArray(catalog.modes),
+      'GET /catalog serves the searchable catalog (settings + rule templates + modes)',
+    );
+
+    const addPreview = await postJson(`${base}/api/settings-manager/add/preview`, {
+      scope: 'local',
+      project: projectDir,
+      additions: {
+        values: { cleanupPeriodDays: 20, alwaysThinkingEnabled: true },
+        defaultMode: 'acceptEdits',
+        permissions: { deny: ['Bash(curl *)'] },
+      },
+    }, {});
+    assert(
+      addPreview.status === 200 &&
+        addPreview.body.addedKeys.join(',') === 'cleanupPeriodDays,alwaysThinkingEnabled,permissions.defaultMode' &&
+        addPreview.body.addedRules === 1 &&
+        addPreview.body.preview.validation.ok === true,
+      'add/preview batches 2 keys + defaultMode + 1 rule into one newContent with a diff',
+    );
+    const addApply = await postJson(`${base}/api/settings-manager/apply`, {
+      scope: 'local',
+      project: projectDir,
+      newContent: addPreview.body.newContent,
+      baseHash: addPreview.body.preview.baseHash,
+    });
+    const afterAdd = JSON.parse(readFileSync(join(projectDir, '.claude', 'settings.local.json'), 'utf8'));
+    assert(
+      addApply.status === 200 &&
+        afterAdd.cleanupPeriodDays === 20 &&
+        afterAdd.alwaysThinkingEnabled === true &&
+        afterAdd.permissions.defaultMode === 'acceptEdits' &&
+        afterAdd.permissions.deny.includes('Bash(curl *)') &&
+        afterAdd.permissions.allow.includes('Read'),
+      'ONE apply landed all additions; pre-existing rules survived',
+    );
+    const effectiveAfterAdd = await getJson(`${base}/api/settings-manager/effective?project=${encodeURIComponent(projectDir)}`);
+    assert(
+      effectiveAfterAdd.values.cleanupPeriodDays?.scope === 'local' &&
+        effectiveAfterAdd.permissions.defaultMode?.value === 'acceptEdits',
+      'effective view reflects the additions with local-scope attribution',
+    );
+    const overwritePreview = await postJson(`${base}/api/settings-manager/add/preview`, {
+      scope: 'local',
+      project: projectDir,
+      additions: { values: { cleanupPeriodDays: 45 } },
+    }, {});
+    assert(
+      overwritePreview.status === 200 &&
+        overwritePreview.body.overwrittenKeys.join(',') === 'cleanupPeriodDays' &&
+        overwritePreview.body.addedKeys.length === 0,
+      'overwriting an existing key is reported as overwritten, visible before apply',
+    );
+
     console.log('--- Phase 5: standalone read-only CLI answers the spec question ---');
     const cli = spawnSync(
       process.execPath,
