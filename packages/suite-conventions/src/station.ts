@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { HookEventEnvelope } from './events.js';
 
 /**
  * Host-side context handed to every station (Ship_Spec §2 one-hull revision): the hull's port
@@ -43,4 +44,25 @@ export interface StationDescriptor {
   stop?(): void | Promise<void>;
   /** Named in-process contracts this station offers to others via `HostContext.getContract`. */
   contracts?: Record<string, unknown>;
+}
+
+/**
+ * Well-known contract name under which a station offers a {@link HookEventConsumer}
+ * (plan 05 §2). ship-log's ingest endpoint owns the hook-event *transport* (one endpoint, one
+ * spool -- Bridge phase 1's "packages add consumers, not new transport" design); any other
+ * station that wants a class of hook events registers this contract and receives them in-process.
+ */
+export const HOOK_EVENT_CONSUMER_CONTRACT = 'hookEventConsumer';
+
+/**
+ * A station's declaration of interest in raw hook-event envelopes flowing through ship-log's
+ * ingest path (HTTP route, spool drain, and standalone CLI alike). Consumed events are the
+ * consumer's responsibility to persist; ship-log neither sidecars nor stores them further.
+ * `consume` errors propagate to the ingest caller (HTTP sync path -> non-2xx -> the emitter
+ * spools the event for the next drain -- a failing consumer delays delivery, never loses it).
+ */
+export interface HookEventConsumer {
+  /** Raw hook event names this consumer wants, e.g. `['TaskCreated', 'TaskCompleted']`. */
+  events: readonly string[];
+  consume(envelope: HookEventEnvelope): void | Promise<void>;
 }
