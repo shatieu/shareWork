@@ -2,9 +2,13 @@
 id: plan-15-add-repo-ui-deck
 ---
 
-# Plan 15 — Add repo UI (Deck)
+# Plan 15 — Add repo + repos-overview landing (Deck)
 
-Captain's order: "I am missing add repo to the ship." Branch `ship-wave1-add-repo` off `ship-wave1` (fd9da1e). Combined plan+implement per wrap-up process.
+Captain's order: "I am missing add repo to the ship." + scope addition (FO relay, mid-package): the Deck's
+default route (`#/`, what `http://127.0.0.1:4317/` lands on) becomes a **tracked-repos overview** — one card
+per registered repo (name, path, cheap stats already served by `GET /api/repos`), click-through to that
+repo's Docs, with the Add-repo button living on the overview. Branch `ship-wave1-add-repo` off `ship-wave1`
+(fd9da1e). Combined plan+implement per wrap-up process.
 
 ## Decision: minimal validated-path version ships; the fs.ts folder browser does NOT
 The quarantined `routes/fs.ts` (f34c297) exposes unauthenticated full-filesystem enumeration; the FO rail
@@ -25,7 +29,24 @@ The `.register-modal` CSS already exists on `ship-wave1` in `base.css` — reuse
 - `packages/chartroom-ui/src/components/RepoTree.tsx` — `onAddRepo` prop; `+ add` button in the panel head.
 - `packages/chartroom-ui/src/App.tsx` — modal open state; `Add repo…` button in the no-repos empty state
   (CLI hint retained); on success: refresh dashboards, expand + navigate to the new repo, brass toast.
-- `packages/chartroom-ui/src/styles/base.css` — `.register-modal__input`, `.repo-tree__add`, empty-state button. Additive only.
+- `packages/chartroom-ui/src/styles/base.css` — `.register-modal__input`, `.repo-tree__add`, empty-state button, `.repo-overview` card grid. Additive only.
+
+## Repos-overview landing (scope addition)
+- Stats source: `GET /api/repos` already returns `docCount`, `brokenLinkCount`, `needsYouCount` per repo —
+  those are the overview's stats. **No last-activity field exists anywhere shipped** (the quarantine's
+  `daemon/activity.ts` never landed); per the "no new heavy stats" rail the overview ships without it.
+- `packages/chartroom-ui/src/components/RepoOverview.tsx` — NEW: "Tracked repos" header + Add-repo button,
+  card grid (brass avatar, name, path, doc count, broken-links / needs-you badges, per-card open-Claude),
+  card click → `#/repo/:id`.
+- `packages/chartroom-ui/src/App.tsx` — the auto-select-first-repo effect is REMOVED: the bare `#/` route now
+  renders `RepoOverview` as the Docs-tab center pane (tree rail stays). Docs-tab fallback (no remembered doc
+  hash) goes to `#/` (overview) instead of repos[0]. Root breadcrumb reads `repos`. The no-repos empty state
+  keeps the CLI hint and gains the Add-repo CTA (it is the overview's zero state).
+- Tests: `RepoOverview.test.tsx` (cards render real summaries, click-through, add button); App tests updated —
+  root renders overview instead of auto-selecting repos[0].
+- Acceptance addendum: the spawned-hull script asserts `/` serves the Deck shell and `GET /api/repos` carries
+  the overview's card data for both repos after live registration (the overview is a pure client render of
+  exactly that payload).
 
 ## Tests (component + route)
 - NEW `test/AddRepoModal.test.tsx`: submit calls API with trimmed path; success pane + onRegistered;
