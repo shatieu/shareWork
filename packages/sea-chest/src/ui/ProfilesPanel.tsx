@@ -23,7 +23,7 @@ export function ProfilesPanel({
 
   useEffect(() => {
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // reload identity changes each render; effect intentionally keys on the client only.
   }, [client]);
 
   const toggle = (itemName: string) => {
