@@ -3,6 +3,8 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve as resolvePath } from 'node:path';
 import { Command } from 'commander';
 import Fastify from 'fastify';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { createShipLogMcpServer } from './mcp.js';
 import { isAllowedHostHeader } from 'suite-conventions';
 import { ingestEnvelope } from './ingest.js';
 import { openShipLogDb } from './db.js';
@@ -87,6 +89,30 @@ program
     const content = ['# Changelog', '', ...sections.map((s) => s + '\n')].join('\n');
     writeFileSync(outPath, content, 'utf8');
     console.log(`ship-log: wrote ${outPath} from ${files.length} fragment(s).`);
+  });
+
+program
+  .command('mcp')
+  .description(
+    'Run the read-only changelog MCP server on stdio (register with `claude mcp add ship-log -- ship-log mcp`, or point --mcp-config at it). The Quartermaster reads entries/rollups/sessions through its tools.',
+  )
+  .action(async () => {
+    // stdout is the JSON-RPC channel -- nothing else may write to it (no console.log anywhere
+    // on this path; ship-ledger's proven pattern). Diagnostics go to stderr only.
+    const db = openShipLogDb();
+    const server = createShipLogMcpServer(db, { version: '0.1.0' });
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    const shutdown = () => {
+      try {
+        db.close();
+      } catch {
+        /* best-effort */
+      }
+      process.exit(0);
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
   });
 
 program
