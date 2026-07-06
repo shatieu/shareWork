@@ -13,6 +13,7 @@ import {
   fetchHullStations,
   fetchInbox,
   fetchRepos,
+  fetchShipInboxSummary,
   fetchVoyage,
   openClaudeSession,
   type DocDetail,
@@ -23,6 +24,7 @@ import { RepoTree } from './components/RepoTree.js';
 import { TabBar, type DeckTab } from './components/TabBar.js';
 import { DocView } from './components/DocView.js';
 import { InboxPage } from './inbox/InboxPage.js';
+import { ShipInboxPage } from './shipinbox/ShipInboxPage.js';
 import { VoyagePage } from './voyage/VoyagePage.js';
 
 export const REGISTER_COMMAND = 'chartroom register <path>';
@@ -129,8 +131,10 @@ export default function App(): ReactElement {
   const lastDocsHashRef = useRef<string>('');
 
   useEffect(() => {
-    if (route.tab === 'docs') lastDocsHashRef.current = hash;
-  }, [route.tab, hash]);
+    // `#/inbox` is deliberately excluded: with a hull-mounted Inbox tab it belongs to that tab,
+    // and even standalone, "back to Docs" should land on a doc, not bounce to the inbox.
+    if (route.tab === 'docs' && !route.isInbox) lastDocsHashRef.current = hash;
+  }, [route.tab, route.isInbox, hash]);
 
   /* ── station tabs (from the hull; standalone `chartroom serve` = Docs-only mode) ── */
 
@@ -165,8 +169,12 @@ export default function App(): ReactElement {
         window.location.hash = VOYAGE_ROUTE;
         return;
       }
+      if (tabId === 'inbox') {
+        window.location.hash = INBOX_ROUTE;
+        return;
+      }
       const last = lastDocsHashRef.current;
-      if (last && last !== VOYAGE_ROUTE) {
+      if (last && last !== VOYAGE_ROUTE && last !== INBOX_ROUTE) {
         window.location.hash = last;
       } else if (repos && repos.length > 0) {
         navigateTo(repos[0].id);
@@ -183,9 +191,15 @@ export default function App(): ReactElement {
     fetchRepos()
       .then(setRepos)
       .catch((err: unknown) => setError(String(err)));
-    fetchInbox()
-      .then((items) => setInboxCount(items.length))
-      .catch(() => setInboxCount(null));
+    // Under the hull the badge counts EVERYTHING needing a human (permissions + agent questions
+    // + docs, Ship_Spec §5); standalone `chartroom serve` falls back to the docs-only count.
+    fetchShipInboxSummary()
+      .then((summary) => setInboxCount(summary.total))
+      .catch(() => {
+        fetchInbox()
+          .then((items) => setInboxCount(items.length))
+          .catch(() => setInboxCount(null));
+      });
   }, []);
 
   useEffect(() => {
@@ -304,6 +318,11 @@ export default function App(): ReactElement {
   const activeDocs = route.repoId ? docsByRepo[route.repoId] : undefined;
   const pathSegments = detail ? detail.doc.path.split('/') : [];
   const claudeBusy = activeRepo !== undefined && claudeBusyRepoId === activeRepo.id;
+  // With a hull-mounted ship-inbox station, `#/inbox` belongs to the Inbox TAB (the one page,
+  // Ship_Spec §5); standalone chartroom keeps rendering the docs-only InboxPage inside Docs.
+  const hasInboxTab = tabs.some((tab) => tab.id === 'inbox');
+  const showShipInbox = route.isInbox === true && hasInboxTab;
+  const activeTabId = showShipInbox ? 'inbox' : route.tab;
 
   /* ── top chrome ── */
 
@@ -428,10 +447,19 @@ export default function App(): ReactElement {
   return (
     <div className="app-shell">
       {chrome}
-      <TabBar tabs={tabs} activeTabId={route.tab} onSelect={handleSelectTab} />
+      <TabBar tabs={tabs} activeTabId={activeTabId} onSelect={handleSelectTab} />
       <div className="app-shell__body">
         {route.tab === 'voyage' ? (
           <VoyagePage />
+        ) : showShipInbox ? (
+          <main className="paper-frame">
+            <div className="paper">
+              <ShipInboxPage
+                onNavigate={(repoId, docKey) => navigateTo(repoId, docKey)}
+                onChanged={refreshDashboards}
+              />
+            </div>
+          </main>
         ) : noRepos ? (
           <div className="empty-state">
             <CompassMark large />

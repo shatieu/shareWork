@@ -55,15 +55,18 @@ describe('plugins/crew manifest', () => {
     for (const required of ['SessionStart', 'Stop', 'SessionEnd']) {
       expect(registeredEvents).toContain(required);
     }
-    // PermissionRequest needs a blocking emitter variant (package 6) -- deliberately absent.
-    expect(registeredEvents).not.toContain('PermissionRequest');
+    // PermissionRequest gets the BLOCKING resolver variant (package 6, plan 06 §1.3) -- it must
+    // run permission.mjs (create + long-poll + stdout decision), never the fire-and-forget
+    // emitter, and never both (a parallel emit.mjs would double-create queue items).
+    expect(registeredEvents).toContain('PermissionRequest');
 
-    for (const entries of Object.values(parsed.hooks)) {
+    for (const [event, entries] of Object.entries(parsed.hooks)) {
+      const expectedScript = event === 'PermissionRequest' ? 'permission.mjs' : 'emit.mjs';
       for (const entry of entries) {
         for (const hook of entry.hooks) {
           expect(hook.command).toBe('node');
           expect(hook.args?.[0]).toContain('${CLAUDE_PLUGIN_ROOT}');
-          expect(hook.args?.[0]).toContain('emit.mjs');
+          expect(hook.args?.[0]).toContain(expectedScript);
         }
       }
     }
