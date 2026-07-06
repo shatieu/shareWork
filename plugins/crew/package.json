@@ -1,0 +1,16 @@
+{
+  "name": "ship-crew-plugin",
+  "version": "0.1.0",
+  "description": "Workspace-visible wrapper around the ship-crew Claude Code plugin payload (plugin.json, hooks/, README) -- no runtime deps, nothing to build; lint script only so turbo sees it.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "echo \"ship-crew-plugin: nothing to build (plain plugin payload)\"",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "eslint": "^9.19.0",
+    "typescript-eslint": "^8.21.0"
+  }
+}
