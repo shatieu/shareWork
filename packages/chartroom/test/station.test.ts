@@ -106,6 +106,46 @@ describe('createChartroomStation (plan 03 §4.4)', () => {
     }
   });
 
+  it('offers the listInbox contract: the same cross-repo items GET /api/inbox serves (plan 06 §1.2)', async () => {
+    writeFileSync(
+      join(repoRoot, 'questions.md'),
+      [
+        '---',
+        'id: questions',
+        '---',
+        '',
+        '# Questions',
+        '',
+        ':::ask-me{id="q-open" type="text"}',
+        'Which port should the inbox use?',
+        ':::',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    const station = createChartroomStation({ homeDir: home });
+    const listInbox = station.contracts?.listInbox as (() => Array<Record<string, unknown>>) | undefined;
+    expect(listInbox).toBeTypeOf('function');
+
+    const items = listInbox!();
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      repoId: 'repo-a',
+      docId: 'questions',
+      kind: 'ask-me',
+      directiveId: 'q-open',
+      label: 'Which port should the inbox use?',
+    });
+
+    // Contract and route serve the identical aggregation.
+    const app = Fastify({ logger: false });
+    await station.registerRoutes(app, hostContext());
+    const viaRoute = await app.inject({ method: 'GET', url: '/api/inbox' });
+    expect(viaRoute.json()).toEqual(items);
+    await app.close();
+  });
+
   it('a repo registered while started gets a watcher; stop() closes it without hanging', async () => {
     const otherRepo = mkdtempSync(join(tmpdir(), 'chartroom-station-repo3-'));
     try {

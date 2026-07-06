@@ -6,6 +6,7 @@ import { listRepos, registerRepo } from './daemon/registry.js';
 import { rebuild, type RepoState } from './daemon/repo-state.js';
 import type { RepoRuntime } from './daemon/server.js';
 import { registerChartroomRoutes } from './daemon/register-routes.js';
+import { collectInboxItems, type InboxItem } from './daemon/routes/inbox.js';
 import type { RepoRegistrar } from './daemon/routes/repo-register.js';
 import { startWatcher, stopWatcher, type WatchedRepo } from './daemon/watcher.js';
 import { deleteDaemonInfo, writeDaemonInfo } from './daemon/daemon-info.js';
@@ -102,6 +103,14 @@ export function createChartroomStation(options: ChartroomStationOptions = {}): C
 
     registerRoutes(app: FastifyInstance): void {
       registerChartroomRoutes(app, runtimes, { registrar });
+    },
+
+    contracts: {
+      /** In-process contract for ship-inbox's one-page aggregation (Ship_Spec §5: "unanswered
+       * ask-me blocks pulled from Chart Room" + "open :::actions blocks"): the same cross-repo
+       * list `GET /api/inbox` serves, without the HTTP hop. Reads the live runtimes array, so
+       * live-registered repos are included automatically. */
+      listInbox: (): InboxItem[] => collectInboxItems(runtimes),
     },
 
     start(ctx: HostContext): void {
