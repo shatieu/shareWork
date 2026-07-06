@@ -19,5 +19,8 @@ coverage/
 suite-design/lookout/state/
 suite-design/overnight/.fo-alive
 
+# Productized Lookout signal path (packages/scheduler, Trio_Specs §C) -- runtime-only
+.ship/
+
 # Chart Room runtime index (suite-design/ChartRoom_Spec.md §2.3, rebuilt by `chartroom index`)
 .docs/

@@ -1,0 +1,41 @@
+{
+  "name": "scheduler",
+  "version": "0.1.0",
+  "description": "The Lookout, productized (Trio_Specs §C): sensor-only usage poller writing signal files (usage.json + self-clearing ALERT/PAUSE) under .ship/lookout/, a session-independent guard harness that keeps the sensor alive and resurrects a capped session at most once per usage window (session-pinned --resume, never --continue), a mission lockfile so two supervisors can never own one repo, and print-only Task Scheduler/cron registration. The session is primary; the Lookout is its instrument.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "lookout": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/scheduler-accept.mjs"
+  },
+  "dependencies": {
+    "reset-detector": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}
