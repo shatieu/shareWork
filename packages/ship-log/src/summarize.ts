@@ -1,5 +1,7 @@
 import { spawnSync, type SpawnSyncReturns } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import type { CommitInfo } from './git-delta.js';
 
 /** Injectable child-process runner (plan §5: "fake claude runner (injectable spawn)") -- tests
@@ -40,6 +42,40 @@ export type RollupSummarizer = (input: RollupSummarizeInput) => Promise<Summariz
 
 const DEFAULT_MODEL = 'haiku';
 const DEFAULT_TIMEOUT_MS = 60_000;
+
+/**
+ * Resolve the `claude` executable in a way `spawnSync` can actually run (live-proof discovery,
+ * 2026-07-06): on Windows an npm global install puts a `claude.cmd`/`claude` SHIM on PATH, not an
+ * exe -- and Node refuses to spawn .cmd/.bat files without `shell: true` (which we will not use:
+ * the prompt is multi-line and cmd.exe quoting of it is a footgun). The shim's real target is
+ * `<npm-prefix>/node_modules/@anthropic-ai/claude-code/bin/claude.exe` (a native binary,
+ * confirmed in report 04 R1's environment notes), so walk PATH and spawn that directly.
+ * `SHIP_LOG_CLAUDE_PATH` is the documented override for unusual installs.
+ */
+export function resolveClaudeBinary(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+): string {
+  const override = env.SHIP_LOG_CLAUDE_PATH;
+  if (override) return override;
+  if (platform !== 'win32') return 'claude';
+  for (const dir of (env.PATH ?? env.Path ?? '').split(delimiter)) {
+    if (!dir) continue;
+    const exe = join(dir, 'claude.exe');
+    if (existsSync(exe)) return exe;
+    if (existsSync(join(dir, 'claude.cmd')) || existsSync(join(dir, 'claude'))) {
+      const shimTarget = join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
+      if (existsSync(shimTarget)) return shimTarget;
+    }
+  }
+  return 'claude'; // last resort -- spawnSync will surface ENOENT and capture falls back
+}
+
+let cachedClaudeBinary: string | undefined;
+function claudeBinary(): string {
+  cachedClaudeBinary ??= resolveClaudeBinary();
+  return cachedClaudeBinary;
+}
 /** Prompt-text safety cap: the transcript tail is already size-capped at ~16 KB (transcript.ts),
  * but the prompt is passed as a single argv entry (verified working for `-p "<prompt>"` in
  * report 02 R4) -- trim further so the full command line comfortably stays under Windows'
@@ -53,6 +89,8 @@ function buildEntryPrompt(input: SummarizeInput): string {
   const tail = input.transcriptTail.slice(-MAX_TRANSCRIPT_CHARS_IN_PROMPT);
   return [
     'Summarize this coding session in 1-3 plain sentences for a changelog. No preamble.',
+    'Never ask questions or address the reader -- if little happened, state that plainly in one',
+    'factual sentence (e.g. "No changes were committed; one file was touched.").',
     `Project: ${input.project ?? 'unknown'}`,
     `Branch: ${input.branch ?? 'unknown'}`,
     `Files touched: ${input.files.length}`,
@@ -69,7 +107,9 @@ function buildRollupPrompt(input: RollupSummarizeInput): string {
   );
   return [
     `Write a short daily digest (a few sentences, markdown ok) for ${input.date} covering all`,
-    'projects worked on. No preamble, just the digest.',
+    'projects worked on. No preamble, just the digest. Never ask questions or address the',
+    'reader -- produce the digest directly from the sessions listed below, mentioning every',
+    'project by name, even when a session summary is vague (report it as-is, plainly).',
     'Sessions:',
     ...lines,
   ].join('\n');
@@ -90,7 +130,7 @@ function runClaude(
   spawn: ClaudeSpawn = spawnSync,
 ): SummarizeResult | null {
   const result = spawn(
-    'claude',
+    claudeBinary(),
     [
       '-p',
       prompt,

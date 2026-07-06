@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   createClaudeRollupSummarizer,
@@ -7,6 +10,7 @@ import {
   fakeSummarizerSeamActive,
   fallbackRollupDigest,
   fallbackSummary,
+  resolveClaudeBinary,
   type ClaudeSpawn,
 } from '../src/summarize.js';
 
@@ -137,6 +141,42 @@ describe('fakeSummarizerSeamActive (acceptance seam, plan §6.1)', () => {
     } finally {
       if (prev === undefined) delete process.env.SHIP_LOG_FAKE_SUMMARIZER;
       else process.env.SHIP_LOG_FAKE_SUMMARIZER = prev;
+    }
+  });
+});
+
+describe('resolveClaudeBinary (Windows npm-shim workaround)', () => {
+  it('honors the SHIP_LOG_CLAUDE_PATH override on any platform', () => {
+    expect(resolveClaudeBinary({ SHIP_LOG_CLAUDE_PATH: 'C:/custom/claude.exe' }, 'win32')).toBe(
+      'C:/custom/claude.exe',
+    );
+    expect(resolveClaudeBinary({ SHIP_LOG_CLAUDE_PATH: '/opt/claude' }, 'linux')).toBe('/opt/claude');
+  });
+
+  it('returns plain "claude" on non-Windows platforms', () => {
+    expect(resolveClaudeBinary({ PATH: '/usr/bin' }, 'linux')).toBe('claude');
+    expect(resolveClaudeBinary({ PATH: '/usr/bin' }, 'darwin')).toBe('claude');
+  });
+
+  it('resolves the npm shim to the nested claude.exe on win32', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'ship-log-claude-resolve-'));
+    try {
+      writeFileSync(join(dir, 'claude.cmd'), '@echo shim\r\n', 'utf8');
+      const nested = join(dir, 'node_modules', '@anthropic-ai', 'claude-code', 'bin');
+      mkdirSync(nested, { recursive: true });
+      writeFileSync(join(nested, 'claude.exe'), 'fake-binary', 'utf8');
+      expect(resolveClaudeBinary({ PATH: dir }, 'win32')).toBe(join(nested, 'claude.exe'));
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to plain "claude" on win32 when nothing resolves', () => {
+    const empty = mkdtempSync(join(tmpdir(), 'ship-log-claude-empty-'));
+    try {
+      expect(resolveClaudeBinary({ PATH: empty }, 'win32')).toBe('claude');
+    } finally {
+      rmSync(empty, { recursive: true, force: true });
     }
   });
 });
