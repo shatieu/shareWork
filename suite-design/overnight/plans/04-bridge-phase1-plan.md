@@ -94,6 +94,32 @@ which already carries the package-3 merge — commit `5abb16d`, tip `5448f40`)
 
 Everything else in §1-§10 below stands as designed; no other deltas found.
 
+### Implementation deviations (team-lead continuation, 2026-07-06 — all visible, none silent)
+
+1. **emit.mjs HTTP budget 700 ms, not §3.2's 1.5 s** (FO directive, STATUS 2026-07-05 23:45;
+   researcher R3: SessionEnd hooks are cancelled at ~1.4 s in `-p` mode).
+2. **Summarizer prompt passed as a single argv entry, not via stdin** (§3.9 said stdin "per R5"
+   — R5 was never dispatched; R1–R4 only). Verified safe: transcript excerpt capped at 4,000
+   chars inside the prompt (`MAX_TRANSCRIPT_CHARS_IN_PROMPT`), total command line comfortably
+   under Windows' ~32 K CreateProcess limit. Same reason `--tools ""` (unverified flag) is not
+   used; `--max-turns 1` + neutral cwd cap agentic behavior instead.
+3. **`resolveClaudeBinary()` added to summarize.ts** (live-proof discovery): npm's global
+   `claude` shim on Windows is a `.cmd`/sh script Node cannot `spawnSync` without a shell; the
+   resolver walks PATH to the nested native `bin/claude.exe`. `SHIP_LOG_CLAUDE_PATH` env
+   override documented. Without this the live summarizer silently fell back (entry captured,
+   summary_model null) — fail-open worked as designed, but the acceptance line needs real Haiku.
+4. **`plugins/.claude-plugin/marketplace.json` added** (§2 said "no marketplace distribution" —
+   still true; this is the *local* marketplace manifest `claude plugin marketplace add <path>`
+   requires for R2's mechanism-B project-scoped install, i.e. the dogfood/scratch-repo recipe).
+5. **`onlyBuiltDependencies` lives in `pnpm-workspace.yaml`, not root package.json** (§4 said
+   package.json; FO directive per R4: workspace.yaml survives `pnpm approve-builds` and the
+   pnpm-11 migration note sits inline).
+6. **Health `spoolPending` is a boolean** (file-presence check), not a line count — §3.5 left
+   the type unspecified; acceptance asserts `false` after drain.
+7. **Entry/rollup prompts hardened after live proof**: Haiku answered a sparse rollup with a
+   clarifying question instead of a digest; prompts now forbid questions and require every
+   project named. Rebuilt live rollup covers all projects by name.
+
 ## 1. Scope
 
 1. **NEW `plugins/crew`** — the Crew plugin skeleton (plugin name `ship-crew` per Ship_Spec §7;
