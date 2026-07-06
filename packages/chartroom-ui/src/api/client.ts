@@ -203,6 +203,95 @@ export function fetchInbox(): Promise<InboxItem[]> {
   return getJson<InboxItem[]>('/api/inbox');
 }
 
+/* ── ship-inbox endpoints (absent under standalone `chartroom serve`) ── */
+
+export type ShipPermissionStatus = 'pending' | 'allowed' | 'denied' | 'expired';
+
+export interface ShipPermissionRequest {
+  id: string;
+  sessionId: string;
+  cwd: string;
+  project: string | null;
+  toolName: string;
+  toolInput: unknown;
+  source: 'resolver' | 'hook';
+  status: ShipPermissionStatus;
+  decisionMessage: string | null;
+  alwaysAllowRule: string | null;
+  ruleBackupPath: string | null;
+  createdAt: string;
+  decidedAt: string | null;
+}
+
+export interface ShipAgentQuestion {
+  id: string;
+  sessionId: string;
+  cwd: string;
+  project: string | null;
+  kind: string;
+  message: string;
+  status: 'open' | 'acknowledged';
+  createdAt: string;
+  ackedAt: string | null;
+}
+
+/** The one-page aggregation (Ship_Spec §5): pending permissions + open agent questions +
+ * Chart Room's unanswered ask-me / open actions (same InboxItem shape as `GET /api/inbox`,
+ * pulled server-side through the in-process listInbox contract). */
+export interface ShipInboxItems {
+  permissions: ShipPermissionRequest[];
+  questions: ShipAgentQuestion[];
+  docs: InboxItem[];
+}
+
+export function fetchShipInboxItems(): Promise<ShipInboxItems> {
+  return getJson<ShipInboxItems>('/api/ship-inbox/items');
+}
+
+export interface ShipInboxSummary {
+  permissionsPending: number;
+  questionsOpen: number;
+  docsOpen: number;
+  total: number;
+}
+
+/** Badge counts. Fails/404s when no ship-inbox station is mounted -- callers fall back to the
+ * Chart Room-only `fetchInbox().length` count. */
+export function fetchShipInboxSummary(): Promise<ShipInboxSummary> {
+  return getJson<ShipInboxSummary>('/api/ship-inbox/summary');
+}
+
+async function postShipInbox<T>(url: string, payload?: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    body: payload === undefined ? undefined : JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(body || `chartroom-ui: request to ${url} failed with status ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+/** `POST /api/ship-inbox/permissions/:id/decision` -- the browser leg of the resolver loop.
+ * `alwaysAllowRule` additionally writes a NATIVE permission rule into the request project's
+ * `.claude/settings.local.json` (server-side: additive-only, atomic, backed up). */
+export function decideShipPermission(
+  id: string,
+  decision: { behavior: 'allow' | 'deny'; message?: string; alwaysAllowRule?: string },
+): Promise<ShipPermissionRequest> {
+  return postShipInbox<ShipPermissionRequest>(
+    `/api/ship-inbox/permissions/${encodeURIComponent(id)}/decision`,
+    decision,
+  );
+}
+
+/** `POST /api/ship-inbox/questions/:id/ack` -- dismisses an agent question. */
+export function ackShipQuestion(id: string): Promise<ShipAgentQuestion> {
+  return postShipInbox<ShipAgentQuestion>(`/api/ship-inbox/questions/${encodeURIComponent(id)}/ack`);
+}
+
 const AUTHOR_STORAGE_KEY = 'chartroom.authorName';
 
 export function getCachedAuthorName(): string | null {
