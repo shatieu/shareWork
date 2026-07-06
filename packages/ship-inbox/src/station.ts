@@ -17,6 +17,7 @@ import {
   expireStalePending,
   getPermissionRequest,
   listAgentQuestions,
+  listAlwaysAllowedRules,
   listPermissionRequests,
   openShipInboxDb,
   permissionToJson,
@@ -340,6 +341,10 @@ export function createShipInboxStation(options: ShipInboxStationOptions = {}): S
       hookEventConsumer,
       /** Badge seam for the console package (9). */
       pendingCounts,
+      /** Origin labels for the settings manager (Trio_Specs §B Ship integration): every native
+       * always-allow rule this inbox wrote, with cwd + date + backup path. Revocation itself
+       * happens through the settings manager's rails, not here. */
+      alwaysAllowedRules: () => listAlwaysAllowedRules(db),
     },
   };
 

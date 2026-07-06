@@ -276,6 +276,36 @@ export function permissionToJson(row: PermissionRequestRow): PermissionRequestJs
   };
 }
 
+export interface AlwaysAllowedRuleEntry {
+  rule: string;
+  cwd: string;
+  project: string | null;
+  decidedAt: string | null;
+  backupPath: string | null;
+}
+
+/** Every native "always allow" rule this inbox has written, newest first -- the settings
+ * manager's origin labels ("written by ship-inbox on <date>", Trio_Specs §B Ship integration).
+ * The settings files themselves stay the source of truth for what is ACTIVE; this is provenance,
+ * so revoked rules simply stop appearing in the live settings while the history remains. */
+export function listAlwaysAllowedRules(db: Database.Database): AlwaysAllowedRuleEntry[] {
+  const rows = db
+    .prepare(
+      `SELECT always_allow_rule, cwd, project, decided_at, rule_backup_path
+       FROM permission_requests
+       WHERE status = 'allowed' AND always_allow_rule IS NOT NULL
+       ORDER BY decided_at DESC`,
+    )
+    .all() as Pick<PermissionRequestRow, 'always_allow_rule' | 'cwd' | 'project' | 'decided_at' | 'rule_backup_path'>[];
+  return rows.map((row) => ({
+    rule: row.always_allow_rule as string,
+    cwd: row.cwd,
+    project: row.project,
+    decidedAt: row.decided_at,
+    backupPath: row.rule_backup_path,
+  }));
+}
+
 /* ── agent questions ── */
 
 export interface CreateQuestionInput {

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { countChanges, diffLines, formatUnifiedDiff, type DiffOp } from './diff.js';
 import { structuralSchema, type SchemaProvider, type ValidationResult } from './schema.js';
 

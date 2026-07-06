@@ -111,6 +111,11 @@ export function createChartroomStation(options: ChartroomStationOptions = {}): C
        * list `GET /api/inbox` serves, without the HTTP hop. Reads the live runtimes array, so
        * live-registered repos are included automatically. */
       listInbox: (): InboxItem[] => collectInboxItems(runtimes),
+      /** In-process contract for the settings-manager station (plan 07 §3): the registered-repo
+       * directories that gate which project paths its editor may read/write -- a browser page
+       * must never reach an arbitrary filesystem path. Live view over the same runtimes array. */
+      listRepoDirs: (): { id: string; name: string; absPath: string }[] =>
+        runtimes.map((runtime) => ({ id: runtime.id, name: runtime.name, absPath: runtime.absPath })),
     },
 
     start(ctx: HostContext): void {
