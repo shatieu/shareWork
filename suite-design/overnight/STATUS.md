@@ -192,3 +192,6 @@ Process change for packages 5-13: single TL dispatch per package (brief plan fil
 
 ## Package 5 CLOSED: 2026-07-06 10:55 - merged on green self-verification
 11 commits, gates 20/20, live MCP+mirror proof, changelog fragment present. Not-proven items documented in report (persistent mcp add registration -> DECISIONS-NEEDED FYI; interactive-tty hooks). Package 6 (Bridge phase 3, ship-inbox) dispatched in combined mode with the PermissionRequest interactive-only directive from the 23:45 research entry.
+
+## Package 6 CLOSED: 2026-07-06 11:45 - merged on green self-verification
+12 commits, 23/23 gates, 51 new tests, settings-write rails proven per-requirement, live always-allow loop. Seam: interactive PermissionRequest firing (manual 7-step in ship-inbox README). New empirical fact recorded: -p denial emits neither PermissionRequest nor Notification even with plugin. Package 7 (settings manager, Trio B) dispatched combined mode.

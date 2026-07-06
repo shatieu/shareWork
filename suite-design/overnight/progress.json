@@ -63,22 +63,22 @@
     {
       "id": 6,
       "title": "Bridge phase 3",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "L",
-      "remaining_guess_h": 4,
-      "updated_at": "2026-07-06T08:53:57.004Z",
-      "note": "combined dispatch, ship-inbox"
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T09:37:07.583Z",
+      "note": "merged; 23/23 gates, named risk held with dedicated proofs, live always-allow proof"
     },
     {
       "id": 7,
       "title": "Settings manager",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
+      "status": "implementing",
+      "stage_progress": 60,
+      "difficulty": "L",
       "remaining_guess_h": 4,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "updated_at": "2026-07-06T09:37:07.583Z",
+      "note": "combined dispatch, settings manager"
     },
     {
       "id": 8,
