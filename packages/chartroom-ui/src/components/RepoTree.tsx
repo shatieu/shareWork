@@ -14,6 +14,7 @@ export interface RepoTreeProps {
   onSetCollapsed: (collapsed: boolean) => void;
   onOpenClaude: (repoId: string) => void;
   claudeBusyRepoId: string | null;
+  onAddRepo: () => void;
 }
 
 interface FolderNode {
@@ -79,8 +80,9 @@ function loadCollapsedFolders(): Set<string> {
  * (broken links + needs-you counts), collapsible folder groups built from real doc paths,
  * active-doc rust highlight, and a per-repo "open Claude session" hover action. Collapses
  * to a 52px brass icon rail. Expansion state persists in localStorage (repos via the host,
- * folders locally). Registration stays a CLI act (`chartroom register <path>`) -- the
- * folder-picker modal is parked on the quarantine branch.
+ * folders locally). The head's `+ add` button opens the host's Add-repo modal (package 15) --
+ * a validated path input over POST /api/repos/register; the fs-browsing folder picker stays
+ * parked on the quarantine branch per the security rail.
  */
 export function RepoTree({
   repos,
@@ -94,6 +96,7 @@ export function RepoTree({
   onSetCollapsed,
   onOpenClaude,
   claudeBusyRepoId,
+  onAddRepo,
 }: RepoTreeProps): ReactElement {
   // Folders default to *open*; only explicitly-collapsed ones are stored (keys `repoId::path`).
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(loadCollapsedFolders);
@@ -213,6 +216,15 @@ export function RepoTree({
       <div className="repo-tree__head">
         <h2 className="panel__label">Local repos</h2>
         <div className="chrome__spacer" />
+        <button
+          type="button"
+          className="repo-tree__add"
+          onClick={onAddRepo}
+          title="Register a local git repo"
+          aria-label="Add repo"
+        >
+          + add
+        </button>
         <button
           type="button"
           className="repo-tree__collapse"
