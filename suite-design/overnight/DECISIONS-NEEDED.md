@@ -190,3 +190,19 @@ implementation isn't blocked; all trivially reversible.
    2–3 (task mirroring, permission queue) need a spec amendment or an alternative mechanism —
    phase 1's acceptance (SessionStart/Stop/SessionEnd capture) is unaffected either way. Will be
    updated here with the researcher's verdict.
+
+## Package 5 (Bridge phase 2) — defaults taken, FYI only (2026-07-06)
+
+Plan: `suite-design/overnight/plans/05-bridge-phase2-plan.md`. Nothing blocking; both
+trivially retunable.
+
+1. **`stage_progress` mapping constants.** Spec §3 requires "deterministic from status stage"
+   but names no values. Taken: open 0, claimed 10, blocked 25, in_progress 40,
+   changes_requested 55, in_review 80, done 100 (`stageProgressFor` in
+   `packages/ship-ledger/src/db.ts` — one pure function, retune at will; blocked deliberately
+   sits low because blocked is not progress).
+2. **Ledger MCP registration is a per-machine step** (like any MCP server). Not auto-installed
+   by the Crew plugin tonight (the plugin is stdlib-only and can't point at a workspace dist
+   path portably). Exact `claude mcp add` / `--mcp-config` commands are in
+   `packages/ship-ledger/README.md`; wiring it into the plugin/marketplace is a Harbor-rail
+   question. If you want it registered user-scope on this machine now, it's one command.
