@@ -1,0 +1,34 @@
+{
+  "name": "reset-detector",
+  "version": "0.1.0",
+  "description": "Usage-window reset detector (Trio_Specs §C): the standalone library under the Lookout sensor and the guard harness. Fuses the oauth usage endpoint, statusline JSON, and limit-message parsing into one snapshot; jitter-proof window keys; threshold evaluation (pause vs spend mode); and the pure, deterministic guard decision (sensor freshness, token gate, idle gate, once-per-window resurrection, session-pinned resume command).",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}
