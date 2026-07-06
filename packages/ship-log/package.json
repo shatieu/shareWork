@@ -1,0 +1,50 @@
+{
+  "name": "ship-log",
+  "version": "0.1.0",
+  "description": "The Ship's changelog service (Ship_Spec §4): captures SessionStart/Stop/SessionEnd hook events into a SQLite truth store, writes create-only in-repo changelog fragments, and produces daily Haiku rollups. Mounted into `ship serve` as a station; also ships its own standalone `ship-log` bin for degraded/offline use.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "ship-log": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./station": {
+      "types": "./dist/station.d.ts",
+      "import": "./dist/station.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/two-repo-log.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "commander": "^13.1.0",
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}

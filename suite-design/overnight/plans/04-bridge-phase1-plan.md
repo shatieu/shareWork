@@ -53,6 +53,84 @@ guard, voyage routes), `chartroom/station`, and the Deck UI shell.
    suite-conventions suites) — recorded as the regression floor for this package.
 7. **CAPTAIN-INBOX.md** at the package boundary (FO does this; noting the dependency).
 
+### §0 rebase-refresh verdict (developer stage, 2026-07-06, against merged `ship-wave1-bridge1`
+which already carries the package-3 merge — commit `5abb16d`, tip `5448f40`)
+
+1. **`StationDescriptor`/`HostContext` (verified, `packages/suite-conventions/src/station.ts`):**
+   matches the plan's §3.3 assumption almost exactly. `StationDescriptor = { name, tab?: {id,
+   title}, registerRoutes(app, ctx): void|Promise<void>, start?(ctx), stop?(), contracts?:
+   Record<string, unknown> }`. `HostContext = { port?: number, getContract<T>(station, name):
+   T|undefined, log(line) }`. No deltas — §3.3/§3.5 bind as written.
+2. **`suite-conventions/src/events.ts` (real content read, delta found — folding here):** the
+   merged file is NOT raw-CLI-shaped. It's already a *suite-envelope convention* layer: a
+   `shipHookEventSchema` discriminated union on an `event` literal (`PermissionRequest`,
+   `Notification`, `Stop`, `SessionStart`, `SessionEnd`, `TaskCreated`, `TaskCompleted`), each with
+   a camelCase `eventCore` (`sessionId`, `project?`, `cwd?`, `timestamp`) + a `.looseObject`
+   payload — NOT the raw snake_case CLI stdin shape the researcher's R1 captured empirically
+   (`session_id`, `hook_event_name`, `transcript_path`, `reason`, `task_subject`, etc.). This is a
+   **different layer than plan §3.2's envelope** (`{v:1, hook_event_name, session_id,
+   transcript_path, cwd, emitted_at, payload}`) — the plan's `HookEventEnvelope` (§1.4) is the
+   *wire* envelope emit.mjs POSTs; `events.ts`'s `ShipHookEvent` union is a *higher-level, already
+   summarized* shape apparently anticipating packages 5/6's consumption. Decision: keep both,
+   additive. `events.ts` gets a new export `hookEventEnvelopeSchema`/`HookEventEnvelope` (the raw
+   wire shape emit.mjs sends and ship-log's ingest route validates) alongside the existing
+   `ShipHookEvent` union (untouched — plan 03's design for a later package, not this one's
+   problem to reconcile further). No existing export renamed or removed.
+3. **Hull composition (verified, `packages/ship/src/hull.ts` + `src/commands/serve.ts`):**
+   `createHull(stations: StationDescriptor[], options)` exactly as plan 03 §4.3 assumed;
+   `serve.ts` currently calls `createHull([chartroom], { voyageFile })`. This package's mount is
+   a literal one-line array addition: `createHull([chartroom, shipLog], { voyageFile })` plus the
+   `ship-log` workspace dependency in `packages/ship/package.json`.
+4. **Route ownership (verified):** stations own `/api/<station>/*`; `DECK_CLIENT_HEADER` +
+   `isAllowedHostHeader` live in `suite-conventions/src/security.ts`, both plain exported
+   functions/constants — directly reusable per-route by ship-log's ingest route as planned.
+5. **`~/.suite/services.json` shape (verified, `services-json.ts`):** `{version:1, hull?:
+   {port, pid, startedAt, stations: string[]}}` — matches plan exactly; `readServices(homeDir?)`
+   is the discovery read emit.mjs performs.
+6. **Regression floor:** `pnpm turbo build lint test` on the pre-existing tree (before this
+   package's changes) — recorded as the floor this package must not regress below; see developer
+   report for the exact counts captured at implementation start.
+7. CAPTAIN-INBOX.md dependency note: FO's responsibility, not re-verified here.
+
+Everything else in §1-§10 below stands as designed; no other deltas found.
+
+### Implementation deviations (team-lead continuation, 2026-07-06 — all visible, none silent)
+
+1. **emit.mjs HTTP budget 700 ms, not §3.2's 1.5 s** (FO directive, STATUS 2026-07-05 23:45;
+   researcher R3: SessionEnd hooks are cancelled at ~1.4 s in `-p` mode).
+2. **Summarizer prompt passed as a single argv entry, not via stdin** (§3.9 said stdin "per R5"
+   — R5 was never dispatched; R1–R4 only). Verified safe: transcript excerpt capped at 4,000
+   chars inside the prompt (`MAX_TRANSCRIPT_CHARS_IN_PROMPT`), total command line comfortably
+   under Windows' ~32 K CreateProcess limit. Same reason `--tools ""` (unverified flag) is not
+   used; `--max-turns 1` + neutral cwd cap agentic behavior instead.
+3. **`resolveClaudeBinary()` added to summarize.ts** (live-proof discovery): npm's global
+   `claude` shim on Windows is a `.cmd`/sh script Node cannot `spawnSync` without a shell; the
+   resolver walks PATH to the nested native `bin/claude.exe`. `SHIP_LOG_CLAUDE_PATH` env
+   override documented. Without this the live summarizer silently fell back (entry captured,
+   summary_model null) — fail-open worked as designed, but the acceptance line needs real Haiku.
+4. **`plugins/.claude-plugin/marketplace.json` added** (§2 said "no marketplace distribution" —
+   still true; this is the *local* marketplace manifest `claude plugin marketplace add <path>`
+   requires for R2's mechanism-B project-scoped install, i.e. the dogfood/scratch-repo recipe).
+5. **`onlyBuiltDependencies` lives in `pnpm-workspace.yaml`, not root package.json** (§4 said
+   package.json; FO directive per R4: workspace.yaml survives `pnpm approve-builds` and the
+   pnpm-11 migration note sits inline).
+6. **Health `spoolPending` is a boolean** (file-presence check), not a line count — §3.5 left
+   the type unspecified; acceptance asserts `false` after drain.
+7. **Entry/rollup prompts hardened after live proof**: Haiku answered a sparse rollup with a
+   clarifying question instead of a digest; prompts now forbid questions and require every
+   project named. Rebuilt live rollup covers all projects by name.
+8. **§3.5's "202 immediately, ALL capture async" narrowed after reviewer FAIL (2026-07-06)**:
+   only SessionEnd's slow capture (git delta + transcript + up-to-60s summarizer) stays async;
+   SessionStart/Stop (and the unknown-event sidecar) are now ingested BEFORE the 202
+   (`{ queued: false }`). The reviewer proved the async SessionStart raced the session's first
+   commit: `head_start` snapshotted the post-commit HEAD → empty delta → silently missing
+   fragment (~1-in-3 acceptance flake). Budget reasoning: the sync cost is 1–3 `git rev-parse`
+   spawns (no working-tree scan — milliseconds even on huge repos), far under emit.mjs's 700 ms;
+   a pathological overrun times out client-side → spools → drain re-delivers, and
+   `upsertSessionStart`'s ON CONFLICT preserves the original `head_start`/`started_at`, so a
+   late duplicate can never clobber the early snapshot. Sync-path ingest errors now return 500
+   (the emitter treats non-2xx as undelivered and spools) instead of a lying 202.
+
 ## 1. Scope
 
 1. **NEW `plugins/crew`** — the Crew plugin skeleton (plugin name `ship-crew` per Ship_Spec §7;

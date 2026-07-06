@@ -3,6 +3,7 @@ import { join, resolve as resolvePath } from 'node:path';
 import type { Command } from 'commander';
 import type { FastifyInstance } from 'fastify';
 import { createChartroomStation } from 'chartroom/station';
+import { createShipLogStation } from 'ship-log/station';
 import { createHull } from '../hull.js';
 
 /** Same first-try port and walk as `chartroom serve` (plan §4.3) -- the Deck takes over Chart
@@ -66,7 +67,8 @@ export function registerServeCommand(program: Command): void {
           console.log('ship: no repos registered yet -- run `chartroom register <path>` first.');
         }
 
-        const hull = await createHull([chartroom], { voyageFile });
+        const shipLog = createShipLogStation();
+        const hull = await createHull([chartroom, shipLog], { voyageFile });
 
         const requestedPort = opts.port ? Number(opts.port) : DEFAULT_PORT;
         const port = await listenOnFreePort(hull.app, requestedPort);

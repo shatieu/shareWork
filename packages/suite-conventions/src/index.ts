@@ -34,6 +34,7 @@ export {
   taskCreatedEventSchema,
   taskCompletedEventSchema,
   shipHookEventSchema,
+  hookEventEnvelopeSchema,
   type PermissionRequestEvent,
   type NotificationEvent,
   type StopEvent,
@@ -42,4 +43,5 @@ export {
   type TaskCreatedEvent,
   type TaskCompletedEvent,
   type ShipHookEvent,
+  type HookEventEnvelope,
 } from './events.js';
