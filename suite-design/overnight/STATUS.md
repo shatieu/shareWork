@@ -165,3 +165,17 @@ guard — confirmed via `schtasks /query /tn ShipLookoutGuard` returning no task
   needs the Captain's `schtasks` run (CAPTAIN-TODO); not self-installing per charter. Using
   `ScheduleWakeup` as a best-effort session-level fallback in the meantime, understanding it does not
   survive a hard token-cap reset.
+
+## Package 3 (Captain's Deck, phase-1) CLOSED: 2026-07-06 ~03:58 local — PASS+merged
+Independent adversarial Reviewer PASS (reports/03-captains-deck-reviewer.md): re-ran deck-boot.mjs
+(18/18) + a live from-scratch `ship serve` boot with real curl/netstat checks (127.0.0.1-only bind,
+Host-allowlist 403, CSRF header ordering, one port serving everything); fresh turbo build/lint/test
+across all 4 packages (chartroom 268/268, chartroom-ui 172/172, ship 13/13, suite-conventions green);
+confirmed `routes/fs.ts` absent/404 (still parked, not shipped); confirmed zero `team-tasks/` diff.
+Fast-forward merged `ship-wave1-deck` → `ship-wave1` (3c8de99..5448f40). Changelog fragment already
+present (`2026-07-05--captains-deck.md`). **`git push origin ship-wave1` blocked by this session's
+permission mode** (same as the historical package-0 block) — flagging for the Captain to approve
+manually; not retrying repeatedly. Phase-2 (plan §10 step 8: DocEditor mount fix, DocView resolver,
+InboxPage Ask, inbox-correctness slice) remains a proposed v1.2 package per the Team Lead's own
+plan, Captain to confirm. Proceeding to package 4 (Bridge phase 1) — plan + research already staged,
+dispatching the rebase-refresh + implementation now.
