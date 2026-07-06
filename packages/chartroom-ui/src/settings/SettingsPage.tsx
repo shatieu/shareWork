@@ -5,6 +5,7 @@ import {
   type SettingsEffectiveResponse,
   type SettingsScopesResponse,
 } from '../api/client.js';
+import { AddSettingsModal } from './AddSettingsModal.js';
 import { AlwaysAllowed } from './AlwaysAllowed.js';
 import { BackupsSection } from './BackupsSection.js';
 import { EffectiveView } from './EffectiveView.js';
@@ -35,6 +36,7 @@ export function SettingsPage(): ReactElement {
   const [effective, setEffective] = useState<SettingsEffectiveResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [addOpen, setAddOpen] = useState(false);
   const flow = useDiffFlow();
 
   // Bootstrap: an unscoped /scopes call yields the registered-project list; then restore the
@@ -128,6 +130,9 @@ export function SettingsPage(): ReactElement {
         <span className="settings__schema" title="Schema the editor validates against">
           {scopesResponse.schemaSource}
         </span>
+        <button type="button" className="btn-brass" onClick={() => setAddOpen(true)}>
+          Add settings
+        </button>
       </div>
 
       {error && (
@@ -148,6 +153,9 @@ export function SettingsPage(): ReactElement {
       <AlwaysAllowed flow={flow} onApplied={refresh} />
       <BackupsSection scopes={scopesResponse.scopes} project={projectArg} flow={flow} onApplied={refresh} />
 
+      {addOpen && (
+        <AddSettingsModal project={projectArg} flow={flow} onApplied={refresh} onClose={() => setAddOpen(false)} />
+      )}
       {flow.modal}
     </div>
   );
