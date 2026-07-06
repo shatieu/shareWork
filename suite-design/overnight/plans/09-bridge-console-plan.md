@@ -1,3 +1,7 @@
+---
+id: plan-09-bridge-console-ship-spec-6-9-5-console-part-only-deliberately-thin
+---
+
 # Plan 09 — Bridge Console (Ship_Spec §6 / §9.5, console part only) — DELIBERATELY THIN
 
 **Branch:** `ship-wave1-console` off `ship-wave1` @ fb11758 (main worktree). **Mode:** combined plan+implement.
@@ -13,9 +17,14 @@ note of 5 July = later phase), no config-matrix (spec §11).
    - `src/station.ts` — `createShipConsoleStation(options?)` → `StationDescriptor` with
      `name: 'ship-console'`, `tab: { id: 'console', title: 'Console' }`. Options: injected
      `fleetSource?: FleetSource` (test seam), `now?`.
-   - **Reuse, don't duplicate:** `FleetSource`/`FleetSession`/`defaultFleetSource` imported from
-     `ship-voice`'s public root export (fleet reading merged today; stations may consume each
-     other's *published* API — internals stay off-limits).
+   - **Reuse, don't duplicate:** ship-voice's fleet reader consumed at runtime. DEVIATION
+     (visible, applied during implementation): not via package import — suite-conventions'
+     station contract explicitly bans station→station imports ("stations depend on
+     suite-conventions and never on each other"). Instead ship-voice now OFFERS
+     `contracts: { fleetSource }` (same seam style as ship-inbox's `pendingCounts`, which was
+     built for this package) and the console consumes `getContract('ship-voice','fleetSource')`,
+     duplicating only the small structural type (repo convention). Same reader instance, zero
+     duplicated spawn/parse logic.
    - Routes: `GET /api/ship-console/overview` → `{ available, sessions[], counts{total,busy,idle,
      blocked,done}, pending{permissionsPending,questionsOpen} | null, rollup{date,digest_md} | null,
      generatedAt }`; `GET /api/ship-console/health`. `available:false` when the fleet read returns
