@@ -262,9 +262,13 @@ export function fetchShipInboxSummary(): Promise<ShipInboxSummary> {
 }
 
 async function postShipInbox<T>(url: string, payload?: unknown): Promise<T> {
+  // No Content-Type on body-less POSTs (ack): fastify 400s an empty application/json body.
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    headers:
+      payload === undefined
+        ? { [DECK_CLIENT_HEADER]: '1' }
+        : { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
     body: payload === undefined ? undefined : JSON.stringify(payload),
   });
   if (!response.ok) {
