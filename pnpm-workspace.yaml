@@ -1,3 +1,13 @@
 packages:
   - 'packages/*'
   - 'plugins/*'
+
+# ship-log's SQLite truth store (Ship_Spec §4 / plan 04 §4). better-sqlite3 has a native
+# build/postinstall script; pnpm 10 blocks dependency build scripts by default -- without this
+# allowlist entry the module installs but fails at require-time with a misleading "Could not
+# locate the bindings file" error (verified empirically, report 04-bridge-phase1-researcher.md
+# R4). NOTE for a future pnpm 11 migration: this key is removed in pnpm 11, replaced by
+# `allowBuilds: { better-sqlite3: true }` (also verified in that report) -- update this file at
+# that time, don't just delete the entry.
+onlyBuiltDependencies:
+  - better-sqlite3
