@@ -53,12 +53,12 @@
     {
       "id": 5,
       "title": "Bridge phase 2",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
+      "status": "implementing",
+      "stage_progress": 60,
+      "difficulty": "L",
       "remaining_guess_h": 3,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "updated_at": "2026-07-06T07:36:27.539Z",
+      "note": "wrap-up mode: combined plan+implement dispatch"
     },
     {
       "id": 6,
