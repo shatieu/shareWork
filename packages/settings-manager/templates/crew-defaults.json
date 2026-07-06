@@ -1,0 +1,32 @@
+{
+  "id": "crew-defaults",
+  "name": "The Ship's crew defaults",
+  "version": "1.0.0",
+  "description": "The marathon crew posture (mission kickoff + MISSION-CONTEXT §7): free build/test/lint and conventional commits, deletion and force-pushes banned, pushes ask.",
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm turbo *)",
+      "Bash(pnpm --filter *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout -b *)"
+    ],
+    "deny": [
+      "Bash(rm *)",
+      "Bash(git push --force *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "PowerShell(Remove-Item *)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git merge *)"
+    ]
+  }
+}

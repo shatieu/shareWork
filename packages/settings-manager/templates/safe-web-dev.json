@@ -1,0 +1,34 @@
+{
+  "id": "safe-web-dev",
+  "name": "Safe web dev",
+  "version": "1.0.0",
+  "description": "Everyday web development: package scripts, tests, linting, and read-only git -- no pushes, no installs, no network fetches from Bash.",
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm test *)",
+      "Bash(yarn run *)",
+      "Bash(npx vitest *)",
+      "Bash(npx eslint *)",
+      "Bash(npx prettier *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(npm install *)",
+      "Bash(pnpm add *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ],
+    "ask": []
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "settings-manager",
+  "version": "0.1.0",
+  "description": "Visual manager for Claude Code settings + permissions across all scopes (Trio_Specs §B). Centerpiece: the effective-permission simulator -- load managed/local/project/user scopes, show the merged result, and answer 'would this tool call be allowed right now, and which rule in which file decides?'. Full editor guarded by non-negotiable rails: atomic writes, timestamped backups under ~/.suite/settings-backups/, validation before any write, mandatory diff preview -- no silent writes, ever. Curated template packs apply through the same rails. Mounted into `ship serve` as the Deck's Settings tab; also ships a standalone `settings-manager` bin.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "settings-manager": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./station": {
+      "types": "./dist/station.d.ts",
+      "import": "./dist/station.js"
+    }
+  },
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/settings-manager.mjs"
+  },
+  "dependencies": {
+    "commander": "^13.1.0",
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}

@@ -423,3 +423,322 @@ export async function uploadAsset(repoId: string, docId: string, blob: Blob): Pr
   }
   return (await response.json()) as UploadAssetResponse;
 }
+
+/* ── settings-manager endpoints (absent unless the settings-manager station is mounted) ──
+ * Types mirror packages/settings-manager's own response shapes (scopes.ts, merge.ts,
+ * simulator.ts, editor.ts, templates.ts) -- duplicated locally per this file's convention. */
+
+export type SettingsScope = 'managed' | 'local' | 'project' | 'user';
+export type WritableSettingsScope = 'local' | 'project' | 'user';
+
+export interface SettingsValidationIssue {
+  /** JSON-pointer-ish path, e.g. `permissions.allow[3]`. */
+  path: string;
+  message: string;
+}
+
+export interface SettingsValidation {
+  ok: boolean;
+  /** Shape violations on known keys -- these BLOCK an apply. */
+  errors: SettingsValidationIssue[];
+  /** Unknown keys / advisory findings -- shown in the diff preview, never blocking. */
+  warnings: SettingsValidationIssue[];
+}
+
+export interface SettingsScopeInfo {
+  scope: SettingsScope;
+  path: string;
+  exists: boolean;
+  error?: string;
+  writable: boolean;
+  validation?: SettingsValidation;
+}
+
+export interface SettingsProject {
+  id: string;
+  name: string;
+  absPath: string;
+}
+
+export interface SettingsScopesResponse {
+  scopes: SettingsScopeInfo[];
+  /** Registered project directories (chartroom repos under the hull). */
+  projects: SettingsProject[];
+  schemaSource: string;
+}
+
+/** `GET /api/settings-manager/scopes` -- per-scope file status + the registered project list. */
+export function fetchSettingsScopes(project?: string): Promise<SettingsScopesResponse> {
+  return getJson<SettingsScopesResponse>(`/api/settings-manager/scopes${settingsQuery(project)}`);
+}
+
+export interface AttributedSettingsRule {
+  rule: string;
+  scope: SettingsScope;
+  /** Absolute path of the settings file the rule came from. */
+  file: string;
+}
+
+export interface AttributedSettingsValue {
+  value: unknown;
+  scope: SettingsScope;
+  file: string;
+  /** Lower-precedence scopes that also define this key (shadowed, not applied). */
+  overridden: { scope: SettingsScope; file: string; value: unknown }[];
+}
+
+export interface SettingsEffectiveResponse {
+  /** Non-permission top-level keys, key → winning value with provenance. */
+  values: Record<string, AttributedSettingsValue>;
+  permissions: {
+    allow: AttributedSettingsRule[];
+    deny: AttributedSettingsRule[];
+    ask: AttributedSettingsRule[];
+    additionalDirectories: AttributedSettingsRule[];
+    defaultMode?: AttributedSettingsValue;
+  };
+  /** Scopes excluded from the merge because they failed to parse. */
+  excluded: { scope: SettingsScope; file: string; error: string }[];
+}
+
+/** `GET /api/settings-manager/effective` -- the merged view (arrays merge, scalars override). */
+export function fetchSettingsEffective(project?: string): Promise<SettingsEffectiveResponse> {
+  return getJson<SettingsEffectiveResponse>(`/api/settings-manager/effective${settingsQuery(project)}`);
+}
+
+export type SettingsVerdictBehavior = 'deny' | 'ask' | 'allow' | 'default';
+
+export interface SettingsDecidingRule {
+  rule: string;
+  list: 'deny' | 'ask' | 'allow';
+  scope: SettingsScope;
+  file: string;
+  /** For compound shell commands: the subcommand this rule decided. */
+  subcommand?: string;
+}
+
+export interface SettingsUnevaluatedRule extends SettingsDecidingRule {
+  reason: string;
+}
+
+export interface SettingsVerdict {
+  behavior: SettingsVerdictBehavior;
+  /** The first-match rule that decided (absent when behavior = 'default'). */
+  decidingRule?: SettingsDecidingRule;
+  /** For allowed compound commands: every allow rule that covered a subcommand. */
+  supportingRules?: SettingsDecidingRule[];
+  /** The effective defaultMode governing the no-match case. */
+  mode: string;
+  modeSource?: { scope: SettingsScope; file: string };
+  explanation: string;
+  /** Honest limits of the model that could change the real outcome. */
+  caveats: string[];
+  /** Rules that MIGHT apply but use syntax the engine doesn't model -- shown, never hidden. */
+  unevaluated: SettingsUnevaluatedRule[];
+  notes: string[];
+}
+
+export interface SettingsSimulateRequest {
+  project?: string;
+  tool: string;
+  command?: string;
+  path?: string;
+  url?: string;
+  input?: Record<string, unknown>;
+}
+
+/** `POST /api/settings-manager/simulate` -- read-only verdict for a hypothetical tool call. */
+export function simulateSettings(request: SettingsSimulateRequest): Promise<SettingsVerdict> {
+  return postSettings<SettingsVerdict>('/api/settings-manager/simulate', request);
+}
+
+export interface SettingsFileResponse {
+  scope: SettingsScope;
+  path: string;
+  exists: boolean;
+  content: string;
+  error?: string;
+  /** sha256 of the current bytes -- the apply ticket for the preview/apply rail. */
+  baseHash: string;
+  writable: boolean;
+}
+
+/** `GET /api/settings-manager/file` -- one scope's raw settings file (empty when absent). */
+export function fetchSettingsFile(scope: SettingsScope, project?: string): Promise<SettingsFileResponse> {
+  const projectPart = project === undefined ? '' : `&project=${encodeURIComponent(project)}`;
+  return getJson<SettingsFileResponse>(`/api/settings-manager/file?scope=${encodeURIComponent(scope)}${projectPart}`);
+}
+
+export interface SettingsDiffOp {
+  kind: 'same' | 'add' | 'del';
+  line: string;
+}
+
+export interface SettingsEditPreview {
+  targetPath: string;
+  exists: boolean;
+  baseHash: string;
+  /** Whether the CURRENT content parses -- apply refuses unless the recovery box is ticked. */
+  baseMalformed: boolean;
+  baseError?: string;
+  ops: SettingsDiffOp[];
+  unifiedDiff: string;
+  added: number;
+  removed: number;
+  /** Validation of the NEW content -- `errors` here block apply. */
+  validation: SettingsValidation;
+  schemaSource: string;
+  unchanged: boolean;
+}
+
+export interface SettingsEditRequest {
+  scope: WritableSettingsScope;
+  project?: string;
+  newContent: string;
+}
+
+/** `POST /api/settings-manager/preview` -- the mandatory diff step; NO apply without one. */
+export function previewSettingsEdit(request: SettingsEditRequest): Promise<SettingsEditPreview> {
+  return postSettings<SettingsEditPreview>('/api/settings-manager/preview', request);
+}
+
+export interface SettingsApplyResult {
+  targetPath: string;
+  changed: boolean;
+  backupPath?: string;
+}
+
+/** `POST /api/settings-manager/apply` -- the write leg of the rails: requires the preview's
+ * `baseHash` (409 `base-drift` when the file moved on) and the deck header. 409
+ * `malformed-target` unless `overwriteMalformedBase` opts into the documented recovery path. */
+export function applySettingsEdit(
+  request: SettingsEditRequest & { baseHash: string; overwriteMalformedBase?: boolean },
+): Promise<SettingsApplyResult> {
+  return postSettings<SettingsApplyResult>('/api/settings-manager/apply', request);
+}
+
+export interface SettingsBackupEntry {
+  /** Backup filename (the restore id). */
+  id: string;
+  path: string;
+  /** Original file the backup came from. */
+  targetPath: string;
+  createdAt: string;
+  bytes: number;
+}
+
+/** `GET /api/settings-manager/backups` -- every timestamped pre-write backup, newest first. */
+export function fetchSettingsBackups(): Promise<SettingsBackupEntry[]> {
+  return getJson<SettingsBackupEntry[]>('/api/settings-manager/backups');
+}
+
+/** `GET /api/settings-manager/backup?id=` -- one backup's bytes (restore flows re-preview them). */
+export function fetchSettingsBackup(id: string): Promise<{ entry: SettingsBackupEntry; content: string }> {
+  return getJson<{ entry: SettingsBackupEntry; content: string }>(
+    `/api/settings-manager/backup?id=${encodeURIComponent(id)}`,
+  );
+}
+
+export interface SettingsTemplatePack {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  permissions: { allow: string[]; deny: string[]; ask: string[] };
+}
+
+/** `GET /api/settings-manager/templates` -- the curated permission packs. */
+export function fetchSettingsTemplates(): Promise<SettingsTemplatePack[]> {
+  return getJson<SettingsTemplatePack[]>('/api/settings-manager/templates');
+}
+
+export interface SettingsTemplatePreviewResponse {
+  pack: { id: string; name: string; version: string };
+  addedRules: number;
+  /** The composed content -- what apply must send verbatim alongside `preview.baseHash`. */
+  newContent: string;
+  preview: SettingsEditPreview;
+}
+
+/** `POST /api/settings-manager/templates/preview` -- additive merge of a pack into a scope. */
+export function previewSettingsTemplate(request: {
+  id: string;
+  scope: WritableSettingsScope;
+  project?: string;
+}): Promise<SettingsTemplatePreviewResponse> {
+  return postSettings<SettingsTemplatePreviewResponse>('/api/settings-manager/templates/preview', request);
+}
+
+export interface AlwaysAllowedEntry {
+  rule: string;
+  cwd: string;
+  project: string | null;
+  decidedAt: string | null;
+  backupPath: string | null;
+}
+
+export interface AlwaysAllowedResponse {
+  entries: AlwaysAllowedEntry[];
+  /** false when no ship-inbox station is mounted (feature unavailable, never an error). */
+  available: boolean;
+}
+
+/** `GET /api/settings-manager/always-allowed` -- inbox-written always-allow rules. */
+export function fetchAlwaysAllowed(): Promise<AlwaysAllowedResponse> {
+  return getJson<AlwaysAllowedResponse>('/api/settings-manager/always-allowed');
+}
+
+export interface SettingsRevokePreviewResponse {
+  newContent: string;
+  preview: SettingsEditPreview;
+}
+
+/** `POST /api/settings-manager/revoke/preview` -- exact one-rule removal from a project's
+ * settings.local.json, previewed; the apply leg goes through the normal diff-modal rail. */
+export function previewRevokeRule(request: { project: string; rule: string }): Promise<SettingsRevokePreviewResponse> {
+  return postSettings<SettingsRevokePreviewResponse>('/api/settings-manager/revoke/preview', request);
+}
+
+/** Typed error for settings-manager mutations -- carries the station's `{error, code}` body so
+ * the UI can branch on `base-drift` / `malformed-target` / `schema-violation` recoveries. */
+export class SettingsApiError extends Error {
+  readonly status: number;
+  readonly code?: string;
+
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = 'SettingsApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+function settingsQuery(project?: string): string {
+  return project === undefined ? '' : `?project=${encodeURIComponent(project)}`;
+}
+
+async function postSettings<T>(url: string, payload: unknown): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    // The deck header rides every settings POST: /apply requires it (hull CSRF posture), and
+    // it is harmless on the read-only POSTs (simulate/preview).
+    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    let message = `chartroom-ui: request to ${url} failed with status ${response.status}`;
+    let code: string | undefined;
+    const text = await response.text().catch(() => '');
+    if (text) {
+      try {
+        const body = JSON.parse(text) as { error?: string; code?: string };
+        if (typeof body.error === 'string' && body.error) message = body.error;
+        if (typeof body.code === 'string') code = body.code;
+      } catch {
+        message = text;
+      }
+    }
+    throw new SettingsApiError(message, response.status, code);
+  }
+  return (await response.json()) as T;
+}

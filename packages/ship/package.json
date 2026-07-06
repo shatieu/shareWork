@@ -1,7 +1,7 @@
 {
   "name": "ship",
   "version": "0.1.0",
-  "description": "The Ship's hull: one local Fastify process hosting every suite station behind the Captain's Deck UI (Ship_Spec §2 one-hull revision). Internal workspace name only -- npm 'ship' is taken; publish naming is a Captain decision (plan 03 §9, researcher R6). The local bin stays `ship`.",
+  "description": "The Ship's hull: one local Fastify process hosting every suite station behind the Captain's Deck UI (Ship_Spec \u00a72 one-hull revision). Internal workspace name only -- npm 'ship' is taken; publish naming is a Captain decision (plan 03 \u00a79, researcher R6). The local bin stays `ship`.",
   "type": "module",
   "private": true,
   "license": "MIT",
@@ -28,6 +28,7 @@
     "chokidar": "^4.0.3",
     "commander": "^13.1.0",
     "fastify": "^5.9.0",
+    "settings-manager": "workspace:*",
     "ship-inbox": "workspace:*",
     "ship-ledger": "workspace:*",
     "ship-log": "workspace:*",

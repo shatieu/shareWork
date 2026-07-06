@@ -146,6 +146,27 @@ describe('createChartroomStation (plan 03 §4.4)', () => {
     await app.close();
   });
 
+  it('offers the listRepoDirs contract: registered repo dirs, live across registrar pushes (plan 07 §3)', async () => {
+    const station = createChartroomStation({ homeDir: home });
+    const listRepoDirs = station.contracts?.listRepoDirs as
+      | (() => Array<{ id: string; name: string; absPath: string }>)
+      | undefined;
+    expect(listRepoDirs).toBeTypeOf('function');
+    expect(listRepoDirs!()).toEqual([{ id: 'repo-a', name: expect.any(String), absPath: repoRoot }]);
+
+    // Live view: a repo registered later shows up without re-fetching the contract.
+    const otherRepo = mkdtempSync(join(tmpdir(), 'chartroom-station-repo4-'));
+    try {
+      mkdirSync(join(otherRepo, '.git'), { recursive: true });
+      writeFileSync(join(otherRepo, 'x.md'), '---\nid: x\n---\n\n# X\n', 'utf8');
+      await station.registrar(otherRepo);
+      expect(listRepoDirs!().map((repo) => repo.absPath)).toContain(otherRepo);
+      await station.stop?.();
+    } finally {
+      rmSync(otherRepo, { recursive: true, force: true });
+    }
+  });
+
   it('a repo registered while started gets a watcher; stop() closes it without hanging', async () => {
     const otherRepo = mkdtempSync(join(tmpdir(), 'chartroom-station-repo3-'));
     try {

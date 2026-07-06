@@ -1,0 +1,28 @@
+{
+  "id": "ci-headless",
+  "name": "CI headless",
+  "version": "1.0.0",
+  "description": "Non-interactive -p runs: build/test/lint pre-approved (a prompt would hang the pipeline), destructive git and network denied outright.",
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm test *)",
+      "Bash(pnpm run *)",
+      "Bash(pnpm test *)",
+      "Bash(pnpm turbo *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Edit"
+    ],
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git reset *)",
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "ask": []
+  }
+}

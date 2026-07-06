@@ -3,6 +3,7 @@ import { join, resolve as resolvePath } from 'node:path';
 import type { Command } from 'commander';
 import type { FastifyInstance } from 'fastify';
 import { createChartroomStation } from 'chartroom/station';
+import { createSettingsManagerStation } from 'settings-manager/station';
 import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
 import { createShipLogStation } from 'ship-log/station';
@@ -77,7 +78,11 @@ export function registerServeCommand(program: Command): void {
         const shipInbox = createShipInboxStation();
         // The Comm's laptop half (VoiceBridge_Spec §9.1): headless, text-mode voice toolset.
         const shipVoice = createShipVoiceStation();
-        const hull = await createHull([chartroom, shipLog, shipLedger, shipInbox, shipVoice], { voyageFile });
+        const settingsManager = createSettingsManagerStation();
+        const hull = await createHull(
+          [chartroom, shipLog, shipLedger, shipInbox, shipVoice, settingsManager],
+          { voyageFile },
+        );
 
         const requestedPort = opts.port ? Number(opts.port) : DEFAULT_PORT;
         const port = await listenOnFreePort(hull.app, requestedPort);

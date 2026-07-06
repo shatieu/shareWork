@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createChartroomStation } from 'chartroom/station';
+import { createSettingsManagerStation } from 'settings-manager/station';
 import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
 import { createShipLogStation } from 'ship-log/station';
@@ -222,6 +223,84 @@ describe('hull + real chartroom station over a temp registry (plan 03 §5 integr
 
       const summary = await hull.app.inject({ method: 'GET', url: '/api/ship-inbox/summary', headers });
       expect(summary.json()).toEqual({ permissionsPending: 0, questionsOpen: 1, docsOpen: 1, total: 2 });
+    } finally {
+      await hull.stop();
+      await hull.app.close();
+    }
+  });
+
+  it('settings-manager under the hull: chartroom repos gate the guard, the simulator answers, edits ride the rails (package 7)', async () => {
+    mkdirSync(join(repoRoot, '.claude'), { recursive: true });
+    writeFileSync(
+      join(repoRoot, '.claude', 'settings.json'),
+      JSON.stringify({ permissions: { deny: ['Bash(rm *)'] } }, null, 2),
+      'utf8',
+    );
+    const chartroom = createChartroomStation({ homeDir: home });
+    const settingsManager = createSettingsManagerStation({
+      homeDir: home,
+      managedPath: join(home, 'managed-absent.json'),
+    });
+    const hull = await createHull([chartroom, settingsManager], {
+      homeDir: home,
+      uiDistDir: join(home, 'no-ui'),
+    });
+    const headers = { host: '127.0.0.1', 'x-ship-deck': '1' };
+
+    try {
+      const stations = await hull.app.inject({ method: 'GET', url: '/api/hull/stations', headers });
+      expect(stations.json()).toContainEqual({
+        name: 'settings-manager',
+        tab: { id: 'settings', title: 'Settings' },
+      });
+
+      // The Trio_Specs §B question, in-hull, against the registered repo's real settings file.
+      const verdict = await hull.app.inject({
+        method: 'POST',
+        url: '/api/settings-manager/simulate',
+        headers,
+        payload: { project: repoRoot, tool: 'Bash', command: 'rm -rf ./dist' },
+      });
+      expect(verdict.statusCode).toBe(200);
+      expect(verdict.json().behavior).toBe('deny');
+      expect(verdict.json().decidingRule).toMatchObject({
+        rule: 'Bash(rm *)',
+        scope: 'project',
+        file: join(repoRoot, '.claude', 'settings.json'),
+      });
+
+      // The guard: an unregistered directory is 403 -- chartroom's listRepoDirs is the authority.
+      const outside = mkdtempSync(join(tmpdir(), 'ship-integration-outside-'));
+      try {
+        const forbidden = await hull.app.inject({
+          method: 'POST',
+          url: '/api/settings-manager/simulate',
+          headers,
+          payload: { project: outside, tool: 'Bash', command: 'ls' },
+        });
+        expect(forbidden.statusCode).toBe(403);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+
+      // Rails end-to-end over the hull: preview -> apply with backup.
+      const newContent = `${JSON.stringify({ permissions: { deny: ['Bash(rm *)'], allow: ['Bash(ls *)'] } }, null, 2)}\n`;
+      const preview = await hull.app.inject({
+        method: 'POST',
+        url: '/api/settings-manager/preview',
+        headers,
+        payload: { scope: 'project', project: repoRoot, newContent },
+      });
+      expect(preview.statusCode).toBe(200);
+      const applied = await hull.app.inject({
+        method: 'POST',
+        url: '/api/settings-manager/apply',
+        headers,
+        payload: { scope: 'project', project: repoRoot, newContent, baseHash: preview.json().baseHash },
+      });
+      expect(applied.statusCode).toBe(200);
+      expect(applied.json().backupPath).toContain(join(home, '.suite', 'settings-backups'));
+      expect(readFileSync(join(repoRoot, '.claude', 'settings.json'), 'utf8')).toBe(newContent);
     } finally {
       await hull.stop();
       await hull.app.close();

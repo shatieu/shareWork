@@ -25,6 +25,7 @@ import { TabBar, type DeckTab } from './components/TabBar.js';
 import { DocView } from './components/DocView.js';
 import { InboxPage } from './inbox/InboxPage.js';
 import { ShipInboxPage } from './shipinbox/ShipInboxPage.js';
+import { SettingsPage } from './settings/SettingsPage.js';
 import { VoyagePage } from './voyage/VoyagePage.js';
 
 export const REGISTER_COMMAND = 'chartroom register <path>';
@@ -33,7 +34,7 @@ const DOCS_TAB: DeckTab = { id: 'docs', title: 'Docs' };
 const VOYAGE_TAB: DeckTab = { id: 'voyage', title: 'Voyage' };
 
 interface DeckRoute {
-  tab: 'docs' | 'voyage';
+  tab: 'docs' | 'voyage' | 'settings';
   repoId?: string;
   /** doc route key: `id ?? path` (the daemon accepts either on every doc endpoint). */
   docKey?: string;
@@ -48,6 +49,7 @@ interface DeckRoute {
 const DOC_ROUTE_RE = /^#\/repo\/([^/]+)(?:\/doc\/([^/]+))?$/;
 const INBOX_ROUTE = '#/inbox';
 const VOYAGE_ROUTE = '#/voyage';
+const SETTINGS_ROUTE = '#/settings';
 
 function subscribeHash(callback: () => void): () => void {
   window.addEventListener('hashchange', callback);
@@ -62,6 +64,7 @@ function getHashSnapshot(): string {
  * goes through here. */
 function parseHash(hash: string): DeckRoute {
   if (hash === VOYAGE_ROUTE) return { tab: 'voyage' };
+  if (hash === SETTINGS_ROUTE) return { tab: 'settings' };
   if (hash === INBOX_ROUTE) return { tab: 'docs', isInbox: true };
   const match = DOC_ROUTE_RE.exec(hash);
   if (!match) return { tab: 'docs' };
@@ -167,6 +170,10 @@ export default function App(): ReactElement {
     (tabId: string) => {
       if (tabId === 'voyage') {
         window.location.hash = VOYAGE_ROUTE;
+        return;
+      }
+      if (tabId === 'settings') {
+        window.location.hash = SETTINGS_ROUTE;
         return;
       }
       if (tabId === 'inbox') {
@@ -341,6 +348,8 @@ export default function App(): ReactElement {
       <nav className="chrome__crumbs" aria-label="Breadcrumbs">
         {route.tab === 'voyage' ? (
           <span className="crumb crumb--active">voyage</span>
+        ) : route.tab === 'settings' ? (
+          <span className="crumb crumb--active">settings</span>
         ) : route.isInbox ? (
           <span className="crumb crumb--active">inbox</span>
         ) : activeRepo ? (
@@ -451,6 +460,8 @@ export default function App(): ReactElement {
       <div className="app-shell__body">
         {route.tab === 'voyage' ? (
           <VoyagePage />
+        ) : route.tab === 'settings' ? (
+          <SettingsPage />
         ) : showShipInbox ? (
           <main className="paper-frame">
             <div className="paper">

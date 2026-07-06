@@ -1,0 +1,27 @@
+{
+  "id": "read-only-audit",
+  "name": "Read-only audit",
+  "version": "1.0.0",
+  "description": "Code review / audit posture: reads and searches run freely, every mutation path is denied.",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)"
+    ],
+    "deny": [
+      "Edit",
+      "Write",
+      "NotebookEdit",
+      "Bash(git push *)",
+      "Bash(git commit *)",
+      "Bash(rm *)",
+      "Bash(mv *)"
+    ],
+    "ask": []
+  }
+}
