@@ -1,0 +1,99 @@
+/* Skill Analytics panel (plan 11) — SCOPED stylesheet imported only by SkillAnalyticsPanel.
+ * Deliberately not in styles/base.css: that shared file is package 9's to touch during the
+ * console build (collision rule). Uses the Deck's design tokens with safe fallbacks so the
+ * panel renders acceptably even mounted outside the brass theme. */
+
+.skill-analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: var(--ink, #d8d2c4);
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+
+.skill-analytics__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.skill-analytics__title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--brass-bright, #d8b96a);
+}
+
+.skill-analytics__subtitle {
+  margin: 0.25rem 0;
+  font-size: 0.95rem;
+  color: var(--brass, #b08d3f);
+}
+
+.skill-analytics__collect {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--brass-dark, #7a6127);
+  border-radius: var(--radius, 6px);
+  background: transparent;
+  color: var(--brass-bright, #d8b96a);
+  cursor: pointer;
+  font: inherit;
+}
+
+.skill-analytics__collect:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.skill-analytics__totals {
+  margin: 0;
+  opacity: 0.8;
+  font-size: 0.85rem;
+}
+
+.skill-analytics__error {
+  margin: 0;
+  color: var(--err, #d06a5a);
+}
+
+.skill-analytics__empty {
+  margin: 0.25rem 0;
+  opacity: 0.65;
+  font-size: 0.9rem;
+}
+
+.skill-analytics__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.skill-analytics__caption {
+  text-align: left;
+  padding-bottom: 0.35rem;
+  font-weight: 600;
+  color: var(--brass, #b08d3f);
+}
+
+.skill-analytics__table th,
+.skill-analytics__table td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--panel-line, rgba(255, 255, 255, 0.08));
+  text-align: left;
+}
+
+.skill-analytics__name {
+  font-family: var(--font-mono, monospace);
+}
+
+.skill-analytics__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.skill-analytics__dead-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+  font-size: 0.85rem;
+}
