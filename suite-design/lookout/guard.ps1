@@ -65,8 +65,15 @@ function Invoke-Check {
     # a living session can never look dead, so resurrection = real death only.
     if ($idleMin -lt 30) { return }
 
-    # 4. At most one resurrection per usage window.
-    $windowKey = ($u.resets_at -replace '[^0-9A-Za-z]', '-')
+    # 4. At most one resurrection per usage window. Key on the reset time
+    #    truncated to the minute - the API jitters resets_at by sub-seconds
+    #    between polls, which defeated exact-string dedup (5 resurrections
+    #    in one window on 2026-07-06).
+    $windowKey = $u.resets_at
+    # Round to nearest minute (add 30s, truncate) so jitter across a minute
+    # boundary (06:29:59.9 vs 06:30:00.1) still yields one key.
+    try { $windowKey = ([DateTimeOffset]::Parse($u.resets_at)).AddSeconds(30).ToString("yyyyMMdd-HHmm") } catch {}
+    $windowKey = ($windowKey -replace '[^0-9A-Za-z-]', '-')
     $marker = Join-Path $stateDir ("resurrected-" + $windowKey)
     if (Test-Path $marker) { return }
     New-Item -ItemType File -Path $marker -Force | Out-Null
@@ -74,7 +81,10 @@ function Invoke-Check {
     Log ("FO idle " + [int]$idleMin + " min with five_hour_pct=" + $pct + " - resurrecting session")
     $prompt = (Get-Content $promptTxt -Raw).Trim()
     $outLog = Join-Path $stateDir "resurrect-out.log"
-    $cmdLine = "cd /d `"$root`" && claude -c -p `"$prompt`" --permission-mode bypassPermissions >> `"$outLog`" 2>&1"
+    # CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0: print-mode runs otherwise kill
+    # still-running background workers 600s after the turn's final text
+    # (observed killing a package-4 developer mid-build on 2026-07-06).
+    $cmdLine = "cd /d `"$root`" && set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0&& claude -c -p `"$prompt`" --permission-mode bypassPermissions >> `"$outLog`" 2>&1"
     Start-Process cmd -ArgumentList @('/c', $cmdLine) -WindowStyle Hidden
 }
 
