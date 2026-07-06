@@ -350,6 +350,44 @@ export async function openClaudeSession(repoId: string): Promise<ClaudeSessionRe
   return (await response.json()) as ClaudeSessionResponse;
 }
 
+export interface RegisterRepoResult {
+  id: string;
+  name: string;
+  absPath: string;
+  /** true when the path resolved to a repo that was already registered (no-op server-side). */
+  alreadyRegistered: boolean;
+}
+
+/**
+ * `POST /api/repos/register` `{ path }` (v1.1 live registration) -- the Add-repo modal's submit.
+ * The daemon resolves the path to its git root server-side, persists the registry entry, and
+ * starts serving + watching the repo immediately (no restart). 400 with a readable `{error}`
+ * body when the path has no git root; 403 without the deck header; 501 when the server mode has
+ * no registrar (never the case under `ship serve` / `chartroom serve`).
+ */
+export async function registerRepoRequest(path: string): Promise<RegisterRepoResult> {
+  const response = await fetch('/api/repos/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    body: JSON.stringify({ path }),
+  });
+  if (!response.ok) {
+    let message = `chartroom-ui: register failed with status ${response.status}`;
+    const text = await response.text().catch(() => '');
+    if (text) {
+      try {
+        const body = JSON.parse(text) as { error?: string };
+        if (typeof body.error === 'string' && body.error) message = body.error;
+        else message = text;
+      } catch {
+        message = text;
+      }
+    }
+    throw new Error(message);
+  }
+  return (await response.json()) as RegisterRepoResult;
+}
+
 /* ── Captain's Deck hull endpoints (absent under standalone `chartroom serve`) ── */
 
 export interface HullStationTab {
