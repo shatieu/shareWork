@@ -1,0 +1,47 @@
+{
+  "name": "ship-voice",
+  "version": "0.1.0",
+  "description": "The Comm's laptop half (VoiceBridge_Spec §9.1 phase 1): a headless Ship station exposing the §3 voice toolset over local HTTP, every response carrying a `spoken` string built by the summarize-for-speech layer (§4). Text mode only in phase 1 -- no audio, no ElevenLabs; phase 2 wires these endpoints to ElevenLabs client tools.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./station": {
+      "types": "./dist/station.d.ts",
+      "import": "./dist/station.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/voice-text-mode.mjs"
+  },
+  "dependencies": {
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "ship-inbox": "workspace:*",
+    "ship-ledger": "workspace:*",
+    "ship-log": "workspace:*",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}

@@ -6,6 +6,7 @@ import { createChartroomStation } from 'chartroom/station';
 import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
 import { createShipLogStation } from 'ship-log/station';
+import { createShipVoiceStation } from 'ship-voice/station';
 import { createHull } from '../hull.js';
 
 /** Same first-try port and walk as `chartroom serve` (plan §4.3) -- the Deck takes over Chart
@@ -74,7 +75,9 @@ export function registerServeCommand(program: Command): void {
         // hookEventConsumer contracts lazily per event, and getContract searches the full array.
         const shipLedger = createShipLedgerStation();
         const shipInbox = createShipInboxStation();
-        const hull = await createHull([chartroom, shipLog, shipLedger, shipInbox], { voyageFile });
+        // The Comm's laptop half (VoiceBridge_Spec §9.1): headless, text-mode voice toolset.
+        const shipVoice = createShipVoiceStation();
+        const hull = await createHull([chartroom, shipLog, shipLedger, shipInbox, shipVoice], { voyageFile });
 
         const requestedPort = opts.port ? Number(opts.port) : DEFAULT_PORT;
         const port = await listenOnFreePort(hull.app, requestedPort);
