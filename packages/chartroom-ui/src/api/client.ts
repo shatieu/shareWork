@@ -748,6 +748,81 @@ function settingsQuery(project?: string): string {
   return project === undefined ? '' : `?project=${encodeURIComponent(project)}`;
 }
 
+/* ── settings-manager add-modal endpoints (plan 14) ──
+ * Types mirror packages/settings-manager's catalog.ts / editor.ts shapes -- duplicated locally
+ * per this file's convention. */
+
+export type SettingsCatalogKind =
+  | 'string'
+  | 'boolean'
+  | 'number'
+  | 'object'
+  | 'string-array'
+  | 'array'
+  | 'string-or-boolean'
+  | 'any';
+
+export interface SettingsCatalogEntry {
+  key: string;
+  kind: SettingsCatalogKind;
+  description: string;
+  /** Present when the documented value set is closed -- the UI renders a select. */
+  enumValues?: string[];
+  /** Prefill for the value input. */
+  defaultValue: unknown;
+  /** Managed-settings-only keys are shown but flagged (they no-op outside managed scope). */
+  managedOnly?: boolean;
+}
+
+export interface SettingsRuleTemplate {
+  id: string;
+  label: string;
+  /** Editable prefill -- the human replaces the placeholder segment. */
+  rule: string;
+  defaultList: 'allow' | 'deny' | 'ask';
+  description: string;
+}
+
+export interface SettingsCatalogResponse {
+  settings: SettingsCatalogEntry[];
+  ruleTemplates: SettingsRuleTemplate[];
+  modes: string[];
+}
+
+/** `GET /api/settings-manager/catalog` -- the add-modal's searchable catalog. */
+export function fetchSettingsCatalog(): Promise<SettingsCatalogResponse> {
+  return getJson<SettingsCatalogResponse>('/api/settings-manager/catalog');
+}
+
+export interface SettingsAdditions {
+  /** Top-level keys to set (overwriting an existing key is allowed -- the diff shows it). */
+  values?: Record<string, unknown>;
+  /** Sets `permissions.defaultMode` (scalar-override semantics). */
+  defaultMode?: string;
+  permissions?: { allow?: string[]; deny?: string[]; ask?: string[] };
+}
+
+export interface SettingsAddPreviewResponse {
+  /** The composed content -- what apply must send verbatim alongside `preview.baseHash`. */
+  newContent: string;
+  /** Requested keys that did not exist before ("added" badges). */
+  addedKeys: string[];
+  /** Requested keys that existed and now hold a new value -- overwrites must stay visible. */
+  overwrittenKeys: string[];
+  addedRules: number;
+  preview: SettingsEditPreview;
+}
+
+/** `POST /api/settings-manager/add/preview` -- one batched add per target; the apply leg is the
+ * EXISTING `/apply` rail (baseHash ticket, diff modal, backups). */
+export function previewSettingsAdd(request: {
+  scope: WritableSettingsScope;
+  project?: string;
+  additions: SettingsAdditions;
+}): Promise<SettingsAddPreviewResponse> {
+  return postSettings<SettingsAddPreviewResponse>('/api/settings-manager/add/preview', request);
+}
+
 async function postSettings<T>(url: string, payload: unknown): Promise<T> {
   const response = await fetch(url, {
     method: 'POST',

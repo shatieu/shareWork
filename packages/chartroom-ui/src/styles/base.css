@@ -4300,3 +4300,119 @@ button.chrome__watched:hover {
   font-size: 12px;
   font-style: italic;
 }
+
+/* ── Settings add-modal (plan 14): search + multiselect catalog over the shared modal shell ── */
+
+.add-settings {
+  width: min(760px, calc(100vw - 48px));
+  display: flex;
+  flex-direction: column;
+}
+
+.add-settings__search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 10px;
+}
+
+.add-settings__list {
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  background: var(--well);
+  margin-top: 10px;
+  padding: 4px 10px 8px;
+  max-height: 34vh;
+  overflow-y: auto;
+}
+
+.add-settings__group {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.add-settings__row {
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+.add-settings__row--active {
+  outline: 1px solid var(--brass-dark);
+  background: rgba(201, 162, 78, 0.08);
+}
+
+.add-settings__row-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.add-settings__key {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-85);
+  white-space: nowrap;
+}
+
+.add-settings__desc {
+  color: var(--ink-55);
+  font-size: 12px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.add-settings__selected {
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  margin-top: 10px;
+  padding: 4px 10px 10px;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.add-settings__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 4px 0;
+}
+
+.add-settings__item .settings-input,
+.add-settings__item .settings-select {
+  flex: 1;
+  min-width: 160px;
+}
+
+.add-settings__item .add-settings__textarea {
+  flex-basis: 100%;
+  resize: vertical;
+}
+
+.add-settings__bool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-75);
+}
+
+.add-settings__hint {
+  font-size: 11px;
+  color: var(--ink-45);
+  font-style: italic;
+}
+
+.add-settings__issue {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--rust-bright);
+}
+
+.add-settings__footer {
+  align-items: center;
+  flex-wrap: wrap;
+}

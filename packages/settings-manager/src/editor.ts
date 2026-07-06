@@ -162,11 +162,12 @@ export function previewEdit(
     serialized = checked.serialized;
   } catch (err) {
     if (err instanceof SettingsEditError) {
-      validation = {
-        ok: false,
-        errors: [{ path: '', message: err.message }],
-        warnings: [],
-      };
+      // schema-violation carries the structured issues in `details` -- surface them verbatim
+      // so the UI can point at the offending key, not just a flattened message.
+      const issues = err.code === 'schema-violation' && Array.isArray(err.details)
+        ? (err.details as { path: string; message: string }[])
+        : [{ path: '', message: err.message }];
+      validation = { ok: false, errors: issues, warnings: [] };
     } else {
       throw err;
     }
@@ -409,4 +410,110 @@ export function computeAdditiveRules(
   }
 
   return { newContent: `${JSON.stringify(next, null, 2)}\n`, addedRules };
+}
+
+/**
+ * Add-modal batch computation (plan 14): sets/overwrites exactly the requested top-level keys,
+ * optionally sets `permissions.defaultMode`, and appends missing permission rules additively --
+ * ONE new document per target file, applied through the same preview/apply rails. Pure; no fs.
+ *
+ * Post-checks mirror the package-7 invariants:
+ *  - only the requested keys differ from the original (everything else byte-equal);
+ *  - original rule lists survive as exact prefixes; appended entries are requested + new;
+ *  - `values.permissions` is refused (the permissions surface is rules + defaultMode here).
+ */
+export interface SettingsAdditions {
+  /** Top-level keys to set (overwriting an existing key is allowed -- the diff shows it). */
+  values?: Record<string, unknown>;
+  /** Sets `permissions.defaultMode` (scalar-override semantics). */
+  defaultMode?: string;
+  permissions?: { allow?: string[]; deny?: string[]; ask?: string[] };
+}
+
+export interface AddSettingsResult {
+  newContent: string;
+  /** Requested keys that did not exist before ("added" badges in the UI). */
+  addedKeys: string[];
+  /** Requested keys that existed and now hold a new value ("overwritten" badges). */
+  overwrittenKeys: string[];
+  addedRules: number;
+}
+
+export function computeAddSettings(
+  currentText: string | undefined,
+  additions: SettingsAdditions,
+): AddSettingsResult {
+  const values = additions.values ?? {};
+  if ('permissions' in values) {
+    throw new SettingsEditError(
+      'invalid-content',
+      'set permission rules via the rule lists, not a raw "permissions" value',
+    );
+  }
+  const original = currentText === undefined ? {} : parseDocument(currentText);
+
+  // Rules first (reuses the additive invariant + its post-check verbatim).
+  const ruleAdditions = additions.permissions ?? {};
+  const wantsRules = Boolean(
+    ruleAdditions.allow?.length || ruleAdditions.deny?.length || ruleAdditions.ask?.length,
+  );
+  const afterRules = wantsRules
+    ? computeAdditiveRules(currentText, ruleAdditions)
+    : { newContent: currentText ?? '{}', addedRules: 0 };
+  const next = parseDocument(afterRules.newContent);
+
+  const addedKeys: string[] = [];
+  const overwrittenKeys: string[] = [];
+  for (const [key, value] of Object.entries(values)) {
+    (key in original ? overwrittenKeys : addedKeys).push(key);
+    next[key] = structuredClone(value);
+  }
+  if (additions.defaultMode !== undefined) {
+    const permissions =
+      typeof next.permissions === 'object' && next.permissions !== null && !Array.isArray(next.permissions)
+        ? (next.permissions as Record<string, unknown>)
+        : {};
+    const originalPermissions =
+      typeof original.permissions === 'object' && original.permissions !== null && !Array.isArray(original.permissions)
+        ? (original.permissions as Record<string, unknown>)
+        : {};
+    ('defaultMode' in originalPermissions ? overwrittenKeys : addedKeys).push('permissions.defaultMode');
+    permissions.defaultMode = additions.defaultMode;
+    next.permissions = permissions;
+  }
+
+  // Post-check: reverting the requested keys on the result must reproduce the rules-only
+  // document exactly -- proof nothing outside the request changed.
+  const check = structuredClone(next);
+  const rulesOnly = parseDocument(afterRules.newContent);
+  for (const key of Object.keys(values)) {
+    if (key in rulesOnly) check[key] = structuredClone(rulesOnly[key]);
+    else delete check[key];
+  }
+  if (additions.defaultMode !== undefined) {
+    const checkPermissions = check.permissions as Record<string, unknown>;
+    const rulesOnlyPermissions =
+      typeof rulesOnly.permissions === 'object' && rulesOnly.permissions !== null && !Array.isArray(rulesOnly.permissions)
+        ? (rulesOnly.permissions as Record<string, unknown>)
+        : undefined;
+    if (rulesOnlyPermissions && 'defaultMode' in rulesOnlyPermissions) {
+      checkPermissions.defaultMode = rulesOnlyPermissions.defaultMode;
+    } else {
+      delete checkPermissions.defaultMode;
+      if (rulesOnlyPermissions === undefined && Object.keys(checkPermissions).length === 0) {
+        delete check.permissions;
+      }
+    }
+  }
+  if (JSON.stringify(check) !== JSON.stringify(rulesOnly)) {
+    throw new SettingsEditError('additive-violation', 'batch add would change keys outside the request');
+  }
+
+  return {
+    newContent: `${JSON.stringify(next, null, 2)}
+`,
+    addedKeys,
+    overwrittenKeys,
+    addedRules: afterRules.addedRules,
+  };
 }
