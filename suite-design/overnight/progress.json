@@ -149,6 +149,16 @@
       "remaining_guess_h": 0,
       "updated_at": "2026-07-06T16:03:31.876Z",
       "note": "merged; 30/30 acceptance, 1151 workspace tests; overwrite badged not refused (tighten via correctMe if wanted)"
+    },
+    {
+      "id": 15,
+      "title": "Add repo to the ship - Deck UI (Captain order)",
+      "status": "implementing",
+      "stage_progress": 60,
+      "difficulty": "S",
+      "remaining_guess_h": 1,
+      "updated_at": "2026-07-06T16:12:28.004Z",
+      "note": "register API exists; UI + hardened or path-only entry"
     }
   ]
 }
