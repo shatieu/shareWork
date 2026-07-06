@@ -42,14 +42,32 @@ const fixture: ConsoleOverview = {
   generatedAt: '2026-07-06T12:00:00.000Z',
 };
 
+/** Empty skill-analytics summary: the embedded SkillAnalyticsPanel (package 11) renders its
+ * quiet empty state — no extra tables, no extra role="alert" — so every fleet assertion below
+ * stays exact. The panel's own behavior is covered in test/skillanalytics/. */
+const emptySkillSummary = {
+  generatedAt: '2026-07-06T12:00:00.000Z',
+  options: { project: null, days: null, deadDays: 30 },
+  totals: { invocations: 0, skills: 0, agents: 0 },
+  skills: [],
+  agents: [],
+  trend: [],
+  deadSkills: [],
+};
+
 beforeEach(() => {
   window.location.hash = '';
   mockFetch.mockReset();
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response(JSON.stringify(emptySkillSummary), { status: 200 })),
+  );
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 describe('ConsolePage', () => {
@@ -73,6 +91,9 @@ describe('ConsolePage', () => {
     expect(inboxChip).toHaveAttribute('title', '2 permissions, 1 question');
 
     expect(screen.getByText('- **auth-service**: token refresh refactor landed.')).toBeInTheDocument();
+
+    // Package 11: the self-contained skill-analytics dashboard rides at the bottom of the tab.
+    expect(await screen.findByRole('heading', { name: 'Skill analytics' })).toBeInTheDocument();
   });
 
   it('inbox chip navigates to #/inbox', async () => {

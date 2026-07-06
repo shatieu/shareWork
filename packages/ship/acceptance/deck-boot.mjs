@@ -148,7 +148,8 @@ async function phaseA() {
     // Package 4 (Bridge phase 1) mounted ship-log, package 5 (Bridge phase 2) ship-ledger (both
     // tab-less); package 6 (Bridge phase 3) mounts ship-inbox (Inbox tab); package 13 (Comm
     // phase 1) mounts ship-voice (tab-less -- its UI is the phone, phases 2-4); package 7
-    // mounts settings-manager (Settings tab); package 9 mounts ship-console (Console tab).
+    // mounts settings-manager (Settings tab); package 9 mounts ship-console (Console tab);
+    // package 11 mounts skill-analytics (tab-less -- the console renders its JSON).
     const stations = await getJson(`${base}/api/hull/stations`);
     const chartroomStation = stations.find((s) => s.name === 'chartroom');
     const shipLogStation = stations.find((s) => s.name === 'ship-log');
@@ -157,16 +158,25 @@ async function phaseA() {
     const shipVoiceStation = stations.find((s) => s.name === 'ship-voice');
     const settingsStation = stations.find((s) => s.name === 'settings-manager');
     const consoleStation = stations.find((s) => s.name === 'ship-console');
+    const skillAnalyticsStation = stations.find((s) => s.name === 'skill-analytics');
     assert(
-      stations.length === 7 &&
+      stations.length === 8 &&
         chartroomStation?.tab?.id === 'docs' &&
         shipLogStation !== undefined && shipLogStation.tab === undefined &&
         shipLedgerStation !== undefined && shipLedgerStation.tab === undefined &&
         shipVoiceStation !== undefined && shipVoiceStation.tab === undefined &&
+        skillAnalyticsStation !== undefined && skillAnalyticsStation.tab === undefined &&
         shipInboxStation?.tab?.id === 'inbox' && shipInboxStation.tab.title === 'Inbox' &&
         settingsStation?.tab?.id === 'settings' && settingsStation.tab.title === 'Settings' &&
         consoleStation?.tab?.id === 'console' && consoleStation.tab.title === 'Console',
-      'GET /api/hull/stations lists chartroom (Docs) + tab-less ship-log/ship-ledger/ship-voice + ship-inbox (Inbox) + settings-manager (Settings) + ship-console (Console)',
+      'GET /api/hull/stations lists chartroom (Docs) + tab-less ship-log/ship-ledger/ship-voice/skill-analytics + ship-inbox (Inbox) + settings-manager (Settings) + ship-console (Console)',
+    );
+
+    // Skill analytics through the hull (package 11): health answers with the store path.
+    const skillHealth = await getJson(`${base}/api/skill-analytics/health`);
+    assert(
+      skillHealth.ok === true && typeof skillHealth.dbPath === 'string',
+      'GET /api/skill-analytics/health answers through the hull',
     );
 
     // Console overview through the hull -- SHAPE only: the real fleet comes from

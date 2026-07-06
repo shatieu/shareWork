@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { fetchConsoleOverview, type ConsoleOverview, type ConsoleSession } from '../api/client.js';
+import { SkillAnalyticsPanel } from '../skillanalytics/SkillAnalyticsPanel.js';
 
 /** 10 s poll -- the fleet endpoint shells out to `claude agents --json` server-side, so the
  * console polls gently (half Voyage's cadence) and offers a manual refresh for impatience. */
@@ -161,6 +162,11 @@ export function ConsolePage(): ReactElement {
           <p className="console-rollup__none">No daily digest yet — it appears once the changelog rollup runs.</p>
         )}
       </section>
+
+      {/* Skill analytics dashboard (Trio_Specs §A, package 11): fully self-contained — its own
+          station fetches, styles and error states; degrades to an inline alert when the
+          skill-analytics station isn't mounted. */}
+      <SkillAnalyticsPanel />
     </div>
   );
 }
