@@ -119,6 +119,17 @@ Everything else in §1-§10 below stands as designed; no other deltas found.
 7. **Entry/rollup prompts hardened after live proof**: Haiku answered a sparse rollup with a
    clarifying question instead of a digest; prompts now forbid questions and require every
    project named. Rebuilt live rollup covers all projects by name.
+8. **§3.5's "202 immediately, ALL capture async" narrowed after reviewer FAIL (2026-07-06)**:
+   only SessionEnd's slow capture (git delta + transcript + up-to-60s summarizer) stays async;
+   SessionStart/Stop (and the unknown-event sidecar) are now ingested BEFORE the 202
+   (`{ queued: false }`). The reviewer proved the async SessionStart raced the session's first
+   commit: `head_start` snapshotted the post-commit HEAD → empty delta → silently missing
+   fragment (~1-in-3 acceptance flake). Budget reasoning: the sync cost is 1–3 `git rev-parse`
+   spawns (no working-tree scan — milliseconds even on huge repos), far under emit.mjs's 700 ms;
+   a pathological overrun times out client-side → spools → drain re-delivers, and
+   `upsertSessionStart`'s ON CONFLICT preserves the original `head_start`/`started_at`, so a
+   late duplicate can never clobber the early snapshot. Sync-path ingest errors now return 500
+   (the emitter treats non-2xx as undelivered and spools) instead of a lying 202.
 
 ## 1. Scope
 

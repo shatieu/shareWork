@@ -208,3 +208,38 @@ boolean spoolPending, prompt hardening.
 - REMOVALS.md untouched -- nothing deleted anywhere (spool "drained" files are renames; scratch
   temp dirs under %TEMP% cleaned by the acceptance script per deck-boot precedent).
 - `team-tasks/` untouched by every commit (verify: `git log --stat -- team-tasks/`).
+
+---
+
+# REMEDIATION (reviewer FAIL -> fixed, 2026-07-06)
+
+**Defect (reviewer, station.ts:66):** the events route sent the 202 before `onSessionStart`'s
+git snapshot ran. A commit landing in that window made `head_start` record the post-commit HEAD
+-> empty delta -> no fragment. Real under-attribution window in production, not just test flake
+(reviewer measured ~1-in-3 acceptance failures; failing session's `head_start` == the
+`feat: alpha-work` commit hash).
+
+**Fix (production side, per FO directive):** `POST /api/ship-log/events` now branches on event
+name -- SessionStart/Stop (and the unknown-event sidecar) are ingested synchronously BEFORE the
+reply (`202 { queued: false }`); only SessionEnd's slow capture (git delta + transcript +
+up-to-60s summarizer) keeps the reply-first async path (`202 { queued: true }`), which is safe
+because SessionEnd reads an already-frozen session row. Sync-path ingest errors return 500, not
+a lying 202 -- the emitter treats non-2xx as undelivered and spools for the next drain.
+
+**700 ms budget reasoning (confirmed in code):** SessionStart's sync cost is `findRepoRoot` +
+`currentBranch` + `currentHead` = 3 `spawnSync('git', ['rev-parse', ...])` calls (git-delta.ts)
+-- no working-tree scan, milliseconds even on huge repos; Stop is one SQLite UPDATE. If a
+pathological box ever exceeded the emitter's 700 ms: `AbortSignal.timeout` fires client-side ->
+emit.mjs appends to the spool -> the drain re-delivers -> `upsertSessionStart`'s ON CONFLICT
+clause only updates `cwd`/`transcript_path`, preserving the original `head_start`/`started_at`
+(db.ts:141) -- so a late duplicate cannot clobber the early snapshot, and spool-first delivery
+means the slow 202 costs nothing user-facing. Reasoning holds; noted as plan deviation #8.
+
+**Tests:** station.test.ts updated to the new contract -- SessionStart asserts the session row
+exists at reply time with NO polling (`{ queued: false }`), plus a new SessionEnd-stays-async
+test (`{ queued: true }`, vi.waitFor). ship-log suite now **76/76**.
+
+**Gates re-run:** `acceptance/two-repo-log.mjs` **5x consecutively green** (logs
+/tmp/acc-1..5.log during the run); ship 13/13; ship-log 76/76. Plan section-0 deviations
+updated (item 8). Commit: `fix(ship-log): ingest SessionStart/Stop before the 202 -- head_start
+race under-attributed sessions`.
