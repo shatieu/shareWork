@@ -60,15 +60,30 @@ describe('plugins/crew manifest', () => {
     // emitter, and never both (a parallel emit.mjs would double-create queue items).
     expect(registeredEvents).toContain('PermissionRequest');
 
+    // Phase 4 (package 8) adds crew wiring on top of capture: SessionStart also runs the
+    // scrutiny resolver, Stop also runs the paranoid stop gate. Expectations stay strict
+    // per-event -- exactly these scripts, nothing else, and the capture emitter must survive.
+    const expectedScriptsByEvent: Record<string, string[]> = {
+      SessionStart: ['emit.mjs', 'scrutiny.mjs'],
+      Stop: ['emit.mjs', 'stop-gate.mjs'],
+      SessionEnd: ['emit.mjs'],
+      Notification: ['emit.mjs'],
+      PermissionRequest: ['permission.mjs'],
+      TaskCreated: ['emit.mjs'],
+      TaskCompleted: ['emit.mjs'],
+    };
+
     for (const [event, entries] of Object.entries(parsed.hooks)) {
-      const expectedScript = event === 'PermissionRequest' ? 'permission.mjs' : 'emit.mjs';
+      const registeredScripts: string[] = [];
       for (const entry of entries) {
         for (const hook of entry.hooks) {
           expect(hook.command).toBe('node');
           expect(hook.args?.[0]).toContain('${CLAUDE_PLUGIN_ROOT}');
-          expect(hook.args?.[0]).toContain(expectedScript);
+          registeredScripts.push((hook.args?.[0] ?? '').split('/').pop() ?? '');
         }
       }
+      expect(expectedScriptsByEvent[event], `unexpected event ${event}`).toBeDefined();
+      expect(registeredScripts.sort()).toEqual([...expectedScriptsByEvent[event]].sort());
     }
   });
 });

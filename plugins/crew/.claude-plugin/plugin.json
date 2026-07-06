@@ -1,7 +1,7 @@
 {
   "name": "ship-crew",
-  "description": "The Ship's Crew: http hooks that feed ship-log (changelog capture) and, in later Bridge phases, ship-ledger/ship-inbox. Phase 1 ships hooks + seam stubs only -- no roles, scrutiny presets, or FO orchestration yet.",
-  "version": "0.1.0",
+  "description": "The Ship's Crew: installing this plugin is joining the Ship. Six crew roles (first-officer orchestrator, navigator, shipwright, inspector, devils-advocate, quartermaster), scrutiny presets wired at SessionStart (solo/standard/rigorous/paranoid + custom), a paranoid Stop-hook gate, the crew orchestration skill, and the http hooks that feed ship-log (changelog capture), ship-ledger, and ship-inbox.",
+  "version": "0.2.0",
   "author": { "name": "shareWork" },
   "license": "MIT"
 }
