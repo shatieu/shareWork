@@ -145,18 +145,26 @@ async function phaseA() {
     const html = await (await fetch(`${base}/`, { signal: AbortSignal.timeout(3000) })).text();
     assert(html.toLowerCase().includes('<!doctype html'), 'GET / serves the Deck UI html');
 
-    // Package 4 (Bridge phase 1) mounted ship-log, package 5 (Bridge phase 2) ship-ledger --
-    // both tab-less; the Deck's tab bar still only shows Chart Room's Docs tab.
+    // Package 4 (Bridge phase 1) mounted ship-log, package 5 (Bridge phase 2) ship-ledger (both
+    // tab-less); package 6 (Bridge phase 3) mounts ship-inbox, which owns the Deck's Inbox tab.
     const stations = await getJson(`${base}/api/hull/stations`);
     const chartroomStation = stations.find((s) => s.name === 'chartroom');
     const shipLogStation = stations.find((s) => s.name === 'ship-log');
     const shipLedgerStation = stations.find((s) => s.name === 'ship-ledger');
+    const shipInboxStation = stations.find((s) => s.name === 'ship-inbox');
     assert(
-      stations.length === 3 &&
+      stations.length === 4 &&
         chartroomStation?.tab?.id === 'docs' &&
         shipLogStation !== undefined && shipLogStation.tab === undefined &&
-        shipLedgerStation !== undefined && shipLedgerStation.tab === undefined,
-      'GET /api/hull/stations lists chartroom (Docs tab) + tab-less ship-log + ship-ledger',
+        shipLedgerStation !== undefined && shipLedgerStation.tab === undefined &&
+        shipInboxStation?.tab?.id === 'inbox' && shipInboxStation.tab.title === 'Inbox',
+      'GET /api/hull/stations lists chartroom (Docs tab) + tab-less ship-log/ship-ledger + ship-inbox (Inbox tab)',
+    );
+
+    const inboxItems = await getJson(`${base}/api/ship-inbox/items`);
+    assert(
+      Array.isArray(inboxItems.permissions) && Array.isArray(inboxItems.questions) && Array.isArray(inboxItems.docs),
+      'GET /api/ship-inbox/items serves the aggregated one-page shape through the hull',
     );
 
     const repos = await getJson(`${base}/api/repos`);

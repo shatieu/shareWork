@@ -193,6 +193,9 @@ importers:
       fastify:
         specifier: ^5.9.0
         version: 5.9.0
+      ship-inbox:
+        specifier: workspace:*
+        version: link:../ship-inbox
       ship-ledger:
         specifier: workspace:*
         version: link:../ship-ledger

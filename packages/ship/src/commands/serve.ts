@@ -3,6 +3,7 @@ import { join, resolve as resolvePath } from 'node:path';
 import type { Command } from 'commander';
 import type { FastifyInstance } from 'fastify';
 import { createChartroomStation } from 'chartroom/station';
+import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
 import { createShipLogStation } from 'ship-log/station';
 import { createHull } from '../hull.js';
@@ -69,10 +70,11 @@ export function registerServeCommand(program: Command): void {
         }
 
         const shipLog = createShipLogStation();
-        // Mount order is irrelevant to the fan-out: ship-log resolves the ledger's
-        // hookEventConsumer contract lazily per event, and getContract searches the full array.
+        // Mount order is irrelevant to the fan-out: ship-log resolves the ledger's/inbox's
+        // hookEventConsumer contracts lazily per event, and getContract searches the full array.
         const shipLedger = createShipLedgerStation();
-        const hull = await createHull([chartroom, shipLog, shipLedger], { voyageFile });
+        const shipInbox = createShipInboxStation();
+        const hull = await createHull([chartroom, shipLog, shipLedger, shipInbox], { voyageFile });
 
         const requestedPort = opts.port ? Number(opts.port) : DEFAULT_PORT;
         const port = await listenOnFreePort(hull.app, requestedPort);

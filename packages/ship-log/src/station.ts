@@ -51,7 +51,9 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
     now,
     fragmentPolicy: options.fragmentPolicy,
   });
-  const consumerStations = options.consumerStations ?? ['ship-ledger'];
+  // Default fan-out targets: ship-ledger (TaskCreated/TaskCompleted, phase 2) and ship-inbox
+  // (Notification/PermissionRequest, phase 3). Names, not imports.
+  const consumerStations = options.consumerStations ?? ['ship-ledger', 'ship-inbox'];
 
   /** Resolve the mounted hook-event consumers at call time (never captured at registration:
    * `getContract` searches the hull's full station array, and standalone mode's stub context
