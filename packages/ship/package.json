@@ -20,7 +20,7 @@
     "dev": "tsc -w -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:acceptance": "node acceptance/deck-boot.mjs"
+    "test:acceptance": "node acceptance/deck-boot.mjs && node acceptance/add-repo-ui.mjs"
   },
   "dependencies": {
     "@fastify/static": "^9.1.3",

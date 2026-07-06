@@ -11,6 +11,7 @@ import {
   fetchRepos,
   fetchVoyage,
   openClaudeSession,
+  registerRepoRequest,
   type RepoSummary,
   type VoyageResponse,
 } from '../src/api/client.js';
@@ -27,6 +28,7 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
     fetchVoyage: vi.fn(),
     fetchConsoleOverview: vi.fn(),
     openClaudeSession: vi.fn(),
+    registerRepoRequest: vi.fn(),
   };
 });
 
@@ -39,6 +41,7 @@ const mocks = {
   fetchVoyage: vi.mocked(fetchVoyage),
   fetchConsoleOverview: vi.mocked(fetchConsoleOverview),
   openClaudeSession: vi.mocked(openClaudeSession),
+  registerRepoRequest: vi.mocked(registerRepoRequest),
 };
 
 const repoA: RepoSummary = {
@@ -144,11 +147,77 @@ describe('Deck shell tabs', () => {
     expect(await screen.findByText('auth refactor')).toBeInTheDocument();
   });
 
-  it('auto-selects the first repo on a bare hash (deep-link behavior preserved)', async () => {
+  it('a bare hash renders the tracked-repos overview (no auto-select jump, package 15)', async () => {
     render(<App />);
-    await waitFor(() => expect(window.location.hash).toBe('#/repo/repo-a'));
-    const banner = screen.getByRole('banner');
-    expect(within(banner).getByRole('button', { name: 'Open Claude session in alpha' })).toBeEnabled();
+    expect(await screen.findByRole('heading', { name: 'Tracked repos' })).toBeInTheDocument();
+    // the landing route stays put -- no #/repo/... hijack
+    expect(window.location.hash).toBe('');
+    const card = screen.getByRole('button', { name: 'Open alpha' });
+    expect(within(card).getByText('C:/repos/alpha')).toBeInTheDocument();
+    expect(within(card).getByText('1 doc')).toBeInTheDocument();
+    // breadcrumb reflects the overview
+    expect(within(screen.getByRole('banner')).getByText('repos')).toBeInTheDocument();
+  });
+
+  it('overview card click navigates to that repo', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Open alpha' }));
+    expect(window.location.hash).toBe('#/repo/repo-a');
+    expect(await screen.findByRole('heading', { name: 'alpha' })).toBeInTheDocument();
+  });
+});
+
+describe('add-repo modal (package 15)', () => {
+  it('the overview add button opens the modal; a successful registration refreshes the repo list', async () => {
+    const repoB: RepoSummary = {
+      id: 'repo-b',
+      name: 'bravo',
+      absPath: 'C:/repos/bravo',
+      docCount: 0,
+      brokenLinkCount: 0,
+      needsYouCount: 0,
+    };
+    mocks.fetchRepos.mockResolvedValueOnce([repoA]).mockResolvedValue([repoA, repoB]);
+    mocks.registerRepoRequest.mockResolvedValue({
+      id: 'repo-b',
+      name: 'bravo',
+      absPath: 'C:/repos/bravo',
+      alreadyRegistered: false,
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole('button', { name: '+ add repo' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add a repo' });
+    fireEvent.change(within(dialog).getByLabelText(/absolute path/i), { target: { value: 'C:/repos/bravo' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'add repo' }));
+
+    // modal success pane + registration call with the exact path
+    expect(await within(dialog).findByText('✓ Registered')).toBeInTheDocument();
+    expect(mocks.registerRepoRequest).toHaveBeenCalledExactlyOnceWith('C:/repos/bravo');
+    // the shell refreshed /api/repos, navigated to the new repo, and toasted
+    await waitFor(() => expect(window.location.hash).toBe('#/repo/repo-b'));
+    expect(await screen.findByText('2 watched')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('bravo registered — indexing and watching now');
+
+    // Done closes the modal
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog', { name: 'Add a repo' })).not.toBeInTheDocument();
+  });
+
+  it('the repo-tree + add button opens the same modal', async () => {
+    window.location.hash = '#/repo/repo-a';
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Add repo' }));
+    expect(await screen.findByRole('dialog', { name: 'Add a repo' })).toBeInTheDocument();
+  });
+
+  it('the no-repos empty state offers the add-repo CTA alongside the CLI hint', async () => {
+    mocks.fetchRepos.mockResolvedValue([]);
+    render(<App />);
+    expect(await screen.findByText('No repos registered yet')).toBeInTheDocument();
+    expect(screen.getByText('chartroom register <path>')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '+ add repo' }));
+    expect(await screen.findByRole('dialog', { name: 'Add a repo' })).toBeInTheDocument();
   });
 });
 

@@ -47,6 +47,7 @@ function renderTree(overrides: Partial<RepoTreeProps> = {}): RepoTreeProps {
     onSetCollapsed: vi.fn(),
     onOpenClaude: vi.fn(),
     claudeBusyRepoId: null,
+    onAddRepo: vi.fn(),
     ...overrides,
   };
   render(<RepoTree {...props} />);
@@ -118,9 +119,12 @@ describe('RepoTree', () => {
     expect(rootDoc).toHaveStyle({ paddingLeft: '22px' });
   });
 
-  it('has no register-repo footer (registration stays a CLI act; modal is parked)', () => {
-    renderTree();
-    expect(screen.queryByText(/register/i)).not.toBeInTheDocument();
+  it('head carries the + add button wired to onAddRepo (package 15)', () => {
+    const props = renderTree();
+    const addButton = screen.getByRole('button', { name: 'Add repo' });
+    expect(addButton).toHaveTextContent('+ add');
+    fireEvent.click(addButton);
+    expect(props.onAddRepo).toHaveBeenCalledTimes(1);
   });
 
   it('collapsed rail: repo initials with an alert dot, expanding un-collapses', () => {

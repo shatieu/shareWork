@@ -18,8 +18,11 @@ import {
   openClaudeSession,
   type DocDetail,
   type DocSummary,
+  type RegisterRepoResult,
   type RepoSummary,
 } from './api/client.js';
+import { AddRepoModal } from './components/AddRepoModal.js';
+import { RepoOverview } from './components/RepoOverview.js';
 import { RepoTree } from './components/RepoTree.js';
 import { TabBar, type DeckTab } from './components/TabBar.js';
 import { DocView } from './components/DocView.js';
@@ -131,6 +134,7 @@ export default function App(): ReactElement {
   const [railCollapsed, setRailCollapsed] = useState(loadRailCollapsed);
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(loadExpandedRepos);
   const [claudeBusyRepoId, setClaudeBusyRepoId] = useState<string | null>(null);
+  const [addRepoOpen, setAddRepoOpen] = useState(false);
   const [toast, setToast] = useState<DeckToast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Remembers the last Docs-tab hash so switching Voyage → Docs restores where you were.
@@ -190,13 +194,12 @@ export default function App(): ReactElement {
       const last = lastDocsHashRef.current;
       if (last && last !== VOYAGE_ROUTE && last !== INBOX_ROUTE) {
         window.location.hash = last;
-      } else if (repos && repos.length > 0) {
-        navigateTo(repos[0].id);
       } else {
+        // No remembered doc: land on the repos overview (the bare `#/` route).
         window.location.hash = '#/';
       }
     },
-    [repos],
+    [],
   );
 
   /* ── data: repos + inbox count ── */
@@ -220,15 +223,8 @@ export default function App(): ReactElement {
     refreshDashboards();
   }, [refreshDashboards]);
 
-  // Auto-select the first repo when no route is set yet -- landing on a blank pane reads as
-  // broken rather than "nothing to see here on purpose". Never hijacks #/inbox or #/voyage.
-  useEffect(() => {
-    if (!repos || repos.length === 0) return;
-    const current = parseHash(window.location.hash);
-    if (current.tab === 'docs' && !current.isInbox && !current.repoId) {
-      navigateTo(repos[0].id);
-    }
-  }, [repos]);
+  // The bare `#/` route deliberately selects nothing: it renders the tracked-repos overview
+  // (package 15 scope addition) -- the old auto-select-first-repo jump is gone with it.
 
   // The active repo is always expanded in the tree (so the open doc is visible in context).
   useEffect(() => {
@@ -316,6 +312,22 @@ export default function App(): ReactElement {
     [repos, showToast],
   );
 
+  /* ── add-repo modal (repo-tree `+ add` button + empty-state CTA) ── */
+
+  const handleRepoRegistered = useCallback(
+    (repo: RegisterRepoResult) => {
+      refreshDashboards();
+      // Expand the new repo in the tree and land on it, so "it appears in Docs immediately"
+      // is literal -- the modal stays open showing the success pane until the human closes it.
+      setExpandedRepos((prev) => (prev.has(repo.id) ? prev : new Set([...prev, repo.id])));
+      if (!repo.alreadyRegistered) {
+        navigateTo(repo.id);
+        showToast({ kind: 'ok', text: `${repo.name} registered — indexing and watching now` });
+      }
+    },
+    [refreshDashboards, showToast],
+  );
+
   /* ── save-completion: refresh doc detail, its repo's docs, and the dashboards ── */
 
   const handleSaved = useCallback(() => {
@@ -374,7 +386,7 @@ export default function App(): ReactElement {
             ))}
           </>
         ) : (
-          <span className="crumb">no repo selected</span>
+          <span className="crumb crumb--active">repos</span>
         )}
       </nav>
       <button
@@ -456,8 +468,23 @@ export default function App(): ReactElement {
         </p>
       </div>
     );
+  } else if (repos === null) {
+    center = (
+      <div className="paper-empty">
+        <p>Loading…</p>
+      </div>
+    );
   } else {
-    center = <div className="paper-empty">{repos === null ? <p>Loading…</p> : <p>Pick a repo to get underway.</p>}</div>;
+    // Bare `#/`: the tracked-repos overview -- the Deck's landing pane (package 15).
+    center = (
+      <RepoOverview
+        repos={repos}
+        onSelect={(repoId) => navigateTo(repoId)}
+        onAddRepo={() => setAddRepoOpen(true)}
+        onOpenClaude={handleOpenClaude}
+        claudeBusyRepoId={claudeBusyRepoId}
+      />
+    );
   }
 
   const noRepos = repos !== null && repos.length === 0;
@@ -486,6 +513,9 @@ export default function App(): ReactElement {
           <div className="empty-state">
             <CompassMark large />
             <p className="empty-state__title">No repos registered yet</p>
+            <button type="button" className="btn-rust empty-state__add" onClick={() => setAddRepoOpen(true)}>
+              + add repo
+            </button>
             <div className="empty-state__cmd">
               <span className="empty-state__or">from a terminal:</span>
               <code>{REGISTER_COMMAND}</code>
@@ -526,6 +556,7 @@ export default function App(): ReactElement {
               }}
               onOpenClaude={handleOpenClaude}
               claudeBusyRepoId={claudeBusyRepoId}
+              onAddRepo={() => setAddRepoOpen(true)}
             />
             <main className="paper-frame">
               <div className="paper">{center}</div>
@@ -533,6 +564,7 @@ export default function App(): ReactElement {
           </>
         )}
       </div>
+      {addRepoOpen && <AddRepoModal onClose={() => setAddRepoOpen(false)} onRegistered={handleRepoRegistered} />}
       {error && (
         <p className="app-shell__error" role="alert">
           {error}

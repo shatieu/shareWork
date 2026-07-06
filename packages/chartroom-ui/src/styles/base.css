@@ -382,6 +382,27 @@ button {
   gap: 8px;
 }
 
+.repo-tree__add {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--brass-dark);
+  background: none;
+  border-radius: 4px;
+  color: var(--brass);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  cursor: pointer;
+  padding: 0 7px;
+  flex: none;
+  white-space: nowrap;
+}
+
+.repo-tree__add:hover {
+  color: var(--brass-bright);
+  border-color: var(--brass-mid);
+}
+
 .repo-tree__collapse {
   width: 22px;
   height: 22px;
@@ -2646,6 +2667,35 @@ a.idlink:focus-visible .idlink__tip,
   margin: 8px 0 0;
 }
 
+/* Add-repo modal (package 15): validated path input over POST /api/repos/register. */
+.register-modal__label {
+  display: block;
+  font-size: 10.5px;
+  color: var(--ink-65);
+  margin-bottom: 8px;
+}
+
+.register-modal__input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--brass-bright);
+  background: var(--well);
+  border: 1px solid var(--brass-dark);
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+
+.register-modal__input:focus {
+  outline: none;
+  border-color: var(--brass-mid);
+}
+
+.register-modal__input::placeholder {
+  color: var(--ink-45);
+}
+
 .register-modal__loading {
   color: var(--ink-45);
   font-size: 11px;
@@ -2673,6 +2723,123 @@ a.idlink:focus-visible .idlink__tip,
   font-size: 10px;
   color: var(--ink-45);
   margin-right: 8px;
+}
+
+/* ── Tracked-repos overview (Deck landing pane, package 15) ─────────── */
+
+.repo-overview {
+  font-family: var(--font-mono);
+}
+
+.repo-overview__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.repo-overview__title {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  color: var(--ink);
+  margin: 0;
+}
+
+.repo-overview__sub {
+  font-size: 11.5px;
+  color: var(--ink-55);
+  margin: 0 0 22px;
+}
+
+.repo-overview__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.repo-card {
+  position: relative;
+  display: flex;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel-grad);
+}
+
+.repo-card__main {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'avatar name'
+    'avatar path'
+    'avatar stats';
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: center;
+  text-align: left;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  padding: 14px 44px 14px 14px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.repo-card__main:hover {
+  background: rgba(201, 162, 78, 0.06);
+}
+
+.repo-card__avatar {
+  grid-area: avatar;
+  align-self: start;
+}
+
+.repo-card__name {
+  grid-area: name;
+  font-size: 14px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repo-card__path {
+  grid-area: path;
+  font-size: 10px;
+  color: var(--ink-45);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* keep the tail (deepest folder) visible when truncated */
+  text-align: left;
+}
+
+.repo-card__stats {
+  grid-area: stats;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.repo-card__stat {
+  font-size: 10.5px;
+  color: var(--brass);
+}
+
+.repo-card__claude {
+  /* the tree variant is display:none until row hover; on a card it is always visible */
+  display: flex;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
 }
 
 /* ── Ask-queue repo filter chips ────────────────────────────────────── */
