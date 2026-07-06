@@ -1,0 +1,42 @@
+{
+  "name": "ship-console",
+  "version": "0.1.0",
+  "description": "The Bridge console station (Ship_Spec §6, deliberately thin): a Deck 'Console' tab serving a fleet overview -- sessions from `claude agents --json` (via ship-voice's fleetSource contract), state rollup, inbox pending badge, and today's changelog digest. Most sherlockable module: if Anthropic ships a GUI Agent View, this goes and §3-5 stay.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./station": {
+      "types": "./dist/station.d.ts",
+      "import": "./dist/station.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}
