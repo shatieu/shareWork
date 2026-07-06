@@ -1,0 +1,49 @@
+{
+  "name": "skill-analytics",
+  "version": "0.1.0",
+  "description": "Skill analytics (Trio_Specs §A): 'ccusage for skills'. Incrementally parses local Claude Code JSONL transcripts into a SQLite store of skill/agent/slash-command invocations (identifiers, trigger mode, attributed token usage only — never message content), reports via CLI table/JSON, and mounts a Deck station serving /api/skill-analytics/*. Local-only; nothing is ever uploaded.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "skill-analytics": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./station": {
+      "types": "./dist/station.d.ts",
+      "import": "./dist/station.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/skill-analytics.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "commander": "^13.1.0",
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}
