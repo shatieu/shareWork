@@ -176,6 +176,64 @@ importers:
         specifier: ^3.0.4
         version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)
 
+  packages/sea-chest:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+      commander:
+        specifier: ^13.1.0
+        version: 13.1.0
+      fastify:
+        specifier: ^5.9.0
+        version: 5.9.0
+      suite-conventions:
+        specifier: workspace:*
+        version: link:../suite-conventions
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.19.0
+        version: 9.39.4
+      '@testing-library/jest-dom':
+        specifier: ^6.9.1
+        version: 6.9.1
+      '@testing-library/react':
+        specifier: ^16.3.2
+        version: 16.3.2(@testing-library/dom@10.4.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.20.0
+      '@types/react':
+        specifier: ^19.0.0
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.0.0
+        version: 19.2.3(@types/react@19.2.17)
+      eslint:
+        specifier: ^9.19.0
+        version: 9.39.4
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.21.0
+        version: 8.62.1(eslint@9.39.4)(typescript@5.9.3)
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)
+
   packages/ship:
     dependencies:
       '@fastify/static':
