@@ -204,3 +204,6 @@ All five wave packages merged+pushed: 13 Comm (60f7db1), 10 Scheduler (10293ba),
 
 ## MISSION END: 2026-07-06 15:05 — 14/14 merged, pushed, report filed
 Final merge 8684b1c (analytics). MARATHON-REPORT.md written; DONE-MARATHON created; guard decommission verified (task not found); chartroom check exit 0 (id fixes: duplicate id + unquoted YAML colon in devils-advocate.md, crew tests re-run green). FO standing down.
+
+## Post-mission package 14 (Captain, 2026-07-06 ~15:30): settings add-flow rewrite
+Captain order: interactive add-to-settings via modal + search + multiselect. Dispatched to the package-7 TL (context intact) as combined build on ship-wave1-settings-modal off 2cfe6fd. Detailed correctMe specs to follow later; this ships now. Deck currently running from dist at 127.0.0.1:4317; restart after merge.

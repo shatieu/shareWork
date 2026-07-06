@@ -139,6 +139,16 @@
       "remaining_guess_h": 0,
       "updated_at": "2026-07-06T10:39:19.343Z",
       "note": "merged 60f7db1; ElevenLabs phase-2 parked in CAPTAIN-TODO"
+    },
+    {
+      "id": 14,
+      "title": "Settings add-flow rewrite: modal + search + multiselect (Captain order)",
+      "status": "implementing",
+      "stage_progress": 60,
+      "difficulty": "M",
+      "remaining_guess_h": 2,
+      "updated_at": "2026-07-06T13:21:00.233Z",
+      "note": "post-mission Captain order; combined dispatch to the package-7 TL"
     }
   ]
 }
