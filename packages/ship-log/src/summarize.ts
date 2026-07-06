@@ -142,9 +142,31 @@ export function createClaudeRollupSummarizer(spawn: ClaudeSpawn = spawnSync): Ro
   return async (input) => runClaude(buildRollupPrompt(input), DEFAULT_TIMEOUT_MS, spawn);
 }
 
-export const defaultSummarizer: Summarizer = createClaudeSummarizer();
+/** Acceptance-script seam (plan §6.1): with `SHIP_LOG_FAKE_SUMMARIZER=1` AND `NODE_ENV=test`,
+ * the default summarizers return a deterministic fake instead of spawning `claude` -- this is
+ * how `acceptance/two-repo-log.mjs` drives the REAL spawned `ship serve` bin without spending
+ * tokens or depending on network/credits. Refused outside `NODE_ENV=test` (both conditions
+ * checked at call time) so a production hull can never silently produce fake summaries. */
+export function fakeSummarizerSeamActive(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env.SHIP_LOG_FAKE_SUMMARIZER === '1' && env.NODE_ENV === 'test';
+}
 
-export const defaultRollupSummarizer: RollupSummarizer = createClaudeRollupSummarizer();
+const claudeSummarizer: Summarizer = createClaudeSummarizer();
+const claudeRollupSummarizer: RollupSummarizer = createClaudeRollupSummarizer();
+
+export const defaultSummarizer: Summarizer = async (input) => {
+  if (fakeSummarizerSeamActive()) {
+    return { text: `[fake-summary] ${fallbackSummary(input)}`, model: 'fake-test-seam' };
+  }
+  return claudeSummarizer(input);
+};
+
+export const defaultRollupSummarizer: RollupSummarizer = async (input) => {
+  if (fakeSummarizerSeamActive()) {
+    return { text: `[fake-rollup] ${fallbackRollupDigest(input)}`, model: 'fake-test-seam' };
+  }
+  return claudeRollupSummarizer(input);
+};
 
 /** Deterministic fallback used when the summarizer returns null (plan §3.9): commit subjects
  * joined + a file-count note -- capture always completes without network/credits. */

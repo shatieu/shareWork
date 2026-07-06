@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   createClaudeRollupSummarizer,
   createClaudeSummarizer,
+  defaultRollupSummarizer,
+  defaultSummarizer,
+  fakeSummarizerSeamActive,
   fallbackRollupDigest,
   fallbackSummary,
   type ClaudeSpawn,
@@ -105,5 +108,35 @@ describe('fallbackRollupDigest', () => {
     expect(fallbackRollupDigest({ date: '2026-07-06', entries: [] })).toBe(
       'No sessions recorded for 2026-07-06.',
     );
+  });
+});
+
+describe('fakeSummarizerSeamActive (acceptance seam, plan §6.1)', () => {
+  it('is active only with SHIP_LOG_FAKE_SUMMARIZER=1 AND NODE_ENV=test', () => {
+    expect(fakeSummarizerSeamActive({ SHIP_LOG_FAKE_SUMMARIZER: '1', NODE_ENV: 'test' })).toBe(true);
+    expect(fakeSummarizerSeamActive({ SHIP_LOG_FAKE_SUMMARIZER: '1', NODE_ENV: 'production' })).toBe(false);
+    expect(fakeSummarizerSeamActive({ SHIP_LOG_FAKE_SUMMARIZER: '1' })).toBe(false);
+    expect(fakeSummarizerSeamActive({ NODE_ENV: 'test' })).toBe(false);
+    expect(fakeSummarizerSeamActive({})).toBe(false);
+  });
+
+  it('defaultSummarizer/defaultRollupSummarizer return the deterministic fake under the seam (vitest sets NODE_ENV=test)', async () => {
+    const prev = process.env.SHIP_LOG_FAKE_SUMMARIZER;
+    process.env.SHIP_LOG_FAKE_SUMMARIZER = '1';
+    try {
+      const entry = await defaultSummarizer(baseInput);
+      expect(entry?.model).toBe('fake-test-seam');
+      expect(entry?.text).toContain('[fake-summary]');
+      expect(entry?.text).toContain('fix: thing');
+      const rollup = await defaultRollupSummarizer({
+        date: '2026-07-06',
+        entries: [{ project: 'a', branch: 'main', summary: 'did x' }],
+      });
+      expect(rollup?.model).toBe('fake-test-seam');
+      expect(rollup?.text).toContain('[fake-rollup]');
+    } finally {
+      if (prev === undefined) delete process.env.SHIP_LOG_FAKE_SUMMARIZER;
+      else process.env.SHIP_LOG_FAKE_SUMMARIZER = prev;
+    }
   });
 });
