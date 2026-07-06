@@ -1,0 +1,50 @@
+{
+  "name": "ship-inbox",
+  "version": "0.1.0",
+  "description": "The Ship's human-action inbox (Ship_Spec §5): one page aggregating everything that needs a human across all projects -- a permission-request queue resolved from the browser (the Crew plugin's PermissionRequest hook long-polls the decision), agent questions from Notification hooks, and Chart Room's unanswered ask-me / open actions items via the in-process station contract. 'Always allow' writes a native permission rule into that project's .claude/settings.local.json (additive, atomic, backed up). Mounted into `ship serve` as a Deck station; also ships its own standalone `ship-inbox` bin.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "ship-inbox": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./station": {
+      "types": "./dist/station.d.ts",
+      "import": "./dist/station.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/inbox-queue.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "commander": "^13.1.0",
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}
