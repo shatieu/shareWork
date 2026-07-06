@@ -202,6 +202,9 @@ importers:
       ship-log:
         specifier: workspace:*
         version: link:../ship-log
+      ship-voice:
+        specifier: workspace:*
+        version: link:../ship-voice
       suite-conventions:
         specifier: workspace:*
         version: link:../suite-conventions
@@ -338,6 +341,46 @@ importers:
       eslint:
         specifier: ^9.19.0
         version: 9.39.4
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.21.0
+        version: 8.62.1(eslint@9.39.4)(typescript@5.9.3)
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)
+
+  packages/ship-voice:
+    dependencies:
+      fastify:
+        specifier: ^5.9.0
+        version: 5.9.0
+      suite-conventions:
+        specifier: workspace:*
+        version: link:../suite-conventions
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.19.0
+        version: 9.39.4
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.20.0
+      eslint:
+        specifier: ^9.19.0
+        version: 9.39.4
+      ship-inbox:
+        specifier: workspace:*
+        version: link:../ship-inbox
+      ship-ledger:
+        specifier: workspace:*
+        version: link:../ship-ledger
+      ship-log:
+        specifier: workspace:*
+        version: link:../ship-log
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
