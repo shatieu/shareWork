@@ -61,7 +61,9 @@ function Invoke-Check {
     $mtimeAgeMin = 99999
     if ($newest) { $mtimeAgeMin = ((Get-Date) - $newest.LastWriteTime).TotalMinutes }
     $idleMin = [Math]::Min($commitAgeMin, $mtimeAgeMin)
-    if ($idleMin -lt 15) { return }
+    # 30-min threshold pairs with the FO's <=25-min alive-touch heartbeat:
+    # a living session can never look dead, so resurrection = real death only.
+    if ($idleMin -lt 30) { return }
 
     # 4. At most one resurrection per usage window.
     $windowKey = ($u.resets_at -replace '[^0-9A-Za-z]', '-')

@@ -122,3 +122,46 @@ Plan: plans/03-captains-deck-plan.md. Difficulty XL; FO applies the plan's own s
 
 ## Package 2 CLOSED: 2026-07-05 23:05 — PASS+merged
 Lean review PASS (first run under Captain's lean calibration: acceptance chain + suites + 3 named-risk spot checks; ~1/3 prior review cost). Merged ship-wave1-cr-v11 --no-ff. Changelog fragment: 2026-07-05--chartroom-v11.md. Parked: interactive Explorer double-click (user-only, documented). Package 3 (Deck) implementation dispatched — first step per approved plan: rebase refresh of file-level sections against merged tree, then branch ship-wave1-deck. Guard task ShipLookoutGuard still NOT registered (awaiting Captain's schtasks run).
+
+## Package 4 (Bridge phase 1) plan APPROVED: 2026-07-05 23:20
+Plan: plans/04-bridge-phase1-plan.md. Difficulty L, ~10h. FO directions: (1) better-sqlite3 approved (spec section-8-named dependency); (2) researcher pass R1-R4 dispatched 23:20 (hook-event inventory is BLOCKING - a spec-vs-CLI event gap would ripple to packages 5-6, surface it early); (3) summarizer stays behind the injected interface with deterministic fallback - CLI-vs-SDK default parked for Captain as proposed; (4) implementation only after Deck merges + section-0 rebase refresh. 4 new DECISIONS-NEEDED entries acknowledged.
+
+## Captain signed off for the night: 2026-07-05 23:30
+Standing order added: at mission end (DONE-MARATHON), FO attempts guard/sensor decommission (schtasks /delete ShipLookoutGuard + sensor kill); CAPTAIN-TODO entry added as the verification fallback. Mission-end checklist now: queue done/parked -> MARATHON-REPORT.md -> decommission attempt -> DONE-MARATHON -> stand down.
+
+## Bridge-1 research complete: 2026-07-05 23:45
+R1-R4 all answered (reports/04-bridge-phase1-researcher.md). FO directives folded into package 4 for implementation: (1) emit.mjs must be SPOOL-FIRST or <=700ms fetch (SessionEnd hooks cancelled at ~1.4s - researcher empirical); (2) PermissionRequest fires only interactively, NOT in -p: package 6 TL must verify interactively, Notification/permission_prompt is the fallback signal; (3) onlyBuiltDependencies goes in pnpm-workspace.yaml (pnpm 10 vs 11 gate difference); (4) Windows shell tool_name is "PowerShell" not "Bash" - matcher impact packages 5-6. Package 4 now fully staged (plan+research), implements after Deck merges.
+
+## Resurrection reconciliation: 2026-07-06 ~03:50 local (new session, post-reset)
+
+Resumed per the standing resurrection procedure (Captain-triggered; `ShipLookoutGuard` scheduled
+task still not registered per the earlier note, so this was a manual/direct resume, not the OS-level
+guard — confirmed via `schtasks /query /tn ShipLookoutGuard` returning no task).
+
+- **Lookout:** fresh (`checked_at` 03:43:45 local, ~2min old), `five_hour_pct` 4, `seven_day_pct` 11,
+  no ALERT/PAUSE file present. `lookout.log` shows PAUSE hit twice ~03:23-03:28 (five_hour 100), then
+  a clean window reset by 03:33. Plenty of runway; dispatching normally per the mechanical rule.
+- **No live collision:** `.fo-alive` heartbeat last written 2026-07-05 23:21:21, ~4.5h stale — no
+  other First Officer instance is currently active. Safe to proceed as sole FO in the shared worktree.
+- **Real position (git-verified, not taken from the prior session's own claims):** `ship-wave1`
+  tip `3c8de99` (package 2 v1.1 merged+closed, matches STATUS's own claim — independently re-verified
+  this session: `chartroom` 248/248, `chartroom-ui` 144/144, 6/6 acceptance scripts, clean build/lint,
+  all fresh-run in an isolated worktree, no cache trusted). Main worktree sits on `ship-wave1-deck`
+  @ `6576f78`, 13 commits ahead of `ship-wave1` — plan `03-captains-deck-plan.md` §10 steps 0-7 (the
+  phase-1 cut line: refresh pass, suite-conventions, chartroom route extraction, `ship` hull, Voyage
+  backend, hardened claude-session route, full Deck UI shell) all present with developer evidence
+  reports committed. Independently re-verified fresh in a second isolated worktree this session:
+  `chartroom` 268/268, `chartroom-ui` 172/172, `ship` 13/13, clean build/lint across all 4 packages.
+  Package 4 (Bridge phase 1) plan + researcher R1-R4 both complete and staged, correctly held for
+  Deck merge per the sequential rule.
+- **progress.json was stale in both directions** (v1.1 already reflected 100%, but package 3 still
+  read "60% implementing" against a reality of implementation-complete-awaiting-review, and package 4
+  still said "researcher in flight" against reality of research being done). Corrected both entries
+  and regenerated PROGRESS.md.
+- **Next action:** package 3 is implementation-complete per its own plan's step numbering (§10 step 7:
+  "phase-1 complete; acceptance line demonstrable"); no reviewer report exists yet. Dispatching the
+  independent adversarial Reviewer now, scoped to the phase-1 cut line only (phase-2/step-8 items
+  correctly out of scope, already FO-cut). Guard task `ShipLookoutGuard` remains unregistered — still
+  needs the Captain's `schtasks` run (CAPTAIN-TODO); not self-installing per charter. Using
+  `ScheduleWakeup` as a best-effort session-level fallback in the meantime, understanding it does not
+  survive a hard token-cap reset.

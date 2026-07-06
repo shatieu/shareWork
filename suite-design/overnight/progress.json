@@ -33,22 +33,22 @@
     {
       "id": 3,
       "title": "Hull refactor → Captain's Deck",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "in review",
+      "stage_progress": 80,
       "difficulty": "XL",
-      "remaining_guess_h": 10,
-      "updated_at": "2026-07-05T20:52:55.732Z",
-      "note": "Deck implementation dispatching; rebase refresh against merged v1.1 first"
+      "remaining_guess_h": 2,
+      "updated_at": "2026-07-06T01:50:00.000Z",
+      "note": "Resumed-session reconciliation: plan §10 steps 0-7 (phase-1 cut) all committed on ship-wave1-deck, FO independently re-verified fresh (chartroom 268/268, chartroom-ui 172/172, ship 13/13, suite-conventions, all build/lint clean, no cache trusted); dispatching independent adversarial Reviewer now"
     },
     {
       "id": 4,
       "title": "Bridge phase 1",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
-      "remaining_guess_h": 3,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "status": "plan approved",
+      "stage_progress": 25,
+      "difficulty": "L",
+      "remaining_guess_h": 9,
+      "updated_at": "2026-07-06T01:50:00.000Z",
+      "note": "plan + researcher R1-R4 both complete (reports/04-bridge-phase1-*.md); fully staged, awaits Deck merge + section-0 rebase refresh before implementation dispatch"
     },
     {
       "id": 5,

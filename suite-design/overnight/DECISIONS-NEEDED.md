@@ -166,3 +166,27 @@ Unattributed uncommitted work over packages/chartroom + chartroom-ui found at ma
    daemon UI should not phone home). Both trivially reversible.
 4. **`chartroom-ui` package rename** (it becomes the Deck app in this package) — deferred to the
    monorepo migration; keeping the name tonight to avoid Captain-invisible renames.
+
+## Package 4 (Bridge phase 1) planning — parked questions and taken defaults (2026-07-05)
+
+Plan: `suite-design/overnight/plans/04-bridge-phase1-plan.md` (§9). Defaults taken so
+implementation isn't blocked; all trivially reversible.
+
+1. **Changelog summarizer engine.** Ship_Spec §8 says "Haiku via Agent SDK"; the plan's default
+   is `claude -p --model haiku` instead — verified working in report 02 R4 (reuses your OAuth
+   login, no API key to manage, no new dependency, cents/day, JSON output). The summarizer is a
+   one-file injected interface, so switching to the Agent SDK later is isolated. Override by
+   naming the SDK in CAPTAIN-INBOX.
+2. **Fragment noise policy.** Default: a session writes an in-repo changelog fragment only when
+   it actually changed the repo (commits or dirty files); sessions with no delta still get a
+   SQLite entry (truth store) but no file. Alternative: every session fragments — one-line change.
+3. **Dogfood fragment commit policy for shareWork.** Hooks get enabled on this repo (authorized).
+   Default: the resulting root `changelog/entries/*.md` fragments are committed — they are the
+   product's shareable form and Chart Room renders them. Alternative: gitignore them until the
+   monorepo migration if you'd rather this repo's history stay quiet.
+4. **Possible spec-vs-CLI event gap (fact-finding pending).** Ship_Spec §2 lists
+   `PermissionRequest`/`TaskCreated`/`TaskCompleted` http-hook events; the researcher pass will
+   verify which actually exist in the installed Claude Code. If any are missing, Bridge phases
+   2–3 (task mirroring, permission queue) need a spec amendment or an alternative mechanism —
+   phase 1's acceptance (SessionStart/Stop/SessionEnd capture) is unaffected either way. Will be
+   updated here with the researcher's verdict.

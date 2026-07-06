@@ -16,3 +16,6 @@ to its seam. See the parking protocol in MARATHON-KICKOFF-PROMPT §4.
   working-copy-global, must not fire before the dogfood id commit merges to `ship-wave1`).
   How: on `ship-wave1` after the merge, `node packages/chartroom/dist/cli.js init` once (idempotent,
   0 new ids, installs `.git/hooks/pre-commit`).
+
+- **What:** Decommission the Lookout guard + sensor after the marathon fully completes (otherwise the guard keeps resurrecting headless sessions whenever this repo goes idle with tokens available).
+  **How:** `schtasks /delete /f /tn ShipLookoutGuard`, then kill the lookout.ps1 powershell process (Task Manager or `Get-Process powershell | Where-Object {...}`); optionally delete `suite-design/lookout/state/`. The FO will ATTEMPT `schtasks /delete` itself at stand-down (may be permission-blocked) and will note in MARATHON-REPORT.md whether this TODO is still needed — verify regardless.
