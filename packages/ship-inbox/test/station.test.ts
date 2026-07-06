@@ -65,6 +65,39 @@ describe('station identity', () => {
     expect(consumer.events).toEqual(['Notification', 'PermissionRequest']);
     expect(station.contracts?.pendingCounts).toBeTypeOf('function');
   });
+
+  it('offers the alwaysAllowedRules contract: rules this inbox wrote, with origin + date (plan 07 §3)', async () => {
+    await buildApp();
+    const alwaysAllowedRules = station.contracts?.alwaysAllowedRules as () => Array<Record<string, unknown>>;
+    expect(alwaysAllowedRules).toBeTypeOf('function');
+    expect(alwaysAllowedRules()).toEqual([]);
+
+    // Decide one request WITH an always-allow rule and one without -- only the first appears.
+    const withRule = await createPending();
+    const decided = await app.inject({
+      method: 'POST',
+      url: `/api/ship-inbox/permissions/${withRule}/decision`,
+      headers: HDR,
+      payload: { behavior: 'allow', alwaysAllowRule: 'Bash(git push:*)' },
+    });
+    expect(decided.statusCode).toBe(200);
+    const plain = await createPending();
+    await app.inject({
+      method: 'POST',
+      url: `/api/ship-inbox/permissions/${plain}/decision`,
+      headers: HDR,
+      payload: { behavior: 'allow' },
+    });
+
+    const entries = alwaysAllowedRules();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      rule: 'Bash(git push:*)',
+      cwd: projectDir,
+      decidedAt: expect.any(String),
+      backupPath: null, // fresh settings.local.json -> no prior bytes to back up
+    });
+  });
 });
 
 describe('permission queue routes', () => {

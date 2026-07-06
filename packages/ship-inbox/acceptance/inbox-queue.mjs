@@ -176,8 +176,9 @@ async function main() {
     const stations = await getJson(`${base}/api/hull/stations`);
     const inboxStation = stations.find((s) => s.name === 'ship-inbox');
     assert(
-      stations.length === 4 && inboxStation?.tab?.id === 'inbox' && inboxStation.tab.title === 'Inbox',
-      'hull lists 4 stations; ship-inbox owns the Inbox Deck tab',
+      // 6 stations since packages 13 (ship-voice) and 7 (settings-manager) mounted alongside.
+      stations.length === 6 && inboxStation?.tab?.id === 'inbox' && inboxStation.tab.title === 'Inbox',
+      'hull lists 6 stations; ship-inbox owns the Inbox Deck tab',
     );
     const bare = await fetch(`${base}/api/ship-inbox/permissions`, {
       method: 'POST',

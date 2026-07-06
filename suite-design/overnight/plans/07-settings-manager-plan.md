@@ -120,4 +120,16 @@ and which rule in which file decides"* — then a rails apply with diff+backup+r
 
 ## 7. Deviations
 
-(append during implementation if reality forces changes)
+1. **Malformed-target refusal gained an explicit recovery opt-in.** §3 rail 2 said "malformed
+   current file ⇒ typed refusal" and §6 named "restore a backup" as the recovery path — but a
+   restore is itself a write onto the malformed file, so an absolute refusal would leave NO way
+   back (deleting is banned). `applyEdit` therefore refuses by default (409, byte-identical) and
+   accepts an explicit `overwriteMalformedBase: true` that still backs up the corrupt bytes
+   first. Tested both ways; surfaced in the UI as a clearly-labeled recovery step.
+2. **Backup fetch route is `GET /backup?id=` (querystring), not `/backups/:id`** — backup ids
+   embed the sanitized origin path and exceed Fastify's default 100-char path-param ceiling
+   (empirical 414 in tests).
+3. **Editor preserves the caller's bytes verbatim** (round-trip-verified) rather than
+   re-serializing — the diff the human confirmed is exactly what lands on disk.
+4. **Cross-package acceptance updates:** `ship` deck-boot and `ship-inbox` inbox-queue asserted
+   `stations.length === 4`; mounting the new station makes it 5. Both updated, both re-run green.

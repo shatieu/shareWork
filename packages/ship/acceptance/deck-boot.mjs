@@ -146,22 +146,25 @@ async function phaseA() {
     assert(html.toLowerCase().includes('<!doctype html'), 'GET / serves the Deck UI html');
 
     // Package 4 (Bridge phase 1) mounted ship-log, package 5 (Bridge phase 2) ship-ledger (both
-    // tab-less); package 6 (Bridge phase 3) mounts ship-inbox, which owns the Deck's Inbox tab;
-    // package 13 (Comm phase 1) mounts ship-voice (tab-less -- its UI is the phone, phases 2-4).
+    // tab-less); package 6 (Bridge phase 3) mounts ship-inbox (Inbox tab); package 13 (Comm
+    // phase 1) mounts ship-voice (tab-less -- its UI is the phone, phases 2-4); package 7
+    // mounts settings-manager (Settings tab).
     const stations = await getJson(`${base}/api/hull/stations`);
     const chartroomStation = stations.find((s) => s.name === 'chartroom');
     const shipLogStation = stations.find((s) => s.name === 'ship-log');
     const shipLedgerStation = stations.find((s) => s.name === 'ship-ledger');
     const shipInboxStation = stations.find((s) => s.name === 'ship-inbox');
     const shipVoiceStation = stations.find((s) => s.name === 'ship-voice');
+    const settingsStation = stations.find((s) => s.name === 'settings-manager');
     assert(
-      stations.length === 5 &&
+      stations.length === 6 &&
         chartroomStation?.tab?.id === 'docs' &&
         shipLogStation !== undefined && shipLogStation.tab === undefined &&
         shipLedgerStation !== undefined && shipLedgerStation.tab === undefined &&
         shipVoiceStation !== undefined && shipVoiceStation.tab === undefined &&
-        shipInboxStation?.tab?.id === 'inbox' && shipInboxStation.tab.title === 'Inbox',
-      'GET /api/hull/stations lists chartroom (Docs tab) + tab-less ship-log/ship-ledger/ship-voice + ship-inbox (Inbox tab)',
+        shipInboxStation?.tab?.id === 'inbox' && shipInboxStation.tab.title === 'Inbox' &&
+        settingsStation?.tab?.id === 'settings' && settingsStation.tab.title === 'Settings',
+      'GET /api/hull/stations lists chartroom (Docs) + tab-less ship-log/ship-ledger/ship-voice + ship-inbox (Inbox) + settings-manager (Settings)',
     );
 
     const inboxItems = await getJson(`${base}/api/ship-inbox/items`);
