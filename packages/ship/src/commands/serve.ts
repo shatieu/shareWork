@@ -9,6 +9,7 @@ import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
 import { createShipLogStation } from 'ship-log/station';
 import { createShipVoiceStation } from 'ship-voice/station';
+import { createSkillAnalyticsStation } from 'skill-analytics/station';
 import { createHull } from '../hull.js';
 
 /** Same first-try port and walk as `chartroom serve` (plan §4.3) -- the Deck takes over Chart
@@ -84,8 +85,11 @@ export function registerServeCommand(program: Command): void {
         // contract + inbox badge + ship-log rollup. Mounted after its contract providers, though
         // order is irrelevant (contracts resolve lazily per request).
         const shipConsole = createShipConsoleStation();
+        // Skill analytics (Trio_Specs §A): headless station, no tab -- serves the JSON the
+        // console renders and runs its incremental transcript collect off the boot path.
+        const skillAnalytics = createSkillAnalyticsStation();
         const hull = await createHull(
-          [chartroom, shipLog, shipLedger, shipInbox, shipVoice, settingsManager, shipConsole],
+          [chartroom, shipLog, shipLedger, shipInbox, shipVoice, settingsManager, shipConsole, skillAnalytics],
           { voyageFile },
         );
 

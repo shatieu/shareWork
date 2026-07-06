@@ -34,6 +34,7 @@
     "ship-ledger": "workspace:*",
     "ship-log": "workspace:*",
     "ship-voice": "workspace:*",
+    "skill-analytics": "workspace:*",
     "suite-conventions": "workspace:*"
   },
   "devDependencies": {
