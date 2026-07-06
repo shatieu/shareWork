@@ -73,42 +73,42 @@
     {
       "id": 7,
       "title": "Settings manager",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "L",
-      "remaining_guess_h": 4,
-      "updated_at": "2026-07-06T09:37:07.583Z",
-      "note": "combined dispatch, settings manager"
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T10:52:53.901Z",
+      "note": "merged f844d0c after six-station rebase; rails proven per-requirement"
     },
     {
       "id": 8,
       "title": "Crew — Bridge phase 4",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
-      "remaining_guess_h": 4,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "status": "PASS+merged",
+      "stage_progress": 100,
+      "difficulty": "M",
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T10:42:29.258Z",
+      "note": "merged 95dd334; 24/24 gates, live role-assembly proof, quartermaster MCP 10/10"
     },
     {
       "id": 9,
       "title": "Bridge console",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
+      "status": "implementing",
+      "stage_progress": 60,
+      "difficulty": "S",
       "remaining_guess_h": 2,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "updated_at": "2026-07-06T10:52:53.901Z",
+      "note": "combined dispatch, main worktree"
     },
     {
       "id": 10,
       "title": "Scheduler productization",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
-      "remaining_guess_h": 3,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "status": "PASS+merged",
+      "stage_progress": 100,
+      "difficulty": "M",
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T10:40:11.250Z",
+      "note": "merged 10293ba; deterministic guard/lock acceptance 22/22; schtasks registration = per-machine human step"
     },
     {
       "id": 11,
@@ -123,22 +123,22 @@
     {
       "id": 12,
       "title": "Sea Chest code-complete",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
-      "remaining_guess_h": 5,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "status": "PASS+merged",
+      "stage_progress": 100,
+      "difficulty": "L",
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T10:52:53.901Z",
+      "note": "merged 0e6b6f3; RLS proven in dockerized Postgres; Harbor integration parked in CAPTAIN-TODO"
     },
     {
       "id": 13,
       "title": "Comm phase 1",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
-      "remaining_guess_h": 3,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "status": "PASS+merged",
+      "stage_progress": 100,
+      "difficulty": "M",
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T10:39:19.343Z",
+      "note": "merged 60f7db1; ElevenLabs phase-2 parked in CAPTAIN-TODO"
     }
   ]
 }

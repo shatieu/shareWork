@@ -195,3 +195,9 @@ Process change for packages 5-13: single TL dispatch per package (brief plan fil
 
 ## Package 6 CLOSED: 2026-07-06 11:45 - merged on green self-verification
 12 commits, 23/23 gates, 51 new tests, settings-write rails proven per-requirement, live always-allow loop. Seam: interactive PermissionRequest firing (manual 7-step in ship-inbox README). New empirical fact recorded: -p denial emits neither PermissionRequest nor Notification even with plugin. Package 7 (settings manager, Trio B) dispatched combined mode.
+
+## Parallel wave opened: 2026-07-06 12:30 (Captain raised limits, ordered parallelization)
+Five concurrent: pkg 7 resumed (main worktree, ship-wave1-settings), pkgs 8/10/12/13 launched as combined TLs in ISOLATED git worktrees (branches ship-wave1-crew/-scheduler/-seachest/-comm). Deck-tab packages 9+11 deliberately held until 7 merges (UI-shell collision avoidance); 9 dispatches after 7, 11 after 9. FO merges sequentially as branches land. Tracking edits ride until next merge boundary.
+
+## Parallel wave complete: 2026-07-06 13:20
+All five wave packages merged+pushed: 13 Comm (60f7db1), 10 Scheduler (10293ba), 8 Crew (95dd334), 7 Settings (f844d0c, after TL rebase to six stations), 12 Sea Chest (0e6b6f3, lockfile regenerated at merge). One merge-conflict round total - resolved by TL rebase with context, not blind hand-merge. Remaining: 9 console (dispatched), 11 analytics, then MARATHON-REPORT + DONE.

@@ -238,3 +238,47 @@ Plan: `suite-design/overnight/plans/06-bridge-phase3-plan.md`. Nothing blocking;
   marketplace repo exists yet. **Default taken (b):** packs ship as data files inside
   `packages/settings-manager/templates/` with a `version` field; moving them to the marketplace
   repo later is a file move, the apply pipeline is source-agnostic.
+
+## Package 13 (Comm phase 1): destructive-classifier unification — FYI, default taken
+
+- **What:** VoiceBridge_Spec §6 says voice approvals use "the same classifier patterns the
+  settings manager will use". Package 7 (settings manager) was in flight in the parallel wave, so
+  importing from it would have created a cross-branch collision.
+- **Default taken:** `packages/ship-voice/src/classify.ts` carries its own minimal pattern list
+  (force-push, publish, rm/del/Remove-Item/rmdir, migrations, drop table/db, hard reset/clean),
+  fully tested. Post-merge cleanup candidate: lift the shared patterns into `suite-conventions`
+  and point both packages at it. No action needed unless you want a different sharing home.
+
+## Package 10 (scheduler) — defaults taken, FYI only (2026-07-06)
+
+Plan: `suite-design/overnight/plans/10-scheduler-plan.md`. Nothing blocking; both retunable.
+
+1. **Package names `reset-detector` + `scheduler`** are taken verbatim from
+   Suite-Architecture §3's monorepo layout. §1 says auxiliary tools get "nautical names
+   when they ship" — the bin is already `lookout`; renaming the packages themselves
+   (e.g. `lookout`/`lookout-core`) is a Captain call, one `git mv` + package.json rename
+   whenever decided.
+2. **Signal path default is repo-local `.ship/lookout/`** per Trio_Specs §C's own wording
+   ("signal files under `.ship/lookout/`"), configurable via `--state-dir`. Note the
+   divergence: Bridge packages keep their stores in the HOME `~/.ship/`; the Lookout's
+   signals are per-repo per-mission state, so repo-local fits — but if you want
+   everything under one roof, it is a one-line default change in
+   `packages/scheduler/src/config.ts`. Root `.gitignore` gained `.ship/` either way.
+
+## Package 8 (Crew, Bridge phase 4) — defaults taken, FYI only (2026-07-06)
+
+Plan: `suite-design/overnight/plans/08-crew-plan.md`. Nothing blocking; all retunable.
+
+1. **Custom presets live under `ship.crewPresets` in `.claude/settings.json`** (same object
+   as `ship.scrutiny`). Spec §7 says "plugin config" without naming a home; co-locating with
+   the scrutiny word keeps it one file and lets settings.local.json override per user. Shape:
+   `{ "roles": ["inspector"], "planGate": false, "stopGate": true }`.
+2. **Paranoid stop-gate marker is repo-local `.ship-crew/inspector-pass.json`** (session-id
+   matched, written only by the inspector on PASS). README recommends gitignoring
+   `.ship-crew/`; this repo's root .gitignore was NOT touched (no paranoid project here yet).
+   Loop-safety: the second stop attempt (`stop_hook_active`) passes with a stderr audit line —
+   enforcement is one forced continuation, not a hostage loop.
+3. **MCP registration stays per-machine** (reaffirms the package-5 default): the plugin cannot
+   portably point at workspace dist paths. Exact commands are in `plugins/crew/README.md`
+   ("Quartermaster MCP registration"); the quartermaster charter degrades honestly when tools
+   are absent. Auto-registration remains a Harbor-rail question.
