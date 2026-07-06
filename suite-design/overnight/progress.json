@@ -53,22 +53,22 @@
     {
       "id": 5,
       "title": "Bridge phase 2",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "L",
-      "remaining_guess_h": 3,
-      "updated_at": "2026-07-06T07:36:27.539Z",
-      "note": "wrap-up mode: combined plan+implement dispatch"
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T08:53:57.004Z",
+      "note": "merged, self-verified 20/20 gates + live MCP proof"
     },
     {
       "id": 6,
       "title": "Bridge phase 3",
-      "status": "pending",
-      "stage_progress": 0,
-      "difficulty": null,
+      "status": "implementing",
+      "stage_progress": 60,
+      "difficulty": "L",
       "remaining_guess_h": 4,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "updated_at": "2026-07-06T08:53:57.004Z",
+      "note": "combined dispatch, ship-inbox"
     },
     {
       "id": 7,
