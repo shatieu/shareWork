@@ -28,6 +28,12 @@ function frontmatterOf(markdown, file) {
 }
 
 describe('crew plugin phase-4 payload', () => {
+  it('agents/ contains ONLY the six role charters -- every agents/*.md becomes a dispatchable agent type (a README there turns into a bogus "README" agent, observed live in package-8 acceptance)', async () => {
+    const { readdirSync } = await import('node:fs');
+    const files = readdirSync(join(CREW_DIR, 'agents')).filter((f) => f.endsWith('.md'));
+    expect(files.sort()).toEqual(ROLES.map((r) => `${r}.md`).sort());
+  });
+
   it('ships the full Ship_Spec §7 role set with name+description frontmatter', () => {
     for (const role of ROLES) {
       const path = join(CREW_DIR, 'agents', `${role}.md`);
