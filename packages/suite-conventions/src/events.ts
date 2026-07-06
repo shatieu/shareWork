@@ -118,6 +118,40 @@ export const shipHookEventSchema = z.discriminatedUnion('event', [
   taskCompletedEventSchema,
 ]);
 
+/**
+ * The raw wire envelope (Bridge phase 1, package 4 §3.2/§0.2): what `plugins/crew/hooks/emit.mjs`
+ * actually POSTs to `/api/ship-log/events` (and appends to the spool on failure) -- one JSON
+ * object per Claude Code hook invocation, built directly from the *real* installed-CLI stdin
+ * shape (verified empirically, report `04-bridge-phase1-researcher.md` R1: snake_case field
+ * names, `hook_event_name` not `event`, no guaranteed `project`). This is a **different, lower
+ * layer than `ShipHookEvent` above** -- that union is the suite's already-normalized envelope
+ * convention (camelCase core + typed payload) that packages 5-6 consume; this one is the
+ * untouched wire shape ship-log's ingest route validates before it does any of its own
+ * normalization. Both are additive; neither replaces the other.
+ *
+ * `.looseObject()` on purpose: the CLI's hook JSON carries more fields than these and evolves
+ * across versions (R1's inventory lists 29 event names total; phase 1 only registers a subset) --
+ * unknown fields must always pass through untouched rather than fail validation.
+ */
+export const hookEventEnvelopeSchema = z.looseObject({
+  /** Envelope format version -- bump only on a breaking wire-shape change. */
+  v: z.literal(1),
+  /** Raw Claude Code hook name, e.g. 'SessionStart', 'Stop', 'SessionEnd' (R1 inventory; not
+   * every name in R1's 29-event list is registered by the Crew plugin in phase 1). */
+  hook_event_name: z.string(),
+  session_id: z.string(),
+  transcript_path: z.string().optional(),
+  cwd: z.string(),
+  /** Receiver-independent capture timestamp the emitter stamps (ISO-8601) -- distinct from any
+   * timestamp the raw payload itself may or may not carry. */
+  emitted_at: z.string(),
+  /** The full raw hook stdin JSON, forwarded verbatim -- nothing is dropped even for event names
+   * ship-log doesn't yet understand (those land in the `events_unknown` sidecar, plan §3.5). */
+  payload: z.record(z.string(), z.unknown()),
+});
+
+export type HookEventEnvelope = z.infer<typeof hookEventEnvelopeSchema>;
+
 export type PermissionRequestEvent = z.infer<typeof permissionRequestEventSchema>;
 export type NotificationEvent = z.infer<typeof notificationEventSchema>;
 export type StopEvent = z.infer<typeof stopEventSchema>;
