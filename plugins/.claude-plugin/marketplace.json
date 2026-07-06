@@ -1,0 +1,14 @@
+{
+  "name": "sharework",
+  "owner": { "name": "shareWork" },
+  "metadata": {
+    "description": "Local marketplace for the shareWork suite's Claude Code plugins (package 4: enables `claude plugin install ship-crew@sharework`). Real distribution is the Harbor rail, a later package -- this file exists so local installs work tonight (report 04-bridge-phase1-researcher.md R2 mechanism B)."
+  },
+  "plugins": [
+    {
+      "name": "ship-crew",
+      "source": "./crew",
+      "description": "The Ship's Crew plugin, phase 1: http hooks feeding ship-log's changelog capture."
+    }
+  ]
+}
