@@ -1,0 +1,51 @@
+{
+  "name": "ship-ledger",
+  "version": "0.1.0",
+  "description": "The Ship's persistent cross-project ledger (Ship_Spec §3): SQLite (WAL) item store in `~/.ship/ledger.db`, exposed as an MCP server (agents read/write) + HTTP API (UI, other services), with native Agent Teams tasks mirrored in via TaskCreated/TaskCompleted hooks -- never written back. Mounted into `ship serve` as a station; also ships its own standalone `ship-ledger` bin.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "ship-ledger": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./station": {
+      "types": "./dist/station.d.ts",
+      "import": "./dist/station.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -w -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:acceptance": "node acceptance/ledger-mcp-mirror.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "better-sqlite3": "^12.11.1",
+    "commander": "^13.1.0",
+    "fastify": "^5.9.0",
+    "suite-conventions": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.19.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.7",
+    "eslint": "^9.19.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.21.0",
+    "vitest": "^3.0.4"
+  }
+}

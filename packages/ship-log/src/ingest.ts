@@ -1,4 +1,4 @@
-import { hookEventEnvelopeSchema } from 'suite-conventions';
+import { hookEventEnvelopeSchema, type HookEventConsumer } from 'suite-conventions';
 import type { CaptureContext, CaptureEnvelope } from './capture.js';
 import { onSessionEnd, onSessionStart, onStop } from './capture.js';
 import { appendToUnknownSidecar } from './spool.js';
@@ -13,18 +13,31 @@ export class UnknownEnvelopeError extends Error {}
 
 /**
  * Validate + route one raw wire envelope (plan §3.5/§3.8) -- the single ingest path shared by
- * the HTTP route and the spool drain. Unknown event names are stored verbatim in the
- * `events_unknown` sidecar (forward-compat, nothing dropped) rather than rejected; a genuinely
- * malformed envelope throws so the caller (route -> 400, drain -> unknown sidecar) can react.
+ * the HTTP route and the spool drain. Event names another mounted station has claimed via the
+ * `hookEventConsumer` contract are delivered there (Bridge phase 2: ship-ledger takes
+ * TaskCreated/TaskCompleted -- one transport, in-process fan-out); remaining unknown event
+ * names are stored verbatim in the `events_unknown` sidecar (forward-compat, nothing dropped)
+ * rather than rejected; a genuinely malformed envelope throws so the caller (route -> 400,
+ * drain -> unknown sidecar) can react. Consumer errors propagate like ship-log's own ingest
+ * errors: the HTTP sync path answers non-2xx -> the emitter spools -> the next drain
+ * re-delivers -- a failing consumer delays a mirror event, never loses it.
  */
 export async function ingestEnvelope(
   ctx: CaptureContext,
   raw: unknown,
   homeDir?: string,
-): Promise<{ stored: 'captured' | 'unknown' }> {
+  consumers: readonly HookEventConsumer[] = [],
+): Promise<{ stored: 'captured' | 'forwarded' | 'unknown' }> {
   const parsed = hookEventEnvelopeSchema.parse(raw);
 
   if (!KNOWN_EVENTS.has(parsed.hook_event_name)) {
+    const interested = consumers.filter((c) => c.events.includes(parsed.hook_event_name));
+    if (interested.length > 0) {
+      for (const consumer of interested) {
+        await consumer.consume(parsed);
+      }
+      return { stored: 'forwarded' };
+    }
     appendToUnknownSidecar(parsed, homeDir);
     return { stored: 'unknown' };
   }

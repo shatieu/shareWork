@@ -145,14 +145,18 @@ async function phaseA() {
     const html = await (await fetch(`${base}/`, { signal: AbortSignal.timeout(3000) })).text();
     assert(html.toLowerCase().includes('<!doctype html'), 'GET / serves the Deck UI html');
 
-    // Package 4 (Bridge phase 1) mounted ship-log as a second, tab-less station -- the Deck's
-    // tab bar still only shows Chart Room's Docs tab.
+    // Package 4 (Bridge phase 1) mounted ship-log, package 5 (Bridge phase 2) ship-ledger --
+    // both tab-less; the Deck's tab bar still only shows Chart Room's Docs tab.
     const stations = await getJson(`${base}/api/hull/stations`);
     const chartroomStation = stations.find((s) => s.name === 'chartroom');
     const shipLogStation = stations.find((s) => s.name === 'ship-log');
+    const shipLedgerStation = stations.find((s) => s.name === 'ship-ledger');
     assert(
-      stations.length === 2 && chartroomStation?.tab?.id === 'docs' && shipLogStation !== undefined && shipLogStation.tab === undefined,
-      'GET /api/hull/stations lists chartroom (Docs tab) + ship-log (tab-less)',
+      stations.length === 3 &&
+        chartroomStation?.tab?.id === 'docs' &&
+        shipLogStation !== undefined && shipLogStation.tab === undefined &&
+        shipLedgerStation !== undefined && shipLedgerStation.tab === undefined,
+      'GET /api/hull/stations lists chartroom (Docs tab) + tab-less ship-log + ship-ledger',
     );
 
     const repos = await getJson(`${base}/api/repos`);

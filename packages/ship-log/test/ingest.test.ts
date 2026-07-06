@@ -68,4 +68,76 @@ describe('ingestEnvelope', () => {
       ingestEnvelope(ctx, { hook_event_name: 'SessionStart' }, fakeHome),
     ).rejects.toThrow();
   });
+
+  it('delivers a claimed event to its hookEventConsumer instead of the sidecar (fan-out)', async () => {
+    const ctx = createCaptureContext(db, fakeSummarizer);
+    const seen: string[] = [];
+    const consumer = {
+      events: ['TaskCreated', 'TaskCompleted'],
+      consume: async (envelope: { hook_event_name: string }) => {
+        seen.push(envelope.hook_event_name);
+      },
+    };
+    const result = await ingestEnvelope(
+      ctx,
+      {
+        v: 1,
+        hook_event_name: 'TaskCreated',
+        session_id: 'sess-3',
+        cwd: process.cwd(),
+        emitted_at: new Date().toISOString(),
+        payload: { task_id: '1', task_subject: 'mirror me' },
+      },
+      fakeHome,
+      [consumer],
+    );
+    expect(result.stored).toBe('forwarded');
+    expect(seen).toEqual(['TaskCreated']);
+    expect(existsSync(unknownSidecarPath(fakeHome))).toBe(false);
+  });
+
+  it('an unclaimed event still goes to the sidecar even when consumers exist (regression)', async () => {
+    const ctx = createCaptureContext(db, fakeSummarizer);
+    const consumer = { events: ['TaskCreated'], consume: async () => {} };
+    const result = await ingestEnvelope(
+      ctx,
+      {
+        v: 1,
+        hook_event_name: 'Notification',
+        session_id: 'sess-4',
+        cwd: process.cwd(),
+        emitted_at: new Date().toISOString(),
+        payload: { kind: 'idle_prompt' },
+      },
+      fakeHome,
+      [consumer],
+    );
+    expect(result.stored).toBe('unknown');
+    expect(existsSync(unknownSidecarPath(fakeHome))).toBe(true);
+  });
+
+  it('a consumer error propagates to the caller (route answers non-2xx -> emitter spools)', async () => {
+    const ctx = createCaptureContext(db, fakeSummarizer);
+    const consumer = {
+      events: ['TaskCreated'],
+      consume: async () => {
+        throw new Error('ledger db locked');
+      },
+    };
+    await expect(
+      ingestEnvelope(
+        ctx,
+        {
+          v: 1,
+          hook_event_name: 'TaskCreated',
+          session_id: 'sess-5',
+          cwd: process.cwd(),
+          emitted_at: new Date().toISOString(),
+          payload: { task_id: '2' },
+        },
+        fakeHome,
+        [consumer],
+      ),
+    ).rejects.toThrow('ledger db locked');
+  });
 });

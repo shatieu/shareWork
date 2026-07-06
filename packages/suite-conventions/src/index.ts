@@ -8,7 +8,12 @@ export {
   type ServicesFile,
 } from './services-json.js';
 
-export { type HostContext, type StationDescriptor } from './station.js';
+export {
+  HOOK_EVENT_CONSUMER_CONTRACT,
+  type HookEventConsumer,
+  type HostContext,
+  type StationDescriptor,
+} from './station.js';
 
 export { DECK_CLIENT_HEADER, isAllowedHostHeader } from './security.js';
 

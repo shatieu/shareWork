@@ -193,6 +193,9 @@ importers:
       fastify:
         specifier: ^5.9.0
         version: 5.9.0
+      ship-ledger:
+        specifier: workspace:*
+        version: link:../ship-ledger
       ship-log:
         specifier: workspace:*
         version: link:../ship-log
@@ -203,6 +206,49 @@ importers:
       '@eslint/js':
         specifier: ^9.19.0
         version: 9.39.4
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.20.0
+      eslint:
+        specifier: ^9.19.0
+        version: 9.39.4
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      typescript-eslint:
+        specifier: ^8.21.0
+        version: 8.62.1(eslint@9.39.4)(typescript@5.9.3)
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)
+
+  packages/ship-ledger:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@4.4.3)
+      better-sqlite3:
+        specifier: ^12.11.1
+        version: 12.11.1
+      commander:
+        specifier: ^13.1.0
+        version: 13.1.0
+      fastify:
+        specifier: ^5.9.0
+        version: 5.9.0
+      suite-conventions:
+        specifier: workspace:*
+        version: link:../suite-conventions
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.19.0
+        version: 9.39.4
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
       '@types/node':
         specifier: ^22.10.7
         version: 22.20.0

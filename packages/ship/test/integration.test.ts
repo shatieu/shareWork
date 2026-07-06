@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createChartroomStation } from 'chartroom/station';
+import { createShipLedgerStation } from 'ship-ledger/station';
+import { createShipLogStation } from 'ship-log/station';
 import { readServices } from 'suite-conventions';
 import { createHull } from '../src/hull.js';
 
@@ -94,5 +96,69 @@ describe('hull + real chartroom station over a temp registry (plan 03 §5 integr
     expect(unknownRepo.statusCode).toBe(404);
 
     await hull.app.close();
+  });
+
+  it('mirrors a TaskCreated/TaskCompleted pair from ship-log ingest into the ship-ledger station (Bridge phase 2 fan-out)', async () => {
+    // The full in-hull path, spec §3: emitter-shaped envelope -> POST /api/ship-log/events ->
+    // hookEventConsumer contract -> native-mirror ledger item, readable on the ledger's own API.
+    const shipLog = createShipLogStation({ homeDir: home });
+    const shipLedger = createShipLedgerStation({ homeDir: home });
+    const hull = await createHull([shipLog, shipLedger], {
+      homeDir: home,
+      uiDistDir: join(home, 'no-ui'),
+    });
+    const headers = { host: '127.0.0.1', 'x-ship-deck': '1' };
+
+    try {
+      const envelope = (event: string, extra: Record<string, unknown>) => ({
+        v: 1,
+        hook_event_name: event,
+        session_id: 'sess-mirror-1',
+        cwd: repoRoot,
+        emitted_at: new Date().toISOString(),
+        payload: { session_id: 'sess-mirror-1', task_id: '1', ...extra },
+      });
+
+      const created = await hull.app.inject({
+        method: 'POST',
+        url: '/api/ship-log/events',
+        headers,
+        payload: envelope('TaskCreated', { task_subject: 'Native task via hull' }),
+      });
+      expect(created.statusCode).toBe(202);
+      expect(created.json()).toEqual({ queued: false, stored: 'forwarded' });
+
+      const afterCreate = await hull.app.inject({
+        method: 'GET',
+        url: '/api/ship-ledger/items?source=native-mirror',
+        headers,
+      });
+      expect(afterCreate.json()).toHaveLength(1);
+      expect(afterCreate.json()[0]).toMatchObject({
+        title: 'Native task via hull',
+        status: 'open',
+        source: 'native-mirror',
+        nativeTaskId: '1',
+      });
+
+      const completed = await hull.app.inject({
+        method: 'POST',
+        url: '/api/ship-log/events',
+        headers,
+        payload: envelope('TaskCompleted', { task_subject: 'Native task via hull' }),
+      });
+      expect(completed.statusCode).toBe(202);
+
+      const afterComplete = await hull.app.inject({
+        method: 'GET',
+        url: '/api/ship-ledger/items?source=native-mirror',
+        headers,
+      });
+      expect(afterComplete.json()).toHaveLength(1);
+      expect(afterComplete.json()[0]).toMatchObject({ status: 'done', stageProgress: 100 });
+    } finally {
+      await hull.stop();
+      await hull.app.close();
+    }
   });
 });
