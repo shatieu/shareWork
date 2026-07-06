@@ -65,7 +65,12 @@ describe('POST /api/ship-log/events', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('202s immediately for a valid envelope and completes capture asynchronously', async () => {
+  it('processes SessionStart synchronously -- session row exists by the time the 202 arrives', async () => {
+    // Reviewer finding (2026-07-06): SessionStart used to be ingested AFTER the reply, so a
+    // commit landing right after the hook could be missed by the git snapshot (head_start =
+    // post-commit HEAD -> empty delta -> missing fragment). Route contract now: SessionStart/
+    // Stop are ingested before the reply ({ queued: false }); only SessionEnd's slow capture
+    // stays async ({ queued: true }).
     await boot({ summarizer: async () => ({ text: 'done', model: 'fake' }) });
     const res = await app.inject({
       method: 'POST',
@@ -74,11 +79,26 @@ describe('POST /api/ship-log/events', () => {
       payload: envelopeBody('SessionStart', 'sess-http-1', process.cwd()),
     });
     expect(res.statusCode).toBe(202);
+    expect(res.json()).toEqual({ queued: false });
+
+    // No polling: the snapshot must already be committed when the reply lands.
+    expect(getSession(station.db, 'sess-http-1')).toBeTruthy();
+  });
+
+  it('202s immediately for SessionEnd and completes capture asynchronously', async () => {
+    await boot({ summarizer: async () => ({ text: 'done', model: 'fake' }) });
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/ship-log/events',
+      headers: { [DECK_CLIENT_HEADER]: '1' },
+      payload: envelopeBody('SessionEnd', 'sess-http-2', process.cwd(), { reason: 'other' }),
+    });
+    expect(res.statusCode).toBe(202);
     expect(res.json()).toEqual({ queued: true });
 
-    // Async capture -- poll briefly for the session row to land.
+    // Async capture -- poll briefly for the (degraded, missing-SessionStart) row to land.
     await vi.waitFor(() => {
-      expect(getSession(station.db, 'sess-http-1')).toBeTruthy();
+      expect(getSession(station.db, 'sess-http-2')).toBeTruthy();
     });
   });
 

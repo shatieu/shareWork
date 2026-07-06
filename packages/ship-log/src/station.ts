@@ -55,18 +55,41 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
         if (request.headers[DECK_CLIENT_HEADER] === undefined) {
           return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
         }
-        // Validate synchronously (cheap) so a genuinely malformed envelope gets a 400 -- but the
-        // actual capture work (git delta, transcript read, up-to-60s summarizer call) must NEVER
-        // block the reply (plan §3.5: "returns 202 { queued: true } immediately; capture work
-        // runs async after the reply -- never blocks the hook's 1.5s budget").
         const parseResult = hookEventEnvelopeSchema.safeParse(request.body);
         if (!parseResult.success) {
           return reply.code(400).send({ error: parseResult.error.message });
         }
-        reply.code(202).send({ queued: true });
-        void ingestEnvelope(captureCtx, parseResult.data, homeDir).catch((err) => {
-          ctx.log(`ship-log: async ingest failed: ${(err as Error).message}`);
-        });
+        const envelope = parseResult.data;
+
+        if (envelope.hook_event_name === 'SessionEnd') {
+          // Slow path only (git delta + transcript read + up-to-60s summarizer call): reply
+          // first, capture after (plan §3.5) -- SessionEnd's correctness never depends on WHEN
+          // it runs, the session row's snapshot is already frozen.
+          reply.code(202).send({ queued: true });
+          void ingestEnvelope(captureCtx, envelope, homeDir).catch((err) => {
+            ctx.log(`ship-log: async ingest failed: ${(err as Error).message}`);
+          });
+          return;
+        }
+
+        // SessionStart/Stop (and the unknown-event sidecar) are cheap, order-critical writes:
+        // process them BEFORE the reply (reviewer finding, 2026-07-06: replying first let the
+        // session's own first commit land before the async git snapshot ran, so `head_start`
+        // recorded the post-commit HEAD -> empty delta -> silently missing fragment). The sync
+        // cost is 1-3 `git rev-parse` spawns (~ms even on huge repos -- rev-parse never scans
+        // the working tree) against emit.mjs's 700ms budget; and even a pathological overrun is
+        // safe: the emitter times out -> spools -> the next drain re-delivers, and
+        // upsertSessionStart preserves the original head_start/started_at on conflict
+        // (no clobber, no loss).
+        try {
+          await ingestEnvelope(captureCtx, envelope, homeDir);
+          return reply.code(202).send({ queued: false });
+        } catch (err) {
+          // Fail loud (non-2xx), not fail-silent: the emitter treats non-2xx as undelivered and
+          // spools the event for the next drain instead of losing it behind a lying 202.
+          ctx.log(`ship-log: ingest failed: ${(err as Error).message}`);
+          return reply.code(500).send({ error: 'ingest failed' });
+        }
       });
 
       app.get<{ Querystring: { date?: string; project?: string } }>(
