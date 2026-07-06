@@ -713,6 +713,37 @@ export class SettingsApiError extends Error {
   }
 }
 
+/* ── ship-console endpoints (absent unless the ship-console station is mounted) ──
+ * Types mirror packages/ship-console's station.ts response shapes -- duplicated locally per
+ * this file's convention. */
+
+export interface ConsoleSession {
+  sessionId: string;
+  /** Never empty: session name, else the cwd folder, else a sessionId stub. */
+  name: string;
+  repo: string | null;
+  cwd: string | null;
+  kind: string | null;
+  /** Effective state: 'busy' | 'idle' | 'blocked' | 'done' | 'running' (open set). */
+  state: string;
+  startedAt: number | null;
+}
+
+export interface ConsoleOverview {
+  /** false = the fleet could not be read; pending/rollup still arrive (degrade, never blank). */
+  available: boolean;
+  sessions: ConsoleSession[];
+  counts: { total: number; busy: number; idle: number; blocked: number; done: number };
+  pending: { permissionsPending: number; questionsOpen: number } | null;
+  rollup: { date: string; digest_md: string } | null;
+  generatedAt: string;
+}
+
+/** `GET /api/ship-console/overview` -- the Console tab's single data source. */
+export function fetchConsoleOverview(): Promise<ConsoleOverview> {
+  return getJson<ConsoleOverview>('/api/ship-console/overview');
+}
+
 function settingsQuery(project?: string): string {
   return project === undefined ? '' : `?project=${encodeURIComponent(project)}`;
 }
