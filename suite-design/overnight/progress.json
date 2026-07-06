@@ -93,12 +93,12 @@
     {
       "id": 9,
       "title": "Bridge console",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "S",
-      "remaining_guess_h": 2,
-      "updated_at": "2026-07-06T10:52:53.901Z",
-      "note": "combined dispatch, main worktree"
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T12:31:34.613Z",
+      "note": "merged; 7 stations, deck-boot green, live fleet proof"
     },
     {
       "id": 10,
@@ -113,12 +113,12 @@
     {
       "id": 11,
       "title": "Skill analytics",
-      "status": "pending",
-      "stage_progress": 0,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": null,
-      "remaining_guess_h": 3,
-      "updated_at": "2026-07-05T13:24:00+02:00",
-      "note": ""
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T12:47:30.297Z",
+      "note": "merged 8684b1c; panel mounted in Console tab; 1123 workspace tests"
     },
     {
       "id": 12,
