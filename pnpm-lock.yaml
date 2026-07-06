@@ -334,6 +334,9 @@ importers:
       settings-manager:
         specifier: workspace:*
         version: link:../settings-manager
+      ship-console:
+        specifier: workspace:*
+        version: link:../ship-console
       ship-inbox:
         specifier: workspace:*
         version: link:../ship-inbox
