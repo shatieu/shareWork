@@ -179,3 +179,7 @@ manually; not retrying repeatedly. Phase-2 (plan §10 step 8: DocEditor mount fi
 InboxPage Ask, inbox-correctness slice) remains a proposed v1.2 package per the Team Lead's own
 plan, Captain to confirm. Proceeding to package 4 (Bridge phase 1) — plan + research already staged,
 dispatching the rebase-refresh + implementation now.
+
+## Package 4 CLOSED + PAUSE checkpoint: 2026-07-06 05:50
+Bridge phase 1 PASS+merged (8b35d49): crew plugin + http hooks + ship-log + hull station; reviewer FAIL->remediation (sync ingest before 202, prod fix)->re-review PASS 3/3+76/76. Dogfooding LIVE on this repo (fragments captured on real sessions). PAUSE raised at 97%, resets 06:30Z/08:30 local.
+RESUME AFTER RESET: (1) push ship-wave1 + ship-wave1-bridge1 (pushes were permission-blocked in resurrected context - try again, else Captain); (2) dispatch package 5 (Bridge phase 2: ship-ledger hull plugin + MCP + native task mirroring, Ship_Spec 9.2) Team Lead PLANNING per charter; researcher pass as its plan requires; then implement after FO approval. (3) Queue continues per PLAN.md. Guard fixes are committed (window-key rounding + bg-ceiling env) - resurrections now once-per-window and worker-safe.

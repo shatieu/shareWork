@@ -43,12 +43,12 @@
     {
       "id": 4,
       "title": "Bridge phase 1",
-      "status": "implementing",
-      "stage_progress": 60,
+      "status": "PASS+merged",
+      "stage_progress": 100,
       "difficulty": "L",
-      "remaining_guess_h": 9,
-      "updated_at": "2026-07-06T01:58:00.000Z",
-      "note": "plan + researcher R1-R4 complete; Deck merged, sequential gate cleared; dispatching rebase-refresh + implementation now"
+      "remaining_guess_h": 0,
+      "updated_at": "2026-07-06T03:44:54.060Z",
+      "note": "merged 8b35d49 after sync-ingest remediation re-review PASS"
     },
     {
       "id": 5,
