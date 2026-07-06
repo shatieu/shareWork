@@ -390,6 +390,9 @@ importers:
       typescript-eslint:
         specifier: ^8.21.0
         version: 8.62.1(eslint@9.39.4)(typescript@5.9.3)
+      vitest:
+        specifier: ^3.0.4
+        version: 3.2.6(@types/debug@4.1.13)(@types/node@22.20.0)(jsdom@29.1.1)(lightningcss@1.32.0)
 
 packages:
 
