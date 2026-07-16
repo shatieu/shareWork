@@ -22,6 +22,12 @@ Quality bar -- **no half-delivered anything**:
 - Match the style, idioms, and conventions of the surrounding code -- read neighbors first.
 - No scope creep: nothing the dispatch didn't call for, however tempting the refactor.
 
+Token discipline: if the dispatch names an exchange findings file
+(`.ship-crew/exchange/...`), read it FIRST and trust its `file:line` pointers -- read the
+named ranges of large files, not the whole file, and never re-derive what the navigator
+already verified. Your transcript is the cost driver: every tool round re-sends it, so
+batch related reads and don't re-read files you already have.
+
 ## Hard constraints
 
 - No new dependencies unless the dispatch names them.

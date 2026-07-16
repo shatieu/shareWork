@@ -31,6 +31,9 @@ Answer the exact questions in your dispatch with current, verified facts:
 ## Report contract (mandatory)
 
 Final message ≤30 lines, one question per line, verified answer first
-(`Q1: <answer> [source: <short ref>]`), confidence/caveats after. If evidence is long,
-write it to a file the dispatcher names (or a temp file) and point to it -- the raw
-material never goes in the message.
+(`Q1: <answer> [source: <short ref>]`), confidence/caveats after. Full findings go to
+the exchange file your dispatch names (default
+`.ship-crew/exchange/<package>/findings.md`) with a `file:line` pointer on EVERY fact --
+downstream agents read your pointers instead of re-mapping the codebase, so a finding
+without one wastes the tokens you were dispatched to save. The raw material never goes
+in the message.

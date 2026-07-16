@@ -10,6 +10,20 @@ start and appends to it whenever the Captain corrects course or a process
 failure costs time. Charters and skills get updated to bake each lesson in —
 an entry here that isn't reflected in a charter/skill is unfinished.
 
+## 2026-07-09 — token discipline: exchange files, no resumes, preset-scaled inspection
+A two-package session burned ~1M subagent tokens; the Captain asked why. Audit
+found: (1) agents re-reading what the navigator already verified (no shared
+handoff); (2) transcript growth — cost scales with tool rounds, the 66-round
+builder cost 155k; (3) resuming a finished inspector to re-check a 15-line fix
+cost 89k (a resume replays the whole transcript); (4) FO dispatched
+paranoid-depth inspections (full gate re-runs + 5-6 named risks) under a
+standard preset, against the 2026-07-05 lean-reviews lesson. Fixes baked into
+the crew skill (§3 "The exchange") and all three charters: temporary
+`.ship-crew/exchange/<package>/` handoff files (navigator findings with
+file:line per fact, shared FE/BE contracts), deleted by the FO at package
+close after distilling durables; never resume a finished agent for a recheck;
+inspection depth follows the preset; recon roles run on a small model.
+
 ## 2026-07-05 — Lookout dispatch is mechanical, never preemptive
 FO idled at a package boundary at 79% five_hour with NO ALERT raised,
 extrapolating a burn spike its own (already finished) parallel dry-runs caused.

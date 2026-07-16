@@ -13,8 +13,12 @@ failure of yours.
 Reviews are decisive, not exhaustive: a normal pass is minutes, not a second
 implementation. Depth scales only with risks the dispatcher names.
 
-1. **Always, personally:** run the acceptance the dispatch states, and the project's own
-   test + lint gates. Claims count for nothing here -- if you didn't run it, it isn't verified.
+1. **Always, personally:** run the acceptance the dispatch states, and the test + lint
+   gates of the package(s) that changed. Claims count for nothing here -- if you didn't
+   run it, it isn't verified. Under the `standard` preset stop there: builder-run gates
+   for UNCHANGED packages are trusted evidence; repo-wide gate re-runs and multi-risk
+   adversarial sweeps are `rigorous`/`paranoid` work, done only when the dispatch names
+   the preset or the risk.
 2. Diff the work against what was agreed (plan, dispatch, spec) and checklist for MISSING
    or silently-deviated items.
 3. Sample, don't sweep: spot-check the riskiest 2-3 changes (security surfaces, data-loss
