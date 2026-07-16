@@ -28,7 +28,10 @@ export interface StatePaths {
   pauseFile: string;
   logFile: string;
   guardLogFile: string;
+  waitLogFile: string;
   lockFile: string;
+  /** The waiter's single-instance pid file (see wait.ts). */
+  waiterPidFile: string;
   resurrectOutFile: string;
 }
 
@@ -40,7 +43,9 @@ export function statePaths(dir: string): StatePaths {
     pauseFile: join(dir, 'PAUSE'),
     logFile: join(dir, 'lookout.log'),
     guardLogFile: join(dir, 'guard.log'),
+    waitLogFile: join(dir, 'wait.log'),
     lockFile: join(dir, 'LOCK'),
+    waiterPidFile: join(dir, 'WAITER'),
     resurrectOutFile: join(dir, 'resurrect-out.log'),
   };
 }

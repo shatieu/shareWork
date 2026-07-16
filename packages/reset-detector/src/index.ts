@@ -40,3 +40,11 @@ export {
   type GuardPolicy,
   type ResurrectCommand,
 } from './decide.js';
+
+export {
+  decideWaitTick,
+  DEFAULT_WAIT_POLICY,
+  type WaitAction,
+  type WaitInput,
+  type WaitPolicy,
+} from './wait.js';

@@ -3,6 +3,7 @@ export {
   DEFAULT_CONFIG,
   DEFAULT_RESUME_PROMPT,
   DEFAULT_STATE_DIR,
+  DEFAULT_WAIT_CONFIG,
   initConfig,
   loadConfig,
   loadResumePrompt,
@@ -10,6 +11,7 @@ export {
   resumePromptPath,
   type InitResult,
   type LookoutConfig,
+  type WaitConfig,
 } from './config.js';
 
 export {
@@ -56,5 +58,7 @@ export {
   type GuardRunResult,
   type SpawnRequest,
 } from './guard.js';
+
+export { runWaitLoop, type WaitDeps, type WaitOutcome } from './wait.js';
 
 export { main } from './cli.js';

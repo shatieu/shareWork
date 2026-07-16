@@ -10,21 +10,30 @@ import {
   resumePromptPath,
 } from './config.js';
 import { runGuardOnce } from './guard.js';
+import { runWaitLoop } from './wait.js';
 import { acquireLock, lockLiveness, readLock, releaseLock, touchLock } from './lock.js';
 import { runSensorLoop, runSensorOnce } from './sensor.js';
 import { readUsageFile, statePaths } from './state.js';
 
-const USAGE = `lookout -- the usage sensor + guard harness (Trio_Specs C)
+const USAGE = `lookout -- the usage sensor + waiter harness (Trio_Specs C)
 
 Usage:
   lookout init [--session-id <uuid>] [--mode pause|spend] [--activity-dir <dir>]...
+  lookout wait                      the waiter: spawn me as a BACKGROUND task at session
+                                    start; I watch for the usage-window renewal and my
+                                    exit output is your continue nudge
+    [--grace-minutes <n>]           idle grace after a renewal before nudging (default 10)
+    [--fresh-below-pct <n>]         pct below this reads as a fresh window (default 20)
+    [--max-hours <n>]               waiter self-expiry, asks to be respawned (default 24)
   lookout once                      one sensor poll, write signal files, exit
   lookout watch                     poll forever (the sensor process)
+  lookout lock acquire|status|heartbeat|release [--session-id <id>] [--force]
+  lookout status                    show signals, config, and lock at a glance
+
+Optional deep fallback (survives terminal death; needs per-machine registration):
   lookout guard --once              one guard check (what Task Scheduler/cron runs)
   lookout guard                     guard loop (every 120 s; prefer --once + a scheduler)
   lookout guard install --print     print the per-machine registration commands (never executes)
-  lookout lock acquire|status|heartbeat|release [--session-id <id>] [--force]
-  lookout status                    show signals, config, and lock at a glance
 
 Common flags:
   --state-dir <dir>   signal-file directory (default .ship/lookout)
@@ -46,7 +55,14 @@ function parseFlags(args: string[]): { positional: string[]; flags: Flags } {
     '--mode',
     '--activity-dir',
     '--poll-seconds',
+    '--grace-minutes',
+    '--fresh-below-pct',
+    '--max-hours',
   ]);
+  // Unknown flags are rejected, never swallowed: a typo'd waiter flag that
+  // silently ran with defaults would go unnoticed for a whole usage window
+  // (inspector finding, 2026-07-09).
+  const knownBools = new Set(['--json', '--once', '--print', '--force', '--help']);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (!arg.startsWith('--')) {
@@ -59,8 +75,10 @@ function parseFlags(args: string[]): { positional: string[]; flags: Flags } {
       const list = values.get(arg) ?? [];
       list.push(value);
       values.set(arg, list);
-    } else {
+    } else if (knownBools.has(arg)) {
       bools.add(arg);
+    } else {
+      throw new Error(`unknown flag: ${arg}`);
     }
   }
   return { positional, flags: { values, bools } };
@@ -83,10 +101,16 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
   const stateDir = resolveStateDir(one(flags, '--state-dir'));
   const json = flags.bools.has('--json');
 
+  // --help anywhere prints usage and exits -- without this, `lookout wait
+  // --help` would start the 24 h waiter loop (inspector finding, 2026-07-09).
+  if (flags.bools.has('--help')) {
+    console.log(USAGE);
+    return 0;
+  }
+
   switch (command) {
     case undefined:
-    case 'help':
-    case '--help': {
+    case 'help': {
       console.log(USAGE);
       return command === undefined ? 2 : 0;
     }
@@ -136,6 +160,35 @@ export async function main(argv: string[] = process.argv.slice(2)): Promise<numb
         mode: config.mode,
         pollSeconds: config.pollSeconds,
       });
+      return 0;
+    }
+
+    case 'wait': {
+      const config = loadConfig(stateDir);
+      // Flag overrides layer over config.wait exactly like config layers over
+      // defaults; a bad number is a usage error, not a silent default.
+      for (const [flag, field] of [
+        ['--grace-minutes', 'graceMinutes'],
+        ['--fresh-below-pct', 'freshBelowPct'],
+        ['--max-hours', 'maxHours'],
+      ] as const) {
+        const raw = one(flags, flag);
+        if (raw === undefined) continue;
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) {
+          console.error(`${flag} must be a positive number, got: ${raw}`);
+          return 2;
+        }
+        config.wait[field] = n;
+      }
+      // Nothing else may print: the waiter's exit stdout is delivered to the
+      // session that spawned it, and the outcome message must lead it.
+      const outcome = await runWaitLoop(config, stateDir);
+      console.log(outcome.message);
+      if (outcome.kind === 'refused') {
+        // The only non-zero exit: a startup refusal (another waiter alive).
+        return 1;
+      }
       return 0;
     }
 

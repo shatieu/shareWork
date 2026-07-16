@@ -4,9 +4,11 @@ import { isAbsolute, join, resolve } from 'node:path';
 import {
   DEFAULT_GUARD_POLICY,
   DEFAULT_THRESHOLDS,
+  DEFAULT_WAIT_POLICY,
   type GuardPolicy,
   type Thresholds,
   type UsageMode,
+  type WaitPolicy,
 } from 'reset-detector';
 
 /**
@@ -36,7 +38,20 @@ export interface LookoutConfig {
   /** pause = free-window economy; spend = keep working into paid extra usage. */
   mode: UsageMode;
   guard: GuardPolicy;
+  wait: WaitConfig;
 }
+
+/** The waiter's renewal/grace policy plus its loop-level self-expiry. */
+export interface WaitConfig extends WaitPolicy {
+  /**
+   * The waiter exits (asking to be respawned) after this many hours -- a
+   * background task must never be assumed immortal across a multi-day
+   * mission. Default 24.
+   */
+  maxHours: number;
+}
+
+export const DEFAULT_WAIT_CONFIG: WaitConfig = { ...DEFAULT_WAIT_POLICY, maxHours: 24 };
 
 export const DEFAULT_CONFIG: Omit<LookoutConfig, 'repoRoot'> = {
   sessionId: null,
@@ -45,6 +60,7 @@ export const DEFAULT_CONFIG: Omit<LookoutConfig, 'repoRoot'> = {
   thresholds: { ...DEFAULT_THRESHOLDS },
   mode: 'pause',
   guard: { ...DEFAULT_GUARD_POLICY },
+  wait: { ...DEFAULT_WAIT_CONFIG },
 };
 
 export function resolveStateDir(stateDir?: string, cwd: string = process.cwd()): string {
@@ -76,6 +92,7 @@ export function loadConfig(stateDir: string, cwd: string = process.cwd()): Looko
     ...raw,
     thresholds: { ...defaults.thresholds, ...(raw.thresholds ?? {}) },
     guard: { ...defaults.guard, ...(raw.guard ?? {}) },
+    wait: { ...defaults.wait, ...(raw.wait ?? {}) },
   };
 }
 
