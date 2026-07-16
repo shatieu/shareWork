@@ -31,8 +31,9 @@ export interface ClaudeSessionRouteOptions {
  * Alias for a plain user process (alias is on by default), but misses it if the daemon was
  * started with a stripped PATH -- belt-and-braces with an existsSync on the well-known alias
  * location. A user who disabled the alias correctly falls through to the cmd branch.
+ * Exported for reuse by the setup-wizard's `POST .../setup/run` terminal spawn (routes/repo-setup.ts).
  */
-function windowsTerminalAvailable(): boolean {
+export function windowsTerminalAvailable(): boolean {
   try {
     if (spawnSync('where', ['wt'], { stdio: 'ignore' }).status === 0) return true;
   } catch {
@@ -64,8 +65,12 @@ export function cleanClaudeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS
   return env;
 }
 
-/** Launch a detached terminal window running `claude` with cwd = repoAbsPath. Throws on a
- * synchronous spawn failure; the route translates that into a readable 500.
+/** Launch a detached terminal window running `argv` with cwd = `cwd`. Throws on a
+ * synchronous spawn failure; callers translate that into a readable 500.
+ *
+ * `argv` is always a fixed, server-side command line (e.g. `['claude']` or
+ * `['claude', '--agent', 'ship-crew:chaplain']`) -- never user input; the darwin/linux branches
+ * join it into a shell string, so that invariant is load-bearing.
  *
  * win32 argv shapes are researcher-R1-verified (empirical spawn matrix, spaces-in-path cases):
  * - wt branch: direct `wt.exe` spawn, `-w new` forces a fresh window regardless of the user's
@@ -74,7 +79,7 @@ export function cleanClaudeEnv(baseEnv: NodeJS.ProcessEnv = process.env): NodeJS
  *   the tab open after claude exits.
  * - cmd fallback: `start` with an explicit title (so a quoted path is never eaten as the title);
  *   spawn's `cwd:` option propagates through `cmd /c start` to the new console -- no `cd /d`.
- * - A repo path containing `;` is routed to the cmd fallback (wt treats `;` as a command
+ * - A cwd containing `;` is routed to the cmd fallback (wt treats `;` as a command
  *   delimiter; vanishingly rare, and the fallback handles it verbatim).
  */
 function launchTerminal(
@@ -82,24 +87,25 @@ function launchTerminal(
   platform: NodeJS.Platform,
   hasWt: () => boolean,
   env: NodeJS.ProcessEnv,
-  repoName: string,
-  repoAbsPath: string,
+  title: string,
+  cwd: string,
+  argv: string[],
 ): void {
   let child: ReturnType<SpawnLike>;
 
   if (platform === 'win32') {
-    if (hasWt() && !repoAbsPath.includes(';')) {
-      child = spawner('wt.exe', ['-w', 'new', '-d', repoAbsPath, 'cmd', '/k', 'claude'], {
+    if (hasWt() && !cwd.includes(';')) {
+      child = spawner('wt.exe', ['-w', 'new', '-d', cwd, 'cmd', '/k', ...argv], {
         detached: true,
         stdio: 'ignore',
         env,
       });
     } else {
-      child = spawner('cmd', ['/c', 'start', `Claude — ${repoName}`, 'cmd', '/k', 'claude'], {
+      child = spawner('cmd', ['/c', 'start', title, 'cmd', '/k', ...argv], {
         detached: true,
         stdio: 'ignore',
         env,
-        cwd: repoAbsPath,
+        cwd,
       });
     }
   } else if (platform === 'darwin') {
@@ -109,7 +115,7 @@ function launchTerminal(
     const dir = join(homedir(), '.chartroom', 'claude-launchers');
     mkdirSync(dir, { recursive: true });
     const launcher = join(dir, `claude-session-${Date.now()}-${randomBytes(4).toString('hex')}.command`);
-    writeFileSync(launcher, `#!/bin/sh\ncd "${repoAbsPath.replace(/"/g, '\\"')}" && exec claude\n`, 'utf8');
+    writeFileSync(launcher, `#!/bin/sh\ncd "${cwd.replace(/"/g, '\\"')}" && exec ${argv.join(' ')}\n`, 'utf8');
     chmodSync(launcher, 0o755);
     child = spawner('open', ['-a', 'Terminal', launcher], { detached: true, stdio: 'ignore', env });
   } else {
@@ -117,8 +123,8 @@ function launchTerminal(
     // throws/errors and the route reports it honestly rather than guessing at emulators.
     child = spawner(
       'x-terminal-emulator',
-      ['-e', `sh -c 'cd "${repoAbsPath.replace(/"/g, '\\"')}" && exec claude'`],
-      { detached: true, stdio: 'ignore', env, cwd: repoAbsPath },
+      ['-e', `sh -c 'cd "${cwd.replace(/"/g, '\\"')}" && exec ${argv.join(' ')}'`],
+      { detached: true, stdio: 'ignore', env, cwd },
     );
   }
 
@@ -126,6 +132,39 @@ function launchTerminal(
   // daemon -- swallow them; the window simply won't appear.
   child.on?.('error', () => {});
   child.unref();
+}
+
+/** Request shape of the {@link spawnTerminal} helper and of the chartroom station's
+ * `spawnTerminal` in-process contract (deck-chapel-tab plan: the sanctioned cross-station seam). */
+export interface TerminalLaunchRequest {
+  /** Fixed server-side command line to run inside the new terminal, e.g.
+   * `['claude', '--agent', 'ship-crew:chaplain']`. NEVER user input (see launchTerminal). */
+  argv: string[];
+  /** Working directory the terminal opens in (a repo root). */
+  cwd: string;
+  /** Window title used by the win32 cmd fallback (default: `argv[0]`). */
+  title?: string;
+}
+
+/** The runtime type behind `getContract('chartroom', 'spawnTerminal')` -- consumers receive the
+ * function via the hull's contract lookup, never by importing chartroom internals. */
+export type SpawnTerminalContract = (request: TerminalLaunchRequest) => void;
+
+/**
+ * Open a detached terminal running a fixed command -- the SAME per-OS spawn matrix + Claude env
+ * hygiene the claude-session route uses (no second copy, deck-chapel-tab plan). Exported so
+ * `station.ts` can offer it as the `spawnTerminal` in-process contract; `seams` exist for unit
+ * tests only and are deliberately NOT part of the contract surface.
+ */
+export function spawnTerminal(request: TerminalLaunchRequest, seams: ClaudeSessionRouteOptions = {}): void {
+  if (request.argv.length === 0) {
+    throw new Error('spawnTerminal: argv must be non-empty');
+  }
+  const spawner = seams.spawner ?? (spawn as unknown as SpawnLike);
+  const platform = seams.platform ?? process.platform;
+  const hasWt = seams.hasWindowsTerminal ?? windowsTerminalAvailable;
+  const env = cleanClaudeEnv(seams.baseEnv);
+  launchTerminal(spawner, platform, hasWt, env, request.title ?? request.argv[0], request.cwd, request.argv);
 }
 
 /**
@@ -162,7 +201,7 @@ export function registerClaudeSessionRoute(
 
     try {
       const env = cleanClaudeEnv(options.baseEnv);
-      launchTerminal(spawner, platform, hasWt, env, repo.name, repo.absPath);
+      launchTerminal(spawner, platform, hasWt, env, `Claude — ${repo.name}`, repo.absPath, ['claude']);
     } catch (err) {
       return reply.code(500).send({ error: `could not open a terminal: ${(err as Error).message}` });
     }

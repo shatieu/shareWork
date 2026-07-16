@@ -36,7 +36,7 @@ export interface StationDescriptor {
   /** Register all of this station's routes on the shared Fastify app. Called before `.listen()`;
    * `ctx.port` is not yet known here. Route-namespace convention: existing chartroom routes keep
    * `/api/repos/...` (deep-link compatibility); new stations use `/api/<station>/*`; the hull owns
-   * `/api/hull/*` and `/api/voyage*`. */
+   * `/api/hull/*`, `/api/voyage*`, and `/api/chapel*`. */
   registerRoutes(app: FastifyInstance, ctx: HostContext): void | Promise<void>;
   /** Post-listen startup: watchers, discovery-file writes (`ctx.port` is defined). */
   start?(ctx: HostContext): void | Promise<void>;

@@ -1,0 +1,356 @@
+/* ── Chapel (Chaplain brief · dossiers · confession) ─────────────────
+   Same brass instrument-panel grammar as the Voyage view; all colors and
+   type come from base.css tokens. Layout: brief pane left, dossier list
+   + confession box in a right rail. */
+
+.chapel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 4px 8px 40px;
+}
+
+.chapel__head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.chapel__title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.chapel__updated {
+  color: var(--ink-55);
+  font-size: 10.5px;
+}
+
+.chapel__spacer {
+  flex: 1;
+}
+
+.chapel__session-btn {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-bright);
+  background: none;
+  border: 1px solid var(--brass-mid);
+  border-radius: var(--radius);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.chapel__session-btn:hover:not(:disabled) {
+  background: rgba(201, 162, 78, 0.1);
+}
+
+.chapel__session-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chapel__session-note {
+  margin: -6px 0 12px;
+  color: var(--rust-bright);
+  font-size: 11px;
+}
+
+.chapel__body {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.chapel__rail {
+  flex: 0 0 320px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 860px) {
+  .chapel__body {
+    flex-direction: column;
+  }
+
+  .chapel__rail {
+    flex: none;
+    width: 100%;
+  }
+}
+
+.chapel__section-title {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.chapel__loading,
+.chapel__empty {
+  color: var(--ink-55);
+  font-size: 12px;
+  margin: 0;
+}
+
+.chapel__error {
+  color: var(--rust-bright);
+  font-size: 12px;
+  margin: 0 0 8px;
+}
+
+/* ── brief pane ─────────────────────────────────────────────────────── */
+
+.chapel-brief {
+  flex: 1;
+  min-width: 0;
+  background: var(--panel-grad);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--panel-shadow);
+  padding: 14px 16px;
+}
+
+.chapel-brief__empty {
+  padding: 18px 4px;
+}
+
+.chapel-brief__empty-title {
+  margin: 0 0 6px;
+  color: var(--ink-75);
+  font-size: 13px;
+}
+
+.chapel-brief__empty-hint {
+  margin: 0;
+  color: var(--ink-45);
+  font-size: 11px;
+}
+
+/* ── markdown (brief + dossier bodies) ──────────────────────────────── */
+
+.chapel-md {
+  color: var(--ink-85);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.chapel-md h1,
+.chapel-md h2,
+.chapel-md h3,
+.chapel-md h4 {
+  color: var(--brass-bright);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+.chapel-md h1 {
+  font-size: 14px;
+}
+
+.chapel-md h2 {
+  font-size: 13px;
+}
+
+.chapel-md h3,
+.chapel-md h4 {
+  font-size: 12px;
+}
+
+.chapel-md a {
+  color: var(--brass-bright);
+}
+
+.chapel-md code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--well);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+
+.chapel-md pre {
+  background: var(--well);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+
+.chapel-md pre code {
+  background: none;
+  padding: 0;
+}
+
+.chapel-md blockquote {
+  margin: 8px 0;
+  padding: 2px 12px;
+  border-left: 2px solid var(--brass-dark);
+  color: var(--ink-65);
+}
+
+.chapel-md table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+
+.chapel-md th,
+.chapel-md td {
+  border: 1px solid var(--panel-line);
+  padding: 4px 8px;
+}
+
+/* ── dossiers ───────────────────────────────────────────────────────── */
+
+.chapel-dossiers,
+.chapel-confess {
+  background: var(--panel-grad);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  box-shadow: var(--panel-shadow);
+  padding: 12px 14px;
+}
+
+.chapel-dossier-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chapel-dossier-list__item {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  color: var(--ink-85);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chapel-dossier-list__item:hover {
+  border-color: var(--brass-dark);
+  background: rgba(201, 162, 78, 0.06);
+}
+
+.chapel-dossier-list__id {
+  font-family: var(--font-mono);
+  color: var(--brass-bright);
+}
+
+.chapel-dossier-list__updated {
+  margin-left: auto;
+  color: var(--ink-45);
+  font-size: 10px;
+}
+
+.chapel-dossier__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.chapel-dossier__back {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--brass);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chapel-dossier__back:hover {
+  color: var(--brass-bright);
+}
+
+.chapel-dossier__id {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--brass-bright);
+}
+
+.chapel-dossier__updated {
+  margin-left: auto;
+  color: var(--ink-45);
+  font-size: 10px;
+}
+
+/* ── confession box ─────────────────────────────────────────────────── */
+
+.chapel-confess__text {
+  width: 100%;
+  resize: vertical;
+  background: var(--well);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 8px 10px;
+}
+
+.chapel-confess__text::placeholder {
+  color: var(--ink-40);
+}
+
+.chapel-confess__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chapel-confess__project {
+  flex: 1;
+  min-width: 0;
+  background: var(--well);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  color: var(--ink-85);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
+.chapel-confess__submit {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-bright);
+  background: none;
+  border: 1px solid var(--brass-mid);
+  border-radius: var(--radius);
+  padding: 5px 14px;
+  cursor: pointer;
+}
+
+.chapel-confess__submit:hover:not(:disabled) {
+  background: rgba(201, 162, 78, 0.1);
+}
+
+.chapel-confess__submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

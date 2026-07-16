@@ -10,6 +10,7 @@ import {
   type HostContext,
   type StationDescriptor,
 } from 'suite-conventions';
+import { createChapelBackend } from './chapel.js';
 import { createVoyageBackend, type VoyageBackend } from './voyage.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -23,8 +24,12 @@ export interface HullOptions {
   /** Absolute path to a voyage `progress.json`. Absent = Voyage disabled (`/api/voyage` 404s and
    * the Deck hides the tab). */
   voyageFile?: string;
-  /** Home-directory override for `~/.suite/services.json` -- tests never touch the real home. */
+  /** Home-directory override for `~/.suite/services.json` AND the Chapel state dir
+   * `~/.ship/chaplain` -- tests never touch the real home. */
   homeDir?: string;
+  /** Working directory the Chapel's Chaplain session terminal opens in (default `process.cwd()`,
+   * which is the repo `ship serve` was started from). */
+  repoRoot?: string;
   /** Log sink (default console.log). */
   log?: (line: string) => void;
 }
@@ -55,7 +60,9 @@ export interface Hull {
  * 2. Deck UI static at `/` (skip-if-absent, same pattern as chartroom).
  * 3. `GET /api/hull/stations` -> `[{ name, tab }]` -- the Deck builds its tab bar from this.
  * 4. Voyage routes (`/api/voyage`, `/api/voyage/events`) when a voyage file is configured.
- * 5. Every station's `registerRoutes` (mount order = array order). Duplicate Deck tab ids are a
+ * 5. Chapel routes (`/api/chapel/*`) -- ALWAYS registered (confessions must work before the first
+ *    chaplain session ever runs); every chapel route requires the x-ship-deck header.
+ * 6. Every station's `registerRoutes` (mount order = array order). Duplicate Deck tab ids are a
  *    boot error -- two stations silently sharing a tab is a bug, not a preference.
  */
 export async function createHull(stations: StationDescriptor[], options: HullOptions = {}): Promise<Hull> {
@@ -109,6 +116,12 @@ export async function createHull(stations: StationDescriptor[], options: HullOpt
     },
     log: (line: string) => log(line),
   });
+
+  // Chapel (deck-chapel-tab plan): unconditional, unlike Voyage -- missing state files are
+  // 200-with-null, and /api/chapel/session resolves the chartroom spawnTerminal contract lazily
+  // per request (501 when the station isn't mounted).
+  const chapel = createChapelBackend({ homeDir: options.homeDir, repoRoot: options.repoRoot });
+  chapel.register(app, contextFor(undefined));
 
   for (const station of stations) {
     await station.registerRoutes(app, contextFor(undefined));
