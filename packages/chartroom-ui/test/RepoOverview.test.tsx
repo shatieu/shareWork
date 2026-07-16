@@ -32,6 +32,7 @@ function renderOverview(overrides: Partial<RepoOverviewProps> = {}): RepoOvervie
     onSelect: vi.fn(),
     onAddRepo: vi.fn(),
     onOpenClaude: vi.fn(),
+    onSetup: vi.fn(),
     claudeBusyRepoId: null,
     ...overrides,
   };
@@ -75,5 +76,11 @@ describe('RepoOverview', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Claude session in alpha' }));
     expect(props.onOpenClaude).toHaveBeenCalledExactlyOnceWith('repo-a');
     expect(screen.getByRole('button', { name: 'Open Claude session in bravo' })).toBeDisabled();
+  });
+
+  it('per-card "Set up" action launches the wizard for an already-registered repo', () => {
+    const props = renderOverview();
+    fireEvent.click(screen.getByRole('button', { name: 'Set up bravo' }));
+    expect(props.onSetup).toHaveBeenCalledExactlyOnceWith('repo-b');
   });
 });

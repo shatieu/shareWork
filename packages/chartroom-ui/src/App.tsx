@@ -8,6 +8,7 @@ import {
   type ReactElement,
 } from 'react';
 import {
+  fetchChapelBrief,
   fetchDoc,
   fetchDocs,
   fetchHullStations,
@@ -30,15 +31,18 @@ import { ConsolePage } from './console/ConsolePage.js';
 import { InboxPage } from './inbox/InboxPage.js';
 import { ShipInboxPage } from './shipinbox/ShipInboxPage.js';
 import { SettingsPage } from './settings/SettingsPage.js';
+import { useSetupWizard } from './setup/useSetupWizard.js';
 import { VoyagePage } from './voyage/VoyagePage.js';
+import { ChapelPage } from './chapel/ChapelPage.js';
 
 export const REGISTER_COMMAND = 'chartroom register <path>';
 
 const DOCS_TAB: DeckTab = { id: 'docs', title: 'Docs' };
 const VOYAGE_TAB: DeckTab = { id: 'voyage', title: 'Voyage' };
+const CHAPEL_TAB: DeckTab = { id: 'chapel', title: 'Chapel' };
 
 interface DeckRoute {
-  tab: 'docs' | 'voyage' | 'settings' | 'console';
+  tab: 'docs' | 'voyage' | 'chapel' | 'settings' | 'console';
   repoId?: string;
   /** doc route key: `id ?? path` (the daemon accepts either on every doc endpoint). */
   docKey?: string;
@@ -49,10 +53,11 @@ interface DeckRoute {
 // Hash-based navigation, no router dependency -- the hash fragment never reaches the server, so
 // @fastify/static's default "serve index.html for `/`" behavior already handles deep-link
 // refreshes with zero SPA-fallback config on the daemon side. Existing `#/repo/...` and
-// `#/inbox` deep links keep working unchanged; `#/voyage` is the only new route.
+// `#/inbox` deep links keep working unchanged; `#/voyage` and `#/chapel` are the only added routes.
 const DOC_ROUTE_RE = /^#\/repo\/([^/]+)(?:\/doc\/([^/]+))?$/;
 const INBOX_ROUTE = '#/inbox';
 const VOYAGE_ROUTE = '#/voyage';
+const CHAPEL_ROUTE = '#/chapel';
 const SETTINGS_ROUTE = '#/settings';
 const CONSOLE_ROUTE = '#/console';
 
@@ -69,6 +74,7 @@ function getHashSnapshot(): string {
  * goes through here. */
 function parseHash(hash: string): DeckRoute {
   if (hash === VOYAGE_ROUTE) return { tab: 'voyage' };
+  if (hash === CHAPEL_ROUTE) return { tab: 'chapel' };
   if (hash === SETTINGS_ROUTE) return { tab: 'settings' };
   if (hash === CONSOLE_ROUTE) return { tab: 'console' };
   if (hash === INBOX_ROUTE) return { tab: 'docs', isInbox: true };
@@ -157,13 +163,22 @@ export default function App(): ReactElement {
           .filter((tab): tab is DeckTab => tab !== undefined && tab !== null);
         const withDocs = stationTabs.some((tab) => tab.id === DOCS_TAB.id) ? stationTabs : [DOCS_TAB, ...stationTabs];
         if (!cancelled) setTabs(withDocs);
-        // Voyage tab only when the hull actually serves voyage data (404 = not configured).
-        return fetchVoyage().then(
-          () => {
-            if (!cancelled) setTabs([...withDocs, VOYAGE_TAB]);
-          },
-          () => undefined,
-        );
+        // Voyage tab only when the hull actually serves voyage data (404 = not configured);
+        // Chapel tab when the brief probe resolves (its routes are always registered under a
+        // hull -- 200 even before the first brief exists -- so resolving == hull present).
+        return Promise.all([
+          fetchVoyage().then(
+            () => VOYAGE_TAB,
+            () => null,
+          ),
+          fetchChapelBrief().then(
+            () => CHAPEL_TAB,
+            () => null,
+          ),
+        ]).then((probed) => {
+          const extraTabs = probed.filter((tab): tab is DeckTab => tab !== null);
+          if (!cancelled && extraTabs.length > 0) setTabs([...withDocs, ...extraTabs]);
+        });
       })
       .catch(() => {
         /* no hull (plain chartroom serve) -- keep the Docs-only default */
@@ -179,6 +194,10 @@ export default function App(): ReactElement {
         window.location.hash = VOYAGE_ROUTE;
         return;
       }
+      if (tabId === 'chapel') {
+        window.location.hash = CHAPEL_ROUTE;
+        return;
+      }
       if (tabId === 'settings') {
         window.location.hash = SETTINGS_ROUTE;
         return;
@@ -192,7 +211,7 @@ export default function App(): ReactElement {
         return;
       }
       const last = lastDocsHashRef.current;
-      if (last && last !== VOYAGE_ROUTE && last !== INBOX_ROUTE) {
+      if (last && last !== VOYAGE_ROUTE && last !== CHAPEL_ROUTE && last !== INBOX_ROUTE) {
         window.location.hash = last;
       } else {
         // No remembered doc: land on the repos overview (the bare `#/` route).
@@ -312,6 +331,17 @@ export default function App(): ReactElement {
     [repos, showToast],
   );
 
+  /* ── setup wizard (AddRepoModal success pane + RepoOverview per-card "Set up") ── */
+
+  const { open: openSetupWizard, modal: setupWizardModal } = useSetupWizard();
+
+  const handleOpenSetup = useCallback(
+    (repoId: string, repoName?: string) => {
+      openSetupWizard({ id: repoId, name: repoName ?? repos?.find((r) => r.id === repoId)?.name ?? repoId });
+    },
+    [openSetupWizard, repos],
+  );
+
   /* ── add-repo modal (repo-tree `+ add` button + empty-state CTA) ── */
 
   const handleRepoRegistered = useCallback(
@@ -367,6 +397,8 @@ export default function App(): ReactElement {
       <nav className="chrome__crumbs" aria-label="Breadcrumbs">
         {route.tab === 'voyage' ? (
           <span className="crumb crumb--active">voyage</span>
+        ) : route.tab === 'chapel' ? (
+          <span className="crumb crumb--active">chapel</span>
         ) : route.tab === 'settings' ? (
           <span className="crumb crumb--active">settings</span>
         ) : route.tab === 'console' ? (
@@ -482,6 +514,7 @@ export default function App(): ReactElement {
         onSelect={(repoId) => navigateTo(repoId)}
         onAddRepo={() => setAddRepoOpen(true)}
         onOpenClaude={handleOpenClaude}
+        onSetup={handleOpenSetup}
         claudeBusyRepoId={claudeBusyRepoId}
       />
     );
@@ -496,6 +529,8 @@ export default function App(): ReactElement {
       <div className="app-shell__body">
         {route.tab === 'voyage' ? (
           <VoyagePage />
+        ) : route.tab === 'chapel' ? (
+          <ChapelPage />
         ) : route.tab === 'settings' ? (
           <SettingsPage />
         ) : route.tab === 'console' ? (
@@ -564,7 +599,17 @@ export default function App(): ReactElement {
           </>
         )}
       </div>
-      {addRepoOpen && <AddRepoModal onClose={() => setAddRepoOpen(false)} onRegistered={handleRepoRegistered} />}
+      {addRepoOpen && (
+        <AddRepoModal
+          onClose={() => setAddRepoOpen(false)}
+          onRegistered={handleRepoRegistered}
+          onSetup={(repo) => {
+            setAddRepoOpen(false);
+            handleOpenSetup(repo.id, repo.name);
+          }}
+        />
+      )}
+      {setupWizardModal}
       {error && (
         <p className="app-shell__error" role="alert">
           {error}

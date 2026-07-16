@@ -6,6 +6,9 @@ export interface RepoOverviewProps {
   onSelect: (repoId: string) => void;
   onAddRepo: () => void;
   onOpenClaude: (repoId: string) => void;
+  /** Per-card "Set up" action -- opens the setup wizard for an ALREADY-registered repo
+   * (Captain directive: already-registered repos are first-class wizard entry points). */
+  onSetup: (repoId: string) => void;
   claudeBusyRepoId: string | null;
 }
 
@@ -20,6 +23,7 @@ export function RepoOverview({
   onSelect,
   onAddRepo,
   onOpenClaude,
+  onSetup,
   claudeBusyRepoId,
 }: RepoOverviewProps): ReactElement {
   return (
@@ -76,6 +80,15 @@ export function RepoOverview({
                 title="Open Claude session in this repo"
               >
                 {busy ? '…' : '❯_'}
+              </button>
+              <button
+                type="button"
+                className="tree-repo-row__claude repo-card__claude repo-card__setup"
+                onClick={() => onSetup(repo.id)}
+                aria-label={`Set up ${repo.name}`}
+                title="Set up this repo (chartroom onboarding wizard)"
+              >
+                ⚙
               </button>
             </li>
           );

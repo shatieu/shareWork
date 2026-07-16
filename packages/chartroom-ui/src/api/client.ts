@@ -388,6 +388,126 @@ export async function registerRepoRequest(path: string): Promise<RegisterRepoRes
   return (await response.json()) as RegisterRepoResult;
 }
 
+/* ── fs-browse + repo-setup endpoints (deck-onboarding-wizard plan) ──
+ * Types mirror the plan's API contract (chartroom station routes, all CSRF-guarded via the
+ * deck header) -- duplicated locally per this file's convention. */
+
+/** Shared `{error}`-body reader for the setup/fs (and chapel) routes -- same convention as
+ * register. */
+async function setupErrorFrom(response: Response, fallback: string): Promise<Error> {
+  let message = fallback;
+  const text = await response.text().catch(() => '');
+  if (text) {
+    try {
+      const body = JSON.parse(text) as { error?: string };
+      if (typeof body.error === 'string' && body.error) message = body.error;
+      else message = text;
+    } catch {
+      message = text;
+    }
+  }
+  return new Error(message);
+}
+
+export interface FsEntry {
+  name: string;
+  path: string;
+  isGitRepo: boolean;
+}
+
+export interface FsListResponse {
+  /** Absolute path listed, or null on the roots view (no `path` param). */
+  path: string | null;
+  /** Parent directory, or null at a root / on the roots view. */
+  parent: string | null;
+  /** Directories only (server-side hardening: dot-dirs and node_modules skipped). */
+  entries: FsEntry[];
+}
+
+/** `GET /api/fs/list?path=<abs>` -- the folder picker's directory browser. Empty/absent path →
+ * roots (win32: drive letters; else home + `/`). 404 unreadable path, 403 missing deck header
+ * (the header rides even this GET -- the whole route family is deck-header-guarded). */
+export async function fsListRequest(path?: string): Promise<FsListResponse> {
+  const url = path === undefined || path === '' ? '/api/fs/list' : `/api/fs/list?path=${encodeURIComponent(path)}`;
+  const response = await fetch(url, { headers: { [DECK_CLIENT_HEADER]: '1' } });
+  if (!response.ok) {
+    throw await setupErrorFrom(response, `chartroom-ui: fs list failed with status ${response.status}`);
+  }
+  return (await response.json()) as FsListResponse;
+}
+
+export type RepoSetupItemState = 'present' | 'missing' | 'partial';
+export type RepoSetupItemKind = 'auto' | 'human';
+
+export interface RepoSetupItem {
+  id: string;
+  label: string;
+  state: RepoSetupItemState;
+  kind: RepoSetupItemKind;
+  detail: string;
+  /** Human items only: the terminal command the human runs (server-generated). */
+  command?: string;
+}
+
+export interface RepoSetupAuditResponse {
+  repoId: string;
+  items: RepoSetupItem[];
+}
+
+/** `GET /api/repos/:id/setup` -- the wizard's audit leg. Read-only, no mutation. */
+export async function repoSetupAudit(repoId: string): Promise<RepoSetupAuditResponse> {
+  const response = await fetch(`/api/repos/${encodeURIComponent(repoId)}/setup`, {
+    headers: { [DECK_CLIENT_HEADER]: '1' },
+  });
+  if (!response.ok) {
+    throw await setupErrorFrom(response, `chartroom-ui: setup audit failed with status ${response.status}`);
+  }
+  return (await response.json()) as RepoSetupAuditResponse;
+}
+
+export interface RepoSetupApplyResult {
+  id: string;
+  ok: boolean;
+  detail: string;
+}
+
+export interface RepoSetupApplyResponse {
+  results: RepoSetupApplyResult[];
+}
+
+/** `POST /api/repos/:id/setup` `{ apply: [itemIds] }` -- applies the selected AUTO items
+ * idempotently; per-item ok/fail results (one failure never hides the others). Human item ids
+ * in `apply` → 400 with a readable `{error}` body. */
+export async function repoSetupApply(repoId: string, ids: string[]): Promise<RepoSetupApplyResponse> {
+  const response = await fetch(`/api/repos/${encodeURIComponent(repoId)}/setup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    body: JSON.stringify({ apply: ids }),
+  });
+  if (!response.ok) {
+    throw await setupErrorFrom(response, `chartroom-ui: setup apply failed with status ${response.status}`);
+  }
+  return (await response.json()) as RepoSetupApplyResponse;
+}
+
+export interface RepoSetupRunResponse {
+  ok: true;
+}
+
+/** `POST /api/repos/:id/setup/run` `{ itemId }` -- spawns a detached terminal running that HUMAN
+ * item's server-generated command (never a client-supplied string). */
+export async function repoSetupRun(repoId: string, itemId: string): Promise<RepoSetupRunResponse> {
+  const response = await fetch(`/api/repos/${encodeURIComponent(repoId)}/setup/run`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    body: JSON.stringify({ itemId }),
+  });
+  if (!response.ok) {
+    throw await setupErrorFrom(response, `chartroom-ui: setup run failed with status ${response.status}`);
+  }
+  return (await response.json()) as RepoSetupRunResponse;
+}
+
 /* ── Captain's Deck hull endpoints (absent under standalone `chartroom serve`) ── */
 
 export interface HullStationTab {
@@ -436,6 +556,112 @@ export interface VoyageResponse {
  * shell hides the Voyage tab). Live updates ride `GET /api/voyage/events` (SSE). */
 export function fetchVoyage(): Promise<VoyageResponse> {
   return getJson<VoyageResponse>('/api/voyage');
+}
+
+/* ── chapel endpoints (hull-owned, like voyage; deck-chapel-tab plan) ──
+ * The /api/chapel routes are ALWAYS registered under a hull (confessions must work before the
+ * first chaplain session ever runs; missing files are 200-with-null, not 404), so the brief
+ * probe resolving == a hull is present. Every chapel call carries the deck header, GETs
+ * included, matching the setup-wizard route-family convention. */
+
+/** Typed error for chapel calls -- carries the HTTP status so the UI can branch on the session
+ * route's 501 (no spawn contract mounted) without string-matching the message. */
+export class ChapelApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ChapelApiError';
+    this.status = status;
+  }
+}
+
+async function chapelErrorFrom(response: Response, fallback: string): Promise<ChapelApiError> {
+  const parsed = await setupErrorFrom(response, fallback);
+  return new ChapelApiError(parsed.message, response.status);
+}
+
+async function getChapel<T>(url: string, fallback: string): Promise<T> {
+  const response = await fetch(url, { headers: { [DECK_CLIENT_HEADER]: '1' } });
+  if (!response.ok) {
+    throw await chapelErrorFrom(response, fallback);
+  }
+  return (await response.json()) as T;
+}
+
+export interface ChapelBrief {
+  /** The Chaplain's standing brief (markdown), or null until he first writes one. */
+  brief: string | null;
+  updatedAt: string | null;
+}
+
+/** `GET /api/chapel/brief` -- 200 even before the first brief exists (`{brief: null}`). */
+export function fetchChapelBrief(): Promise<ChapelBrief> {
+  return getChapel<ChapelBrief>('/api/chapel/brief', 'chartroom-ui: chapel brief fetch failed');
+}
+
+export interface ChapelProjectSummary {
+  id: string;
+  updatedAt: string;
+}
+
+export interface ChapelProjectsResponse {
+  projects: ChapelProjectSummary[];
+}
+
+/** `GET /api/chapel/projects` -- the Chaplain's dossier files, ids + timestamps only. */
+export function fetchChapelProjects(): Promise<ChapelProjectsResponse> {
+  return getChapel<ChapelProjectsResponse>('/api/chapel/projects', 'chartroom-ui: chapel projects fetch failed');
+}
+
+export interface ChapelProjectDetail {
+  id: string;
+  /** Dossier body (markdown). */
+  content: string;
+  updatedAt: string;
+}
+
+/** `GET /api/chapel/projects/:id` -- one dossier's content; 404 for an unknown id. */
+export function fetchChapelProject(id: string): Promise<ChapelProjectDetail> {
+  return getChapel<ChapelProjectDetail>(
+    `/api/chapel/projects/${encodeURIComponent(id)}`,
+    `chartroom-ui: chapel dossier ${id} fetch failed`,
+  );
+}
+
+export interface ChapelConfessResponse {
+  ok: true;
+}
+
+/** `POST /api/chapel/confess` `{ text, project? }` -- drops a confession into the Chaplain's
+ * inbox (written verbatim server-side). 400 with a readable `{error}` body on empty text. */
+export async function chapelConfess(text: string, project?: string): Promise<ChapelConfessResponse> {
+  const response = await fetch('/api/chapel/confess', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    body: JSON.stringify(project === undefined ? { text } : { text, project }),
+  });
+  if (!response.ok) {
+    throw await chapelErrorFrom(response, 'chartroom-ui: confession failed');
+  }
+  return (await response.json()) as ChapelConfessResponse;
+}
+
+export interface ChapelSessionResponse {
+  ok: true;
+}
+
+/** `POST /api/chapel/session` -- spawns a detached terminal running the chaplain agent (fixed
+ * argv server-side). 501 with a readable `{error}` message when the hull has no spawn contract. */
+export async function chapelOpenSession(): Promise<ChapelSessionResponse> {
+  const response = await fetch('/api/chapel/session', {
+    method: 'POST',
+    headers: { [DECK_CLIENT_HEADER]: '1' },
+  });
+  if (!response.ok) {
+    throw await chapelErrorFrom(response, 'chartroom-ui: chaplain session failed');
+  }
+  return (await response.json()) as ChapelSessionResponse;
 }
 
 export interface UploadAssetResponse {

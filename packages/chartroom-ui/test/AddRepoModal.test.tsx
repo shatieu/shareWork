@@ -1,15 +1,16 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { registerRepoRequest, type RegisterRepoResult } from '../src/api/client.js';
+import { fsListRequest, registerRepoRequest, type RegisterRepoResult } from '../src/api/client.js';
 import { AddRepoModal } from '../src/components/AddRepoModal.js';
 
 vi.mock('../src/api/client.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/api/client.js')>();
-  return { ...actual, registerRepoRequest: vi.fn() };
+  return { ...actual, registerRepoRequest: vi.fn(), fsListRequest: vi.fn() };
 });
 
 const mockRegister = vi.mocked(registerRepoRequest);
+const mockFsList = vi.mocked(fsListRequest);
 
 const registeredAlpha: RegisterRepoResult = {
   id: 'alpha',
@@ -20,11 +21,13 @@ const registeredAlpha: RegisterRepoResult = {
 
 let onClose: ReturnType<typeof vi.fn>;
 let onRegistered: ReturnType<typeof vi.fn>;
+let onSetup: ReturnType<typeof vi.fn>;
 
 function renderModal(): void {
   onClose = vi.fn();
   onRegistered = vi.fn();
-  render(<AddRepoModal onClose={onClose} onRegistered={onRegistered} />);
+  onSetup = vi.fn();
+  render(<AddRepoModal onClose={onClose} onRegistered={onRegistered} onSetup={onSetup} />);
 }
 
 function pathInput(): HTMLElement {
@@ -135,6 +138,48 @@ describe('AddRepoModal', () => {
     fireEvent.click(submitButton());
     fireEvent.click(await screen.findByRole('button', { name: 'Done' }));
     expect(onClose).toHaveBeenCalledTimes(4);
+  });
+
+  it('the success pane\'s "Set up this repo" hands the registered repo to onSetup', async () => {
+    mockRegister.mockResolvedValue(registeredAlpha);
+    renderModal();
+
+    fireEvent.change(pathInput(), { target: { value: 'C:/repos/alpha' } });
+    fireEvent.click(submitButton());
+    fireEvent.click(await screen.findByRole('button', { name: 'Set up this repo' }));
+
+    expect(onSetup).toHaveBeenCalledExactlyOnceWith(registeredAlpha);
+  });
+
+  it('browse… opens the folder picker; selecting a folder fills the path input', async () => {
+    mockFsList.mockResolvedValue({
+      path: 'C:\\repos',
+      parent: 'C:\\',
+      entries: [{ name: 'alpha', path: 'C:\\repos\\alpha', isGitRepo: true }],
+    });
+    renderModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'browse…' }));
+    expect(await screen.findByRole('dialog', { name: 'Pick a folder' })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'alpha' }));
+    fireEvent.click(screen.getByRole('button', { name: 'select' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Pick a folder' })).not.toBeInTheDocument();
+    expect(pathInput()).toHaveValue('C:\\repos\\alpha');
+  });
+
+  it('Esc with the picker open closes only the picker, not the Add-repo modal', async () => {
+    mockFsList.mockResolvedValue({ path: null, parent: null, entries: [] });
+    renderModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'browse…' }));
+    await screen.findByRole('dialog', { name: 'Pick a folder' });
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Pick a folder' })).not.toBeInTheDocument());
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog', { name: 'Add a repo' })).toBeInTheDocument();
   });
 
   it('"add another…" resets to a blank input form', async () => {

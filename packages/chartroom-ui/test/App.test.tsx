@@ -3,6 +3,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App.js';
 import {
+  fetchChapelBrief,
+  fetchChapelProjects,
   fetchConsoleOverview,
   fetchDoc,
   fetchDocs,
@@ -26,6 +28,8 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
     fetchInbox: vi.fn(),
     fetchHullStations: vi.fn(),
     fetchVoyage: vi.fn(),
+    fetchChapelBrief: vi.fn(),
+    fetchChapelProjects: vi.fn(),
     fetchConsoleOverview: vi.fn(),
     openClaudeSession: vi.fn(),
     registerRepoRequest: vi.fn(),
@@ -39,6 +43,8 @@ const mocks = {
   fetchInbox: vi.mocked(fetchInbox),
   fetchHullStations: vi.mocked(fetchHullStations),
   fetchVoyage: vi.mocked(fetchVoyage),
+  fetchChapelBrief: vi.mocked(fetchChapelBrief),
+  fetchChapelProjects: vi.mocked(fetchChapelProjects),
   fetchConsoleOverview: vi.mocked(fetchConsoleOverview),
   openClaudeSession: vi.mocked(openClaudeSession),
   registerRepoRequest: vi.mocked(registerRepoRequest),
@@ -78,6 +84,8 @@ beforeEach(() => {
   mocks.fetchInbox.mockResolvedValue([]);
   mocks.fetchHullStations.mockRejectedValue(new Error('no hull (standalone chartroom serve)'));
   mocks.fetchVoyage.mockRejectedValue(new Error('404'));
+  mocks.fetchChapelBrief.mockRejectedValue(new Error('no hull (standalone chartroom serve)'));
+  mocks.fetchChapelProjects.mockRejectedValue(new Error('no hull (standalone chartroom serve)'));
   mocks.fetchConsoleOverview.mockRejectedValue(new Error('404 (no ship-console station)'));
   mocks.openClaudeSession.mockResolvedValue({ ok: true });
 });
@@ -145,6 +153,49 @@ describe('Deck shell tabs', () => {
     expect(window.location.hash).toBe('#/console');
     expect(await screen.findByRole('heading', { name: 'Console' })).toBeInTheDocument();
     expect(await screen.findByText('auth refactor')).toBeInTheDocument();
+  });
+
+  it('hull mode with chapel routes: Chapel tab appended when the brief probe resolves; selecting it routes to #/chapel', async () => {
+    mocks.fetchHullStations.mockResolvedValue([{ name: 'chartroom', tab: { id: 'docs', title: 'Docs' } }]);
+    // null brief is still a 200 -- the tab must appear before the Chaplain ever writes one
+    mocks.fetchChapelBrief.mockResolvedValue({ brief: null, updatedAt: null });
+    mocks.fetchChapelProjects.mockResolvedValue({ projects: [] });
+    render(<App />);
+    const chapelTab = await screen.findByRole('tab', { name: 'Chapel' });
+    fireEvent.click(chapelTab);
+    expect(window.location.hash).toBe('#/chapel');
+    expect(await screen.findByRole('heading', { name: 'Chapel' })).toBeInTheDocument();
+    expect(await screen.findByText('The Chaplain has not kept his brief yet.')).toBeInTheDocument();
+    // breadcrumb reflects the chapel route
+    expect(within(screen.getByRole('banner')).getByText('chapel')).toBeInTheDocument();
+  });
+
+  it('standalone mode (chapel probe rejects): no Chapel tab', async () => {
+    mocks.fetchHullStations.mockResolvedValue([{ name: 'chartroom', tab: { id: 'docs', title: 'Docs' } }]);
+    render(<App />);
+    expect(await screen.findByText('1 watched')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Chapel' })).not.toBeInTheDocument();
+  });
+
+  it('hull mode with voyage AND chapel: both tabs appended', async () => {
+    mocks.fetchHullStations.mockResolvedValue([{ name: 'chartroom', tab: { id: 'docs', title: 'Docs' } }]);
+    mocks.fetchVoyage.mockResolvedValue(voyageFixture);
+    mocks.fetchChapelBrief.mockResolvedValue({ brief: '# hello', updatedAt: '2026-07-09T08:00:00.000Z' });
+    mocks.fetchChapelProjects.mockResolvedValue({ projects: [] });
+    render(<App />);
+    expect(await screen.findByRole('tab', { name: 'Voyage' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Chapel' })).toBeInTheDocument();
+  });
+
+  it('deep link #/chapel renders the chapel view directly', async () => {
+    mocks.fetchHullStations.mockResolvedValue([{ name: 'chartroom', tab: { id: 'docs', title: 'Docs' } }]);
+    mocks.fetchChapelBrief.mockResolvedValue({ brief: '# hello', updatedAt: null });
+    mocks.fetchChapelProjects.mockResolvedValue({ projects: [] });
+    window.location.hash = '#/chapel';
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Chapel' })).toBeInTheDocument();
+    // the chapel deep link must NOT be hijacked by the docs-tab restore logic
+    expect(window.location.hash).toBe('#/chapel');
   });
 
   it('a bare hash renders the tracked-repos overview (no auto-select jump, package 15)', async () => {
