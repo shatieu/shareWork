@@ -41,9 +41,11 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/api/mcp");
 
   if (!user && !isPublic) {
+    const next = path + request.nextUrl.search;
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", path);
+    url.search = "";
+    url.searchParams.set("next", next);
     return NextResponse.redirect(url);
   }
 

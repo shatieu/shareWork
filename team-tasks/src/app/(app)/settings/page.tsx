@@ -4,6 +4,7 @@ import { getProfilesByIds, displayName } from "@/lib/profiles";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TokenSection } from "./token-section";
+import { InviteSection } from "./invite-section";
 
 export default async function SettingsPage() {
   const user = await requireUser();
@@ -39,13 +40,14 @@ export default async function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-base">Invite teammates</CardTitle>
           <CardDescription>
-            Share this join code — anyone who enters it on the onboarding screen joins {team.name}.
+            Share this link — anyone who opens it signs in and joins {team.name} automatically.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <code className="rounded-md border bg-muted px-3 py-2 text-sm">
-            {team.join_code}
-          </code>
+          <InviteSection
+            inviteUrl={`${appUrl}/onboarding?code=${team.join_code}`}
+            joinCode={team.join_code}
+          />
         </CardContent>
       </Card>
 

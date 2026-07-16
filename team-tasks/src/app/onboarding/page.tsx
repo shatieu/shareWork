@@ -13,10 +13,15 @@ import {
 } from "@/components/ui/card";
 import { Users, KeyRound } from "lucide-react";
 
-export default async function OnboardingPage() {
+export default async function OnboardingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string }>;
+}) {
   await requireUser();
   const teams = await getMyTeams();
   if (teams.length > 0) redirect("/");
+  const { code } = await searchParams;
 
   return (
     <div className="mx-auto flex min-h-screen max-w-4xl flex-col justify-center gap-8 p-6">
@@ -79,7 +84,13 @@ export default async function OnboardingPage() {
             >
               <div className="space-y-2">
                 <Label htmlFor="code">Join code</Label>
-                <Input id="code" name="code" required placeholder="a1b2c3d4e5f6" />
+                <Input
+                  id="code"
+                  name="code"
+                  required
+                  placeholder="a1b2c3d4e5f6"
+                  defaultValue={code ?? ""}
+                />
               </div>
               <Button type="submit" variant="outline" className="w-full">
                 Join team
