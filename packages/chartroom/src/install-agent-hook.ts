@@ -6,14 +6,14 @@ import { fileURLToPath } from 'node:url';
  * `HOOK_MARKER` convention, plan §1.4/§4/§9.4 precedent) -- lets a re-run of `install-agent-hook`
  * tell "this is our own script" (safe to refresh) apart from some unrelated pre-existing file at
  * the same path (refuse to clobber). */
-const HOOK_MARKER = 'chartroom:managed-post-tool-use-hook';
-const HOOK_SCRIPT_RELATIVE_PATH = '.claude/hooks/chartroom-post-tool-use.mjs';
+export const AGENT_HOOK_MARKER = 'chartroom:managed-post-tool-use-hook';
+export const AGENT_HOOK_SCRIPT_RELATIVE_PATH = '.claude/hooks/chartroom-post-tool-use.mjs';
 /** Registered on `PostToolUseFailure`, not the plan's originally-assumed `PostToolUse` -- see the
  * hook script's own header comment and this package's phase-5 report for why (Claude Code's docs,
  * fetched live this session, confirm `PostToolUse` fires only after a tool call *succeeds*; a
  * distinct `PostToolUseFailure` event fires "after a tool call fails" -- a load-bearing correction
  * to the plan's assumption, not a style choice). */
-const MARKER_IN_COMMAND = 'chartroom-post-tool-use.mjs';
+export const AGENT_HOOK_MARKER_IN_COMMAND = 'chartroom-post-tool-use.mjs';
 
 export type InstallAgentHookResult =
   | { status: 'installed' }
@@ -72,13 +72,13 @@ function mergeSettingsJson(settingsPath: string): 'installed' | 'already-present
     (entry) =>
       entry.matcher === 'Read' &&
       Array.isArray(entry.hooks) &&
-      entry.hooks.some((h) => typeof h.command === 'string' && h.command.includes(MARKER_IN_COMMAND)),
+      entry.hooks.some((h) => typeof h.command === 'string' && h.command.includes(AGENT_HOOK_MARKER_IN_COMMAND)),
   );
 
   if (!alreadyPresent) {
     entries.push({
       matcher: 'Read',
-      hooks: [{ type: 'command', command: `node "\${CLAUDE_PROJECT_DIR}/${HOOK_SCRIPT_RELATIVE_PATH}"` }],
+      hooks: [{ type: 'command', command: `node "\${CLAUDE_PROJECT_DIR}/${AGENT_HOOK_SCRIPT_RELATIVE_PATH}"` }],
     });
   }
 
@@ -94,12 +94,12 @@ function mergeSettingsJson(settingsPath: string): 'installed' | 'already-present
  * left untouched too (nothing to point the entry at).
  */
 export function installAgentHook(repoRoot: string): InstallAgentHookResult {
-  const scriptPath = join(repoRoot, HOOK_SCRIPT_RELATIVE_PATH);
+  const scriptPath = join(repoRoot, AGENT_HOOK_SCRIPT_RELATIVE_PATH);
   const scriptDir = dirname(scriptPath);
 
   if (existsSync(scriptPath)) {
     const existing = readFileSync(scriptPath, 'utf8');
-    if (!existing.includes(HOOK_MARKER)) {
+    if (!existing.includes(AGENT_HOOK_MARKER)) {
       return { status: 'refused', scriptPath };
     }
   } else if (!existsSync(scriptDir)) {

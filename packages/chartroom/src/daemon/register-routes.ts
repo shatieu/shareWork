@@ -11,6 +11,8 @@ import { registerMcpRoute } from './routes/mcp.js';
 import { registerRawRoute } from './routes/raw.js';
 import { registerRepoRegisterRoute, type RepoRegistrar } from './routes/repo-register.js';
 import { registerClaudeSessionRoute, type ClaudeSessionRouteOptions } from './routes/claude-session.js';
+import { registerFsBrowseRoute, type FsBrowseRouteOptions } from './routes/fs-browse.js';
+import { registerRepoSetupRoutes, type RepoSetupRouteOptions } from './routes/repo-setup.js';
 
 export interface ChartroomRouteOptions {
   /** Live-registration callback owned by the serve command / station lifecycle (v1.1). When
@@ -18,6 +20,11 @@ export interface ChartroomRouteOptions {
   registrar?: RepoRegistrar;
   /** Seams for the claude-session spawn route (plan 03 §4.5) -- tests inject a fake spawner. */
   claudeSession?: ClaudeSessionRouteOptions;
+  /** Seams for the folder-picker directory browser (deck-onboarding-wizard §API 1). */
+  fsBrowse?: FsBrowseRouteOptions;
+  /** Seams for the setup-wizard routes (deck-onboarding-wizard §API 2-4) -- tests inject fake
+   * audit/apply and a fake spawner. */
+  repoSetup?: RepoSetupRouteOptions;
 }
 
 /**
@@ -53,4 +60,6 @@ export function registerChartroomRoutes(
   registerMcpRoute(app, repos);
   registerRepoRegisterRoute(app, options.registrar);
   registerClaudeSessionRoute(app, repos, options.claudeSession);
+  registerFsBrowseRoute(app, options.fsBrowse);
+  registerRepoSetupRoutes(app, repos, options.repoSetup);
 }

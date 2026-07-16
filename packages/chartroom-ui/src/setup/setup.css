@@ -1,0 +1,160 @@
+/* ── Repo-setup wizard (deck-onboarding-wizard plan) ──────────────────
+   Per-feature stylesheet (skillanalytics.css precedent); the modal shell
+   reuses base.css's modal-overlay / register-modal grammar. */
+
+.setup-wizard {
+  width: 640px;
+}
+
+.setup-wizard__phase {
+  font-size: 10px;
+  color: var(--ink-45);
+  letter-spacing: 0.06em;
+}
+
+.setup-wizard__body {
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+}
+
+.setup-wizard__loading {
+  color: var(--ink-45);
+  font-size: 11px;
+  padding: 10px 2px;
+}
+
+.setup-wizard__error {
+  color: var(--rust-bright);
+  font-size: 10.5px;
+  margin: 8px 0;
+}
+
+.setup-wizard__error .btn-brass {
+  margin-top: 6px;
+}
+
+.setup-wizard__done {
+  color: var(--ink-75);
+  font-size: 12px;
+  padding: 10px 2px;
+}
+
+.setup-wizard__group {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brass);
+  margin: 12px 0 6px;
+}
+
+.setup-wizard__items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.setup-item {
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  background: rgba(15, 10, 6, 0.3);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+}
+
+.setup-item__pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+}
+
+label.setup-item__pick {
+  cursor: pointer;
+}
+
+.setup-item__label {
+  font-size: 12px;
+  color: var(--ink);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup-item__detail {
+  font-size: 10.5px;
+  color: var(--ink-55);
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.setup-item__command {
+  display: block;
+  font-size: 10.5px;
+  color: var(--brass-bright);
+  background: var(--well);
+  border: 1px solid var(--brass-dark);
+  border-radius: 4px;
+  padding: 5px 8px;
+  margin-top: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-item__run {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.setup-item__run .setup-item__command {
+  margin-top: 0;
+}
+
+/* state chips: present=green, partial=amber(brass), missing=red(rust) */
+.setup-chip {
+  flex: none;
+  margin-left: auto;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 3px;
+  padding: 1px 6px;
+  border: 1px solid;
+}
+
+.setup-chip--present {
+  color: var(--ok);
+  border-color: var(--ok-dark);
+}
+
+.setup-chip--partial {
+  color: var(--brass-bright);
+  border-color: var(--brass-dark);
+}
+
+.setup-chip--missing {
+  color: var(--rust-bright);
+  border-color: var(--rust);
+}
+
+.setup-result {
+  flex: none;
+  font-size: 11px;
+}
+
+.setup-result--ok {
+  color: var(--ok);
+}
+
+.setup-result--fail {
+  color: var(--rust-bright);
+}
+
+.setup-wizard__footer {
+  justify-content: flex-end;
+}

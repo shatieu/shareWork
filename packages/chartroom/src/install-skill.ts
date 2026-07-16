@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url';
 /** Present in the packaged template's own frontmatter `description` -- used the same way
  * `install-hook.ts`/`install-agent-hook.ts` use their own marker strings, to tell "this is our own
  * (possibly older-version) file" apart from a differently-authored file already at this path. */
-const SKILL_MARKER = 'name: chart-room';
-const SKILL_RELATIVE_PATH = '.claude/skills/chart-room/SKILL.md';
+export const SKILL_MARKER = 'name: chart-room';
+export const SKILL_RELATIVE_PATH = '.claude/skills/chart-room/SKILL.md';
 
 export type InstallSkillResult =
   | { status: 'installed' }

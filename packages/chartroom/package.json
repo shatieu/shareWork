@@ -50,6 +50,7 @@
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
+    "scheduler": "workspace:*",
     "suite-conventions": "workspace:*",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",

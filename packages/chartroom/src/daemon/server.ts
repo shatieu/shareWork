@@ -7,6 +7,8 @@ import type { RepoState } from './repo-state.js';
 import { registerChartroomRoutes } from './register-routes.js';
 import type { RepoRegistrar } from './routes/repo-register.js';
 import type { ClaudeSessionRouteOptions } from './routes/claude-session.js';
+import type { FsBrowseRouteOptions } from './routes/fs-browse.js';
+import type { RepoSetupRouteOptions } from './routes/repo-setup.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `chartroom`'s own published `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built
@@ -38,6 +40,10 @@ export interface BuildServerOptions {
   registrar?: RepoRegistrar;
   /** Seams for the claude-session spawn route (plan 03 §4.5) -- tests inject a fake spawner. */
   claudeSession?: ClaudeSessionRouteOptions;
+  /** Seams for the folder-picker browser route (deck-onboarding-wizard §API 1). */
+  fsBrowse?: FsBrowseRouteOptions;
+  /** Seams for the setup-wizard routes (deck-onboarding-wizard §API 2-4). */
+  repoSetup?: RepoSetupRouteOptions;
 }
 
 /**
@@ -61,7 +67,12 @@ export function buildServer(repos: RepoRuntime[], options: BuildServerOptions = 
     });
   }
 
-  registerChartroomRoutes(app, repos, { registrar: options.registrar, claudeSession: options.claudeSession });
+  registerChartroomRoutes(app, repos, {
+    registrar: options.registrar,
+    claudeSession: options.claudeSession,
+    fsBrowse: options.fsBrowse,
+    repoSetup: options.repoSetup,
+  });
 
   return app;
 }

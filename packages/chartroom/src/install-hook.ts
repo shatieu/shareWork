@@ -4,8 +4,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** Marker comment written into the installed hook file, so a re-run of `chartroom init` can tell
  * "this is our own shim" (safe to refresh) apart from some unrelated pre-existing hook (refuse to
- * clobber -- plan §9.4). */
-const HOOK_MARKER = 'chartroom:managed-pre-commit-hook';
+ * clobber -- plan §9.4). Exported so the setup audit (setup/repo-setup.ts) can detect an installed
+ * hook by pure read. */
+export const HOOK_MARKER = 'chartroom:managed-pre-commit-hook';
 
 export type InstallHookResult =
   | { status: 'installed' }

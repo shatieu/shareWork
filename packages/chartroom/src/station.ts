@@ -7,6 +7,7 @@ import { rebuild, type RepoState } from './daemon/repo-state.js';
 import type { RepoRuntime } from './daemon/server.js';
 import { registerChartroomRoutes } from './daemon/register-routes.js';
 import { collectInboxItems, type InboxItem } from './daemon/routes/inbox.js';
+import { spawnTerminal, type TerminalLaunchRequest } from './daemon/routes/claude-session.js';
 import type { RepoRegistrar } from './daemon/routes/repo-register.js';
 import { startWatcher, stopWatcher, type WatchedRepo } from './daemon/watcher.js';
 import { deleteDaemonInfo, writeDaemonInfo } from './daemon/daemon-info.js';
@@ -116,6 +117,11 @@ export function createChartroomStation(options: ChartroomStationOptions = {}): C
        * must never reach an arbitrary filesystem path. Live view over the same runtimes array. */
       listRepoDirs: (): { id: string; name: string; absPath: string }[] =>
         runtimes.map((runtime) => ({ id: runtime.id, name: runtime.name, absPath: runtime.absPath })),
+      /** In-process contract for the hull's Chapel tab (deck-chapel-tab plan): open a detached
+       * terminal via the SAME per-OS spawn matrix + Claude env hygiene the claude-session route
+       * uses -- no second copy. Callers must pass fixed server-side argv, never user input. The
+       * wrapping arrow deliberately drops the test-seams parameter from the contract surface. */
+      spawnTerminal: (request: TerminalLaunchRequest): void => spawnTerminal(request),
     },
 
     start(ctx: HostContext): void {
