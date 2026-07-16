@@ -22,5 +22,8 @@ suite-design/overnight/.fo-alive
 # Productized Lookout signal path (packages/scheduler, Trio_Specs §C) -- runtime-only
 .ship/
 
+# Crew exchange + stop-gate markers (plugins/crew README) -- working memory, never repo history
+.ship-crew/
+
 # Chart Room runtime index (suite-design/ChartRoom_Spec.md §2.3, rebuilt by `chartroom index`)
 .docs/
