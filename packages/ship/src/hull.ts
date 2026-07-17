@@ -11,7 +11,7 @@ import {
   type StationDescriptor,
 } from 'suite-conventions';
 import { createChapelBackend } from './chapel.js';
-import { createVoyageBackend, type VoyageBackend } from './voyage.js';
+import { createVoyageManager, type VoyageManager, type VoyageRepoDir } from './voyage.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** `ship`'s own `dist/public` -- where `scripts/copy-ui-dist.mjs` copies the built Deck bundle. */
@@ -21,9 +21,13 @@ export interface HullOptions {
   /** Overrides where the Deck static bundle is served from -- tests point this at a temp/missing
    * directory rather than depending on a built UI. */
   uiDistDir?: string;
-  /** Absolute path to a voyage `progress.json`. Absent = Voyage disabled (`/api/voyage` 404s and
-   * the Deck hides the tab). */
+  /** Absolute path to a voyage `progress.json`, served as project `default`. Absent = Voyage
+   * disabled (`/api/voyage` 404s and the Deck hides the tab). When present, every
+   * chartroom-registered repo with `<repo>/.ship/voyage/progress.json` is additionally served as
+   * its own voyage project (wave2-D). */
   voyageFile?: string;
+  /** Clock seam for voyage add-item `updated_at` stamps (default `() => new Date()`). */
+  clock?: () => Date;
   /** Home-directory override for `~/.suite/services.json` AND the Chapel state dir
    * `~/.ship/chaplain` -- tests never touch the real home. */
   homeDir?: string;
@@ -102,12 +106,6 @@ export async function createHull(stations: StationDescriptor[], options: HullOpt
     stations.map((station) => ({ name: station.name, tab: station.tab })),
   );
 
-  let voyage: VoyageBackend | undefined;
-  if (options.voyageFile) {
-    voyage = createVoyageBackend(options.voyageFile);
-    voyage.register(app);
-  }
-
   const contextFor = (port?: number): HostContext => ({
     port,
     getContract<T>(stationName: string, contractName: string): T | undefined {
@@ -116,6 +114,19 @@ export async function createHull(stations: StationDescriptor[], options: HullOpt
     },
     log: (line: string) => log(line),
   });
+
+  let voyage: VoyageManager | undefined;
+  if (options.voyageFile) {
+    voyage = createVoyageManager({
+      defaultFile: options.voyageFile,
+      // Lazy per rescan: live-registered repos appear without a restart; no chartroom station
+      // mounted (tests, exotic embeddings) = default project only.
+      listRepoDirs: () =>
+        contextFor(undefined).getContract<() => VoyageRepoDir[]>('chartroom', 'listRepoDirs')?.() ?? [],
+      clock: options.clock,
+    });
+    voyage.register(app);
+  }
 
   // Chapel (deck-chapel-tab plan): unconditional, unlike Voyage -- missing state files are
   // 200-with-null, and /api/chapel/session resolves the chartroom spawnTerminal contract lazily

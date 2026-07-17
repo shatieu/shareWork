@@ -42,6 +42,17 @@ export const voyageFileSchema = z.looseObject({
 
 export type VoyageFile = z.infer<typeof voyageFileSchema>;
 
+/** `POST /api/voyage/:project/items` request body (wave2-D): the caller supplies only the human
+ * fields; the server assigns `id` (max numeric id + 1), `status` ('pending'), `stage_progress`
+ * (0), and `updated_at` (its clock). Unknown body fields are stripped, not persisted. */
+export const voyageAddItemInputSchema = z.object({
+  title: z.string().trim().min(1, 'title is required'),
+  difficulty: z.enum(DIFFICULTIES).nullable().optional(),
+  note: z.string().optional(),
+});
+
+export type VoyageAddItemInput = z.infer<typeof voyageAddItemInputSchema>;
+
 export function difficultyWeightOf(difficulty: Difficulty | null | undefined): number {
   return difficulty ? DIFFICULTY_WEIGHTS[difficulty] : UNPLANNED_WEIGHT;
 }

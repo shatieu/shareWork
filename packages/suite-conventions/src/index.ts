@@ -25,9 +25,11 @@ export {
   weightedOverallProgress,
   voyageItemSchema,
   voyageFileSchema,
+  voyageAddItemInputSchema,
   type Difficulty,
   type VoyageItem,
   type VoyageFile,
+  type VoyageAddItemInput,
 } from './voyage.js';
 
 export {
