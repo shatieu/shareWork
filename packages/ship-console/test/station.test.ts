@@ -38,6 +38,7 @@ async function buildApp(opts: {
   voiceMounted?: boolean;
   pending?: { permissionsPending: number; questionsOpen: number };
   digest?: string;
+  unwatched?: string[] | (() => string[]);
 }): Promise<FastifyInstance> {
   const siblings: StationDescriptor[] = [];
   if (opts.voiceMounted !== false) {
@@ -58,15 +59,17 @@ async function buildApp(opts: {
       contracts: { pendingCounts: () => opts.pending },
     });
   }
-  if (opts.digest !== undefined) {
-    siblings.push({
-      name: 'ship-log',
-      registerRoutes() {},
-      contracts: {
-        getRollup: (date: string) =>
-          date === new Date().toISOString().slice(0, 10) ? { digest_md: opts.digest } : undefined,
-      },
-    });
+  if (opts.digest !== undefined || opts.unwatched !== undefined) {
+    const contracts: Record<string, unknown> = {};
+    if (opts.digest !== undefined) {
+      contracts.getRollup = (date: string) =>
+        date === new Date().toISOString().slice(0, 10) ? { digest_md: opts.digest } : undefined;
+    }
+    if (opts.unwatched !== undefined) {
+      contracts.listUnwatchedSessionIds =
+        typeof opts.unwatched === 'function' ? opts.unwatched : () => opts.unwatched as string[];
+    }
+    siblings.push({ name: 'ship-log', registerRoutes() {}, contracts });
   }
 
   const console_ = createShipConsoleStation();
@@ -119,7 +122,9 @@ describe('GET /api/ship-console/overview', () => {
       kind: 'interactive',
       state: 'busy',
       startedAt: 1_751_800_000_000,
+      watched: true,
     });
+    expect(overview.hidden).toEqual([]);
     // Nameless session falls back to the cwd folder (trailing slash stripped, POSIX path).
     expect(overview.sessions[1]).toMatchObject({ name: 'team-tasks', repo: 'team-tasks', state: 'blocked' });
     expect(overview.counts).toEqual({ total: 4, busy: 1, idle: 1, blocked: 1, done: 1 });
@@ -164,6 +169,44 @@ describe('GET /api/ship-console/overview', () => {
     const overview = await getOverview(instance);
     expect(overview.available).toBe(true);
     expect(overview.counts.total).toBe(0);
+  });
+
+  it('unwatched sessions move to hidden and leave the counts (wave2-E unwatch filter)', async () => {
+    const instance = await buildApp({
+      fleet: FLEET,
+      unwatched: ['d754cb3d-e33c-493f-bd18-495bced4f7c7', '4226671f-ca22-4753-9ffe-e786ab86b7f5'],
+    });
+    const overview = await getOverview(instance);
+
+    expect(overview.sessions.map((s) => s.sessionId)).toEqual([
+      '984deabe-afba-4411-a079-a16be751eac1',
+      '11111111-2222-4333-8444-555555555555',
+    ]);
+    expect(overview.sessions.every((s) => s.watched)).toBe(true);
+    // Hidden rows stay addressable (name + id) so a rewatch affordance can list them.
+    expect(overview.hidden.map((s) => ({ sessionId: s.sessionId, watched: s.watched }))).toEqual([
+      { sessionId: 'd754cb3d-e33c-493f-bd18-495bced4f7c7', watched: false },
+      { sessionId: '4226671f-ca22-4753-9ffe-e786ab86b7f5', watched: false },
+    ]);
+    // Counts cover watched sessions only: the blocked + done rows are hidden.
+    expect(overview.counts).toEqual({ total: 2, busy: 1, idle: 1, blocked: 0, done: 0 });
+  });
+
+  it('a missing or throwing hide-list contract hides nothing', async () => {
+    const noContract = await getOverview(await buildApp({ fleet: FLEET }));
+    expect(noContract.sessions).toHaveLength(4);
+    expect(noContract.hidden).toEqual([]);
+
+    const throwing = await getOverview(
+      await buildApp({
+        fleet: FLEET,
+        unwatched: () => {
+          throw new Error('log.db locked');
+        },
+      }),
+    );
+    expect(throwing.sessions).toHaveLength(4);
+    expect(throwing.hidden).toEqual([]);
   });
 
   it('injected fleetSource option overrides the contract lookup (test seam)', async () => {

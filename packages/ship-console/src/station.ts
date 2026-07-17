@@ -51,13 +51,20 @@ export interface ConsoleSessionView {
    * neither present = 'running'. */
   state: string;
   startedAt: number | null;
+  /** false = the human unwatched this session (ship-log's persisted hide-list, wave2-E);
+   * such rows live in `ConsoleOverview.hidden`, never in `sessions`. */
+  watched: boolean;
 }
 
 export interface ConsoleOverview {
   /** false = the fleet could not be read (no ship-voice station, or `claude agents` failed);
    * pending/rollup are still served -- the tab degrades, never blanks. */
   available: boolean;
+  /** Watched sessions only -- the fleet view. Unwatched rows are in `hidden`. */
   sessions: ConsoleSessionView[];
+  /** Unwatched sessions, kept addressable so a rewatch affordance can list them. */
+  hidden: ConsoleSessionView[];
+  /** Counts cover watched sessions only. */
   counts: { total: number; busy: number; idle: number; blocked: number; done: number };
   pending: { permissionsPending: number; questionsOpen: number } | null;
   rollup: { date: string; digest_md: string } | null;
@@ -67,6 +74,8 @@ export interface ConsoleOverview {
 export interface ShipConsoleStationOptions {
   /** Test seam: overrides the ship-voice fleetSource contract lookup. */
   fleetSource?: ConsoleFleetSource;
+  /** Test seam: overrides the ship-log listUnwatchedSessionIds contract lookup. */
+  listUnwatched?: () => string[];
   now?: () => Date;
 }
 
@@ -80,7 +89,7 @@ export function effectiveStateOf(session: Pick<ConsoleFleetSession, 'state' | 's
   return session.state ?? session.status ?? 'running';
 }
 
-export function toSessionView(session: ConsoleFleetSession): ConsoleSessionView {
+export function toSessionView(session: ConsoleFleetSession, watched = true): ConsoleSessionView {
   const repo = folderOf(session.cwd);
   return {
     sessionId: session.sessionId,
@@ -90,6 +99,7 @@ export function toSessionView(session: ConsoleFleetSession): ConsoleSessionView 
     kind: session.kind ?? null,
     state: effectiveStateOf(session),
     startedAt: session.startedAt ?? null,
+    watched,
   };
 }
 
@@ -126,7 +136,22 @@ export function createShipConsoleStation(options: ShipConsoleStationOptions = {}
             fleet = null;
           }
         }
-        const sessions = (fleet ?? []).map(toSessionView);
+        // The unwatch filter (wave2-E): ship-log's persisted hide-list, optional-contract
+        // tolerant like every sibling -- absent or throwing means "nothing hidden".
+        let unwatched = new Set<string>();
+        const listUnwatched =
+          options.listUnwatched ?? ctx.getContract<() => string[]>('ship-log', 'listUnwatchedSessionIds');
+        if (listUnwatched) {
+          try {
+            unwatched = new Set(listUnwatched());
+          } catch {
+            unwatched = new Set();
+          }
+        }
+
+        const views = (fleet ?? []).map((session) => toSessionView(session, !unwatched.has(session.sessionId)));
+        const sessions = views.filter((session) => session.watched);
+        const hidden = views.filter((session) => !session.watched);
 
         const pendingCounts = ctx.getContract<() => { permissionsPending: number; questionsOpen: number }>(
           'ship-inbox',
@@ -142,6 +167,7 @@ export function createShipConsoleStation(options: ShipConsoleStationOptions = {}
         return {
           available: fleet !== null,
           sessions,
+          hidden,
           counts: rollupCounts(sessions),
           pending: pendingCounts ? pendingCounts() : null,
           rollup: rollup ? { date: today, digest_md: rollup.digest_md } : null,
