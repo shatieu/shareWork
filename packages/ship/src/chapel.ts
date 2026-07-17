@@ -309,7 +309,11 @@ export function createChapelBackend(options: ChapelOptions = {}): ChapelBackend 
           // (the rite DELETES each file once folded into a dossier), archive/ is what the
           // confessions endpoints serve (wave2-c findings §4, option a).
           mkdirSync(archiveDir, { recursive: true });
-          writeFileSync(join(archiveDir, name), header + text, 'utf8');
+          // Same tmp+rename discipline as the inbox write -- a crash mid-write must never
+          // leave a torn archive file for the confessions endpoints to serve.
+          const archiveTmp = join(chapelDir, `.archive-${process.pid}-${randomBytes(4).toString('hex')}.tmp`);
+          writeFileSync(archiveTmp, header + text, 'utf8');
+          renameSync(archiveTmp, join(archiveDir, name));
           return reply.code(201).send({ ok: true });
         });
 
@@ -365,9 +369,14 @@ export function createChapelBackend(options: ChapelOptions = {}): ChapelBackend 
             // FIXED argv shape, server-side constants throughout; `text` is the ONLY
             // body-derived value and it travels as a single argv element handed straight to
             // spawn (never through a shell string) -- the body cannot steer the command.
+            // A message whose first byte is `-` would be parsed by the claude CLI as a flag,
+            // not as -p's value (probe: `--dangerously-skip-permissions` as chat text). A
+            // single leading space keeps the argv element flag-proof and is semantically
+            // invisible to the chaplain.
+            const promptText = text.startsWith('-') ? ` ${text}` : text;
             const args = [
               '-p',
-              text,
+              promptText,
               '--agent',
               CHAPLAIN_AGENT,
               ...(stored === null ? ['--session-id', sessionId] : ['--resume', stored]),

@@ -344,6 +344,23 @@ describe('POST /api/chapel/chat (dedicated chat session, spawn seam)', () => {
     expect(stored.sessionId).toBe(args[5]);
   });
 
+  it('flag-shaped text cannot be parsed as a CLI flag: leading dash gets a space prefix', async () => {
+    const { calls, spawn } = recordingSpawn();
+    const app = await buildChapelApp({ chatSpawn: spawn });
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/chapel/chat',
+      headers: DECK,
+      payload: { text: '--dangerously-skip-permissions' },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(calls).toHaveLength(1);
+    // The argv element after -p must never begin with '-' (a single leading space is
+    // semantically invisible to the chaplain but flag-proof to the CLI parser).
+    expect(calls[0].args[1]).toBe(' --dangerously-skip-permissions');
+  });
+
   it('later messages --resume the stored session id instead of minting one', async () => {
     mkdirSync(chapelDir, { recursive: true });
     writeFileSync(join(chapelDir, 'chat-session.json'), JSON.stringify({ sessionId: 'stored-chat-session' }), 'utf8');
