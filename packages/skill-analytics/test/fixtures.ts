@@ -13,6 +13,17 @@ export interface LineOpts {
   cwd?: string;
   timestamp?: string;
   isSidechain?: boolean;
+  /** `message.id` of the API response. Real transcripts repeat the same id (and the same
+   * usage block) across the multiple JSONL lines of one multi-block response. */
+  messageId?: string;
+}
+
+/** Splice `message.id` into a built assistant line when the fixture asked for one. */
+function withMessageId(json: string, opts: LineOpts): string {
+  if (!opts.messageId) return json;
+  const data = JSON.parse(json) as { message: Record<string, unknown> };
+  data.message = { id: opts.messageId, ...data.message };
+  return JSON.stringify(data);
 }
 
 const base = (opts: LineOpts) => ({
@@ -28,7 +39,7 @@ const base = (opts: LineOpts) => ({
 });
 
 export function assistantSkillLine(skill: string, usage: Partial<UsageSpec> = {}, opts: LineOpts = {}): string {
-  return JSON.stringify({
+  return withMessageId(JSON.stringify({
     ...base(opts),
     type: 'assistant',
     message: {
@@ -40,13 +51,13 @@ export function assistantSkillLine(skill: string, usage: Partial<UsageSpec> = {}
       ],
       usage: usageBlock(usage),
     },
-  });
+  }), opts);
 }
 
 export function assistantAgentLine(subagentType: string | undefined, usage: Partial<UsageSpec> = {}, opts: LineOpts = {}): string {
   const input: Record<string, unknown> = { description: 'do a thing', prompt: 'go' };
   if (subagentType) input.subagent_type = subagentType;
-  return JSON.stringify({
+  return withMessageId(JSON.stringify({
     ...base(opts),
     type: 'assistant',
     message: {
@@ -55,7 +66,7 @@ export function assistantAgentLine(subagentType: string | undefined, usage: Part
       content: [{ type: 'tool_use', id: 'toolu_2', name: 'Agent', input }],
       usage: usageBlock(usage),
     },
-  });
+  }), opts);
 }
 
 export interface UsageSpec {
@@ -76,7 +87,7 @@ function usageBlock(spec: Partial<UsageSpec>): Record<string, unknown> {
 }
 
 export function assistantTextLine(usage: Partial<UsageSpec>, opts: LineOpts = {}): string {
-  return JSON.stringify({
+  return withMessageId(JSON.stringify({
     ...base(opts),
     type: 'assistant',
     message: {
@@ -85,7 +96,23 @@ export function assistantTextLine(usage: Partial<UsageSpec>, opts: LineOpts = {}
       content: [{ type: 'text', text: 'working…' }],
       usage: usageBlock(usage),
     },
-  });
+  }), opts);
+}
+
+/** One API response written as `blocks` JSONL lines — same `message.id`, the SAME usage block
+ * repeated on every line (the exact real-transcript shape that causes ~2.4x overcounting when
+ * consumers fail to dedupe by message id). */
+export function assistantMultiBlockResponse(
+  messageId: string,
+  usage: Partial<UsageSpec>,
+  blocks: number,
+  opts: LineOpts = {},
+): string[] {
+  const lines: string[] = [];
+  for (let i = 0; i < blocks; i += 1) {
+    lines.push(assistantTextLine(usage, { ...opts, messageId }));
+  }
+  return lines;
 }
 
 export function userPromptLine(text: string, opts: LineOpts = {}): string {

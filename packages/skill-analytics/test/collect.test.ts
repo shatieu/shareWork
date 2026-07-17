@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openSkillAnalyticsDb, type InvocationRow } from '../src/db.js';
 import { collectTranscripts } from '../src/collect.js';
+import { getSessionUsage, listSessionUsage } from '../src/sessions.js';
 import {
   assistantAgentLine,
+  assistantMultiBlockResponse,
   assistantSkillLine,
   assistantTextLine,
   makeClaudeDir,
@@ -138,6 +140,25 @@ describe('collectTranscripts', () => {
     expect(allInvocations().map((r) => r.project).sort()).toEqual(['alpha', 'beta']);
   });
 
+  it('counts one API response ONCE despite repeated usage lines (dedupe by message.id)', () => {
+    // Real transcripts write one API response as multiple JSONL lines (one per content
+    // block), each repeating the same message.usage. Without message-id dedupe this
+    // fixture would accrue 3x the true usage.
+    writeTranscript(claude.projectDir, 's1.jsonl', [
+      assistantSkillLine('deploy', { input: 100, output: 10 }, { messageId: 'msg_A' }),
+      ...assistantMultiBlockResponse('msg_A', { input: 100, output: 10 }, 2), // 2 more lines of the SAME response
+      ...assistantMultiBlockResponse('msg_B', { input: 40, output: 4, cacheRead: 8 }, 3), // next response, 3 lines
+    ]);
+    collectTranscripts(db, claude.root);
+    const [row] = allInvocations();
+    expect(row).toMatchObject({
+      name: 'deploy',
+      input_tokens: 140,
+      output_tokens: 14,
+      cache_read_tokens: 8,
+    });
+  });
+
   it('never stores message content in the database (privacy rail)', () => {
     const secret = 'EXTREMELY-PRIVATE-USER-TEXT';
     writeTranscript(claude.projectDir, 's1.jsonl', [
@@ -148,7 +169,92 @@ describe('collectTranscripts', () => {
     const everything = JSON.stringify([
       db.prepare('SELECT * FROM invocations').all(),
       db.prepare('SELECT * FROM file_cursors').all(),
+      db.prepare('SELECT * FROM session_usage').all(),
     ]);
     expect(everything).not.toContain(secret);
+  });
+});
+
+describe('session usage accumulation', () => {
+  it('accrues deduped per-session totals including windowless usage', () => {
+    writeTranscript(claude.projectDir, 's1.jsonl', [
+      userPromptLine('question with no invocation'), // closes/never opens a window
+      ...assistantMultiBlockResponse('msg_A', { input: 100, output: 10, cacheCreate: 5, cacheRead: 50 }, 3),
+      ...assistantMultiBlockResponse('msg_B', { input: 40, output: 4 }, 2),
+    ]);
+    const result = collectTranscripts(db, claude.root);
+    expect(result.usageMessages).toBe(2);
+
+    const session = getSessionUsage(db, 'session-1');
+    expect(session).toMatchObject({
+      sessionId: 'session-1',
+      project: 'alpha',
+      inputTokens: 140,
+      outputTokens: 14,
+      cacheCreateTokens: 5,
+      cacheReadTokens: 50,
+      messageCount: 2,
+      model: 'claude-fable-5',
+    });
+    expect(session!.transcriptPath.endsWith('s1.jsonl')).toBe(true);
+  });
+
+  it('keeps totals exact when the cursor resumes MID message-group across collect passes', () => {
+    // Pass 1 ends with only 2 of msg_A's 4 lines on disk -> the byte cursor stops inside the
+    // response group. The persisted last_usage_message_id must carry the dedupe into pass 2.
+    const groupA = assistantMultiBlockResponse('msg_A', { input: 100, output: 10 }, 4);
+    const path = writeTranscript(claude.projectDir, 's1.jsonl', groupA.slice(0, 2));
+    const first = collectTranscripts(db, claude.root);
+    expect(first.usageMessages).toBe(1);
+    expect(getSessionUsage(db, 'session-1')).toMatchObject({ inputTokens: 100, messageCount: 1 });
+
+    appendFileSync(
+      path,
+      [...groupA.slice(2), ...assistantMultiBlockResponse('msg_B', { input: 7, output: 7 }, 2)].join('\n') + '\n',
+      'utf-8',
+    );
+    const second = collectTranscripts(db, claude.root);
+    expect(second.usageMessages).toBe(1); // msg_A's tail deduped; only msg_B counts
+    expect(getSessionUsage(db, 'session-1')).toMatchObject({
+      inputTokens: 107,
+      outputTokens: 17,
+      messageCount: 2,
+    });
+  });
+
+  it('lists sessions sorted by last activity and resets totals when a file shrinks', () => {
+    writeTranscript(claude.projectDir, 'old.jsonl', [
+      assistantTextLine({ input: 10, output: 1 }, { sessionId: 'older', messageId: 'm1', timestamp: '2026-07-01T00:00:00.000Z' }),
+    ]);
+    const newer = writeTranscript(claude.projectDir, 'new.jsonl', [
+      assistantTextLine({ input: 20, output: 2 }, { sessionId: 'newer', messageId: 'm2', timestamp: '2026-07-10T00:00:00.000Z' }),
+      assistantTextLine({ input: 30, output: 3 }, { sessionId: 'newer', messageId: 'm3', timestamp: '2026-07-11T00:00:00.000Z' }),
+    ]);
+    collectTranscripts(db, claude.root);
+    expect(listSessionUsage(db).map((s) => s.sessionId)).toEqual(['newer', 'older']);
+    expect(getSessionUsage(db, 'newer')).toMatchObject({
+      inputTokens: 50,
+      firstTs: '2026-07-10T00:00:00.000Z',
+      lastTs: '2026-07-11T00:00:00.000Z',
+    });
+
+    // Replaced/truncated transcript -> that file's session totals rebuild from scratch.
+    writeFileSync(
+      newer,
+      assistantTextLine({ input: 5, output: 5 }, { sessionId: 'newer', messageId: 'm9' }) + '\n',
+      'utf-8',
+    );
+    collectTranscripts(db, claude.root);
+    expect(getSessionUsage(db, 'newer')).toMatchObject({ inputTokens: 5, messageCount: 1 });
+  });
+
+  it('falls back to the filename stem as the session id when lines carry none', () => {
+    const bare = JSON.stringify({
+      type: 'assistant',
+      message: { id: 'msg_X', role: 'assistant', usage: { input_tokens: 9, output_tokens: 1 } },
+    });
+    writeTranscript(claude.projectDir, 'stem-session.jsonl', [bare]);
+    collectTranscripts(db, claude.root);
+    expect(getSessionUsage(db, 'stem-session')).toMatchObject({ inputTokens: 9, messageCount: 1 });
   });
 });

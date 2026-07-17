@@ -33,6 +33,12 @@ export interface ParsedUsage {
 export interface ParsedLine {
   invocations: ParsedInvocation[];
   usage?: ParsedUsage;
+  /** `message.id` of the API response this line belongs to (assistant lines). One API response
+   * is written as MULTIPLE JSONL lines (one per content block), each repeating the same
+   * `message.usage` — usage consumers MUST dedupe by this id or they overcount ~2.4x
+   * (verified empirically 2026-07-17: 153 usage lines vs 64 unique message ids in one real
+   * transcript). Privacy rail intact: it is an opaque identifier, not content. */
+  messageId?: string;
   /** True when this is a real (non-sidechain) user prompt with text — it closes the token
    * attribution window (see collect.ts). Sidechain "user" lines are a subagent's inner
    * conversation and deliberately do NOT close the parent invocation's window. */
@@ -103,6 +109,7 @@ export function parseLine(raw: string): ParsedLine | undefined {
   const message = (data.message ?? {}) as Record<string, unknown>;
 
   if (type === 'assistant') {
+    base.messageId = str(message.id);
     const content = message.content;
     if (Array.isArray(content)) {
       for (const block of content) {

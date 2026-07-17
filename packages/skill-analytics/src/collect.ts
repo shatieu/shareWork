@@ -1,4 +1,5 @@
 import { closeSync, openSync, readSync } from 'node:fs';
+import { basename } from 'node:path';
 import type Database from 'better-sqlite3';
 import { parseLine } from './parse.js';
 import { projectFromCwd, type FileCursorRow } from './db.js';
@@ -9,6 +10,8 @@ export interface CollectResult {
   filesParsed: number;
   linesParsed: number;
   newInvocations: number;
+  /** Distinct API responses whose usage was counted this run (post message-id dedupe). */
+  usageMessages: number;
 }
 
 /**
@@ -22,22 +25,37 @@ export interface CollectResult {
  * opens a window; every later assistant message's usage in the same file accrues to the most
  * recently opened invocation; a real (non-sidechain) user prompt closes the window. Windows
  * survive collector runs via `file_cursors.open_invocation_id`. Usage outside any window is
- * deliberately dropped — generic cost dashboards are out of scope (ccusage owns them).
+ * deliberately dropped for invocation attribution — but ALWAYS accrues to the session's row in
+ * `session_usage` (per-session totals, wave2-I).
+ *
+ * Usage dedupe (wave2-I fix): one API response is written as multiple adjacent JSONL lines
+ * (one per content block), each repeating the same `message.usage`. Counting every line
+ * overcounts ~2.4x (measured), so usage only accrues when the line's `message.id` differs from
+ * the file's last-seen usage message id — persisted in `file_cursors.last_usage_message_id` so
+ * the guard survives a byte cursor that stops mid-response-group between runs.
  */
 export function collectTranscripts(db: Database.Database, claudeProjectsDir: string): CollectResult {
   const files = listTranscriptFiles(claudeProjectsDir);
-  const result: CollectResult = { filesSeen: files.length, filesParsed: 0, linesParsed: 0, newInvocations: 0 };
+  const result: CollectResult = {
+    filesSeen: files.length,
+    filesParsed: 0,
+    linesParsed: 0,
+    newInvocations: 0,
+    usageMessages: 0,
+  };
 
   const getCursor = db.prepare('SELECT * FROM file_cursors WHERE path = ?');
   const putCursor = db.prepare(`
-    INSERT INTO file_cursors (path, offset, line_no, size, mtime_ms, open_invocation_id, updated_at)
-    VALUES (@path, @offset, @line_no, @size, @mtime_ms, @open_invocation_id, @updated_at)
+    INSERT INTO file_cursors (path, offset, line_no, size, mtime_ms, open_invocation_id, last_usage_message_id, updated_at)
+    VALUES (@path, @offset, @line_no, @size, @mtime_ms, @open_invocation_id, @last_usage_message_id, @updated_at)
     ON CONFLICT (path) DO UPDATE SET
       offset = excluded.offset, line_no = excluded.line_no, size = excluded.size,
       mtime_ms = excluded.mtime_ms, open_invocation_id = excluded.open_invocation_id,
+      last_usage_message_id = excluded.last_usage_message_id,
       updated_at = excluded.updated_at
   `);
   const dropFileRows = db.prepare('DELETE FROM invocations WHERE file = ?');
+  const dropFileSessions = db.prepare('DELETE FROM session_usage WHERE transcript_path = ?');
   const insertInvocation = db.prepare(`
     INSERT OR IGNORE INTO invocations
       (file, line_no, kind, name, trigger_mode, project, cwd, session_id, ts, date, model)
@@ -55,19 +73,42 @@ export function collectTranscripts(db: Database.Database, claudeProjectsDir: str
       model = COALESCE(model, @model)
     WHERE id = @id
   `);
+  const upsertSessionUsage = db.prepare(`
+    INSERT INTO session_usage
+      (session_id, project, cwd, transcript_path, input_tokens, output_tokens,
+       cache_create_tokens, cache_read_tokens, message_count, model, first_ts, last_ts)
+    VALUES (@session_id, @project, @cwd, @transcript_path, @input, @output,
+            @cacheCreate, @cacheRead, 1, @model, @ts, @ts)
+    ON CONFLICT (session_id) DO UPDATE SET
+      input_tokens = input_tokens + excluded.input_tokens,
+      output_tokens = output_tokens + excluded.output_tokens,
+      cache_create_tokens = cache_create_tokens + excluded.cache_create_tokens,
+      cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
+      message_count = message_count + 1,
+      project = COALESCE(excluded.project, project),
+      cwd = COALESCE(excluded.cwd, cwd),
+      model = COALESCE(excluded.model, model),
+      first_ts = COALESCE(first_ts, excluded.first_ts),
+      last_ts = COALESCE(excluded.last_ts, last_ts),
+      transcript_path = excluded.transcript_path
+  `);
 
   const collectFile = db.transaction((file: TranscriptFile) => {
     const cursor = getCursor.get(file.path) as FileCursorRow | undefined;
     let offset = cursor?.offset ?? 0;
     let lineNo = cursor?.line_no ?? 0;
     let openInvocationId: number | null = cursor?.open_invocation_id ?? null;
+    let lastUsageMessageId: string | null = cursor?.last_usage_message_id ?? null;
 
     if (cursor && file.size < cursor.offset) {
-      // Truncated/replaced file: reparse from scratch, dropping the stale rows.
+      // Truncated/replaced file: reparse from scratch, dropping the stale rows (including
+      // this file's accumulated session totals -- they will be rebuilt from line one).
       dropFileRows.run(file.path);
+      dropFileSessions.run(file.path);
       offset = 0;
       lineNo = 0;
       openInvocationId = null;
+      lastUsageMessageId = null;
     } else if (cursor && file.size === cursor.size && file.mtimeMs === cursor.mtime_ms) {
       return; // Unchanged since last run.
     }
@@ -133,15 +174,41 @@ export function collectTranscripts(db: Database.Database, claudeProjectsDir: str
         if (row) openInvocationId = row.id;
       }
 
-      if (parsed.usage && openInvocationId !== null) {
-        accrueUsage.run({
-          id: openInvocationId,
-          input: parsed.usage.inputTokens,
-          output: parsed.usage.outputTokens,
-          cacheCreate: parsed.usage.cacheCreateTokens,
-          cacheRead: parsed.usage.cacheReadTokens,
-          model: parsed.usage.model ?? null,
-        });
+      if (parsed.usage) {
+        // Dedupe by message.id: repeated lines of one API response carry the same id and the
+        // same usage block; only the first line of a group counts. A line without an id can't
+        // be deduped -- count it and reset the guard.
+        const isRepeat = parsed.messageId !== undefined && parsed.messageId === lastUsageMessageId;
+        if (!isRepeat) {
+          lastUsageMessageId = parsed.messageId ?? null;
+          result.usageMessages += 1;
+          if (openInvocationId !== null) {
+            accrueUsage.run({
+              id: openInvocationId,
+              input: parsed.usage.inputTokens,
+              output: parsed.usage.outputTokens,
+              cacheCreate: parsed.usage.cacheCreateTokens,
+              cacheRead: parsed.usage.cacheReadTokens,
+              model: parsed.usage.model ?? null,
+            });
+          }
+          // Session totals take EVERY response (windowless usage included): filename stem is
+          // the session id in the verified transcript layout, so it is the fallback key.
+          const sessionId =
+            currentSession ?? basename(file.path).replace(/\.jsonl$/, '');
+          upsertSessionUsage.run({
+            session_id: sessionId,
+            project: projectFromCwd(currentCwd),
+            cwd: currentCwd ?? null,
+            transcript_path: file.path,
+            input: parsed.usage.inputTokens,
+            output: parsed.usage.outputTokens,
+            cacheCreate: parsed.usage.cacheCreateTokens,
+            cacheRead: parsed.usage.cacheReadTokens,
+            model: parsed.usage.model ?? null,
+            ts: parsed.timestamp ?? null,
+          });
+        }
       }
     }
 
@@ -152,6 +219,7 @@ export function collectTranscripts(db: Database.Database, claudeProjectsDir: str
       size: file.size,
       mtime_ms: file.mtimeMs,
       open_invocation_id: openInvocationId,
+      last_usage_message_id: lastUsageMessageId,
       updated_at: new Date().toISOString(),
     });
   });

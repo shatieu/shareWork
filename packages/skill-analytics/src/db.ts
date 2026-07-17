@@ -5,7 +5,7 @@ import Database from 'better-sqlite3';
 
 const SHIP_DIR_NAME = '.ship';
 const DB_FILE_NAME = 'skill-analytics.db';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 /** Path to the analytics SQLite store. `homeDir` override so tests and the CLI never have to
  * touch the real `~/.ship/` (ship-log's db.ts pattern). */
@@ -39,7 +39,29 @@ export interface FileCursorRow {
   size: number;
   mtime_ms: number;
   open_invocation_id: number | null;
+  /** `message.id` of the last usage-bearing line consumed from this file. One API response is
+   * written as multiple adjacent JSONL lines repeating the same usage block; persisting the
+   * last-seen id lets the dedupe survive byte-cursor increments that split a response group
+   * across collector runs (schema v2). */
+  last_usage_message_id: string | null;
   updated_at: string;
+}
+
+/** Per-session token totals accrued by the incremental collector (schema v2). Counts are
+ * message-id-deduped: one API response counts once, however many transcript lines it spans. */
+export interface SessionUsageRow {
+  session_id: string;
+  project: string | null;
+  cwd: string | null;
+  transcript_path: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_create_tokens: number;
+  cache_read_tokens: number;
+  message_count: number;
+  model: string | null;
+  first_ts: string | null;
+  last_ts: string | null;
 }
 
 /**
@@ -71,8 +93,29 @@ export function openSkillAnalyticsDb(homeDir: string = homedir()): Database.Data
       size INTEGER NOT NULL,
       mtime_ms INTEGER NOT NULL,
       open_invocation_id INTEGER,
+      last_usage_message_id TEXT,
       updated_at TEXT NOT NULL
     );
+
+    -- One row per session: token totals deduped by message.id (one API response = one count,
+    -- however many JSONL lines it spans). PRIVACY: identifiers and numbers only.
+    CREATE TABLE IF NOT EXISTS session_usage (
+      session_id TEXT PRIMARY KEY,
+      project TEXT,
+      cwd TEXT,
+      transcript_path TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_create_tokens INTEGER NOT NULL DEFAULT 0,
+      cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+      message_count INTEGER NOT NULL DEFAULT 0,
+      model TEXT,
+      first_ts TEXT,
+      last_ts TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_usage_last_ts ON session_usage (last_ts);
+    CREATE INDEX IF NOT EXISTS idx_session_usage_transcript ON session_usage (transcript_path);
 
     -- One row per skill/agent/slash-command invocation. Token columns are the usage ACCRUED
     -- to this invocation by the attribution heuristic, not the message's own usage alone.
@@ -102,11 +145,20 @@ export function openSkillAnalyticsDb(homeDir: string = homedir()): Database.Data
     CREATE INDEX IF NOT EXISTS idx_invocations_project ON invocations (project);
   `);
 
+  // v1 -> v2 migration: CREATE IF NOT EXISTS won't add the dedupe column to an existing
+  // file_cursors, so probe and ALTER. Idempotent and safe across processes (WAL).
+  const cursorCols = db.prepare('PRAGMA table_info(file_cursors)').all() as { name: string }[];
+  if (!cursorCols.some((c) => c.name === 'last_usage_message_id')) {
+    db.exec('ALTER TABLE file_cursors ADD COLUMN last_usage_message_id TEXT');
+  }
+
   const versionRow = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as
     | { version: number }
     | undefined;
   if (!versionRow) {
     db.prepare('INSERT INTO schema_meta (version) VALUES (?)').run(SCHEMA_VERSION);
+  } else if (versionRow.version < SCHEMA_VERSION) {
+    db.prepare('UPDATE schema_meta SET version = ?').run(SCHEMA_VERSION);
   }
   return db;
 }
