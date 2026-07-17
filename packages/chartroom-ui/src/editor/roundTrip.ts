@@ -31,6 +31,7 @@ import { gfm } from '@milkdown/kit/preset/gfm';
 import type { Ctx } from '@milkdown/kit/ctx';
 import type { Node as PMNode, Schema } from '@milkdown/kit/prose/model';
 import { opaqueNode, OPAQUE_NODE_NAME } from './opaqueNode.js';
+import { listAttrJsonCompat } from './listAttrCompat.js';
 import type { SegmentedBlock, SegmentedDocument } from './segmentBlocks.js';
 
 export interface RoundTripEngine {
@@ -57,6 +58,7 @@ export async function createEngine(root: HTMLElement): Promise<RoundTripEngine> 
     .use(commonmark)
     .use(gfm)
     .use(opaqueNode)
+    .use(listAttrJsonCompat) // must come after commonmark+gfm — see listAttrCompat.ts
     .create();
 
   const ctx = editor.ctx;
@@ -90,7 +92,8 @@ export function buildUncreatedEditor(root: HTMLElement, defaultValue: DefaultVal
     })
     .use(commonmark)
     .use(gfm)
-    .use(opaqueNode);
+    .use(opaqueNode)
+    .use(listAttrJsonCompat); // must come after commonmark+gfm — see listAttrCompat.ts
 }
 
 /**
