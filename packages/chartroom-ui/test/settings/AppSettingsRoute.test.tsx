@@ -92,7 +92,7 @@ beforeEach(() => {
     baseHash: 'hash-1',
     writable: true,
   });
-  mocks.fetchSettingsTemplates.mockResolvedValue([]);
+  mocks.fetchSettingsTemplates.mockResolvedValue({ packs: [], warnings: [] });
   mocks.fetchAlwaysAllowed.mockResolvedValue({ available: false, entries: [] });
   mocks.fetchSettingsBackups.mockResolvedValue([]);
 });

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   applySettingsEdit,
+  createSettingsTemplate,
   fetchAlwaysAllowed,
   fetchSettingsBackup,
   fetchSettingsBackups,
@@ -12,12 +13,14 @@ import {
   fetchSettingsTemplates,
   previewRevokeRule,
   previewSettingsEdit,
+  previewSettingsMove,
   previewSettingsTemplate,
   SettingsApiError,
   simulateSettings,
   type SettingsEditPreview,
   type SettingsEffectiveResponse,
   type SettingsScopesResponse,
+  type SettingsTemplatePack,
   type SettingsVerdict,
 } from '../../src/api/client.js';
 import { SettingsPage } from '../../src/settings/SettingsPage.js';
@@ -34,6 +37,8 @@ vi.mock('../../src/api/client.js', async (importOriginal) => {
     applySettingsEdit: vi.fn(),
     fetchSettingsTemplates: vi.fn(),
     previewSettingsTemplate: vi.fn(),
+    createSettingsTemplate: vi.fn(),
+    previewSettingsMove: vi.fn(),
     fetchAlwaysAllowed: vi.fn(),
     previewRevokeRule: vi.fn(),
     fetchSettingsBackups: vi.fn(),
@@ -50,6 +55,8 @@ const mocks = {
   applySettingsEdit: vi.mocked(applySettingsEdit),
   fetchSettingsTemplates: vi.mocked(fetchSettingsTemplates),
   previewSettingsTemplate: vi.mocked(previewSettingsTemplate),
+  createSettingsTemplate: vi.mocked(createSettingsTemplate),
+  previewSettingsMove: vi.mocked(previewSettingsMove),
   fetchAlwaysAllowed: vi.mocked(fetchAlwaysAllowed),
   previewRevokeRule: vi.mocked(previewRevokeRule),
   fetchSettingsBackups: vi.mocked(fetchSettingsBackups),
@@ -138,15 +145,19 @@ beforeEach(() => {
     baseHash: 'hash-1',
     writable: true,
   });
-  mocks.fetchSettingsTemplates.mockResolvedValue([
-    {
-      id: 'safe-web-dev',
-      name: 'safe web dev',
-      version: '1.0.0',
-      description: 'Everyday web-dev commands without the dangerous tail.',
-      permissions: { allow: ['Bash(pnpm:*)', 'WebFetch(domain:localhost)'], deny: ['Read(./.env)'], ask: [] },
-    },
-  ]);
+  mocks.fetchSettingsTemplates.mockResolvedValue({
+    packs: [
+      {
+        id: 'safe-web-dev',
+        name: 'safe web dev',
+        version: '1.0.0',
+        description: 'Everyday web-dev commands without the dangerous tail.',
+        permissions: { allow: ['Bash(pnpm:*)', 'WebFetch(domain:localhost)'], deny: ['Read(./.env)'], ask: [] },
+        source: 'builtin',
+      },
+    ],
+    warnings: [],
+  });
   mocks.fetchAlwaysAllowed.mockResolvedValue({
     available: true,
     entries: [
@@ -164,6 +175,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
 async function renderPage(): Promise<void> {
@@ -351,6 +363,118 @@ describe('Editor rails', () => {
   });
 });
 
+describe('Editor defect regressions (D2/D3/D6)', () => {
+  const FRESH_FILE = {
+    scope: 'user' as const,
+    path: USER_FILE,
+    exists: true,
+    content: '{\n  "model": "opus"\n}',
+    baseHash: 'hash-2',
+    writable: true,
+  };
+
+  function applyTemplatePack(): void {
+    mocks.previewSettingsTemplate.mockResolvedValue({
+      pack: { id: 'safe-web-dev', name: 'safe web dev', version: '1.0.0' },
+      addedRules: 1,
+      newContent: '{"permissions":{"allow":["Bash(pnpm:*)"]}}',
+      preview: makePreview({ baseHash: 'hash-t' }),
+    });
+    mocks.applySettingsEdit.mockResolvedValue({ targetPath: USER_FILE, changed: true });
+    const packs = screen.getByRole('region', { name: 'Template packs' });
+    fireEvent.click(within(packs).getByRole('button', { name: 'Apply to user' }));
+  }
+
+  it('D2: an apply in another section re-syncs a CLEAN editor from disk', async () => {
+    mocks.fetchSettingsFile
+      .mockResolvedValueOnce({
+        scope: 'user',
+        path: USER_FILE,
+        exists: true,
+        content: '{\n  "model": "sonnet"\n}',
+        baseHash: 'hash-1',
+        writable: true,
+      })
+      .mockResolvedValue(FRESH_FILE);
+    await renderPage();
+    expect(screen.getByLabelText('Settings file content')).toHaveValue('{\n  "model": "sonnet"\n}');
+
+    applyTemplatePack();
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Settings file content')).toHaveValue('{\n  "model": "opus"\n}'),
+    );
+  });
+
+  it('D2: a DIRTY editor keeps the edits, flags the drift, and offers an explicit discard', async () => {
+    mocks.fetchSettingsFile
+      .mockResolvedValueOnce({
+        scope: 'user',
+        path: USER_FILE,
+        exists: true,
+        content: '{\n  "model": "sonnet"\n}',
+        baseHash: 'hash-1',
+        writable: true,
+      })
+      .mockResolvedValue(FRESH_FILE);
+    await renderPage();
+    fireEvent.change(screen.getByLabelText('Settings file content'), { target: { value: '{"mine":1}' } });
+
+    applyTemplatePack();
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+
+    const editor = screen.getByRole('region', { name: 'Settings editor' });
+    await within(editor).findByText(/changed on disk since you started editing/);
+    expect(screen.getByLabelText('Settings file content')).toHaveValue('{"mine":1}');
+
+    fireEvent.click(within(editor).getByRole('button', { name: 'Load disk version (discards my edits)' }));
+    await waitFor(() =>
+      expect(screen.getByLabelText('Settings file content')).toHaveValue('{\n  "model": "opus"\n}'),
+    );
+  });
+
+  it('D3: switching scope with unsaved edits requires confirmation', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await renderPage();
+    fireEvent.change(screen.getByLabelText('Settings file content'), { target: { value: '{"x":1}' } });
+
+    fireEvent.change(screen.getByLabelText('Editor scope'), { target: { value: 'project' } });
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Editor scope')).toHaveValue('user');
+    expect(screen.getByLabelText('Settings file content')).toHaveValue('{"x":1}');
+
+    confirmSpy.mockReturnValue(true);
+    fireEvent.change(screen.getByLabelText('Editor scope'), { target: { value: 'project' } });
+    await waitFor(() => expect(mocks.fetchSettingsFile).toHaveBeenLastCalledWith('project', PROJECT_DIR));
+  });
+
+  it('D3: switching project with unsaved edits requires confirmation', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await renderPage();
+    fireEvent.change(screen.getByLabelText('Settings file content'), { target: { value: '{"x":1}' } });
+
+    fireEvent.change(screen.getByLabelText('Project'), { target: { value: '' } });
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
+    // the selection did not change
+    expect(window.localStorage.getItem('chartroom.settings.project')).toBe(PROJECT_DIR);
+    expect(screen.getByLabelText('Settings file content')).toHaveValue('{"x":1}');
+  });
+
+  it('D6: preview-step failures render inside the editor section, not at the page top', async () => {
+    mocks.previewSettingsEdit.mockRejectedValue(new Error('station exploded'));
+    await renderPage();
+    fireEvent.change(screen.getByLabelText('Settings file content'), { target: { value: '{"x":1}' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Preview diff' }));
+
+    const editor = screen.getByRole('region', { name: 'Settings editor' });
+    expect(await within(editor).findByText('station exploded')).toBeInTheDocument();
+    expect(screen.getAllByText('station exploded')).toHaveLength(1); // nothing at the page top
+  });
+});
+
 describe('Template packs', () => {
   it('previews a pack server-side and applies through the same diff modal', async () => {
     mocks.previewSettingsTemplate.mockResolvedValue({
@@ -379,6 +503,64 @@ describe('Template packs', () => {
         newContent: '{"permissions":{"allow":["Bash(pnpm:*)"]}}',
         baseHash: 'hash-t',
       }),
+    );
+  });
+
+  it('creates a user pack from the current effective permissions; it appears and applies', async () => {
+    const created: SettingsTemplatePack = {
+      id: 'team-web',
+      name: 'Team web',
+      version: '1.0.0',
+      description: '',
+      permissions: { allow: ['Bash(git:*)'], deny: ['Read(./.env)'], ask: ['Bash(git push:*)'] },
+      source: 'user',
+    };
+    mocks.createSettingsTemplate.mockResolvedValue({ pack: created });
+    await renderPage();
+    const packs = screen.getByRole('region', { name: 'Template packs' });
+
+    fireEvent.click(within(packs).getByRole('button', { name: 'New pack…' }));
+    fireEvent.change(within(packs).getByLabelText('Pack id'), { target: { value: 'team-web' } });
+    fireEvent.change(within(packs).getByLabelText('Pack name'), { target: { value: 'Team web' } });
+    fireEvent.click(within(packs).getByRole('button', { name: 'Prefill from current effective permissions' }));
+    expect(within(packs).getByLabelText('Pack allow rules')).toHaveValue('Bash(git:*)');
+    expect(within(packs).getByLabelText('Pack deny rules')).toHaveValue('Read(./.env)');
+    expect(within(packs).getByLabelText('Pack ask rules')).toHaveValue('Bash(git push:*)');
+
+    // the post-create catalog refresh now includes the new pack
+    const existing = await mocks.fetchSettingsTemplates.mock.results[0].value;
+    mocks.fetchSettingsTemplates.mockResolvedValue({ packs: [...existing.packs, created], warnings: [] });
+    fireEvent.click(within(packs).getByRole('button', { name: 'Create pack' }));
+
+    await waitFor(() =>
+      expect(mocks.createSettingsTemplate).toHaveBeenCalledWith({
+        id: 'team-web',
+        name: 'Team web',
+        version: '1.0.0',
+        description: '',
+        permissions: { allow: ['Bash(git:*)'], deny: ['Read(./.env)'], ask: ['Bash(git push:*)'] },
+      }),
+    );
+    const card = (await within(packs).findByText('Team web')).closest('.settings-card');
+    expect(card?.querySelector('.settings-chip')?.textContent).toBe('user'); // source badge
+
+    // the new pack applies through the EXISTING preview→apply pipeline
+    mocks.previewSettingsTemplate.mockResolvedValue({
+      pack: { id: 'team-web', name: 'Team web', version: '1.0.0' },
+      addedRules: 3,
+      newContent: '{"permissions":{"allow":["Bash(git:*)"]}}',
+      preview: makePreview({ baseHash: 'hash-u' }),
+    });
+    mocks.applySettingsEdit.mockResolvedValue({ targetPath: USER_FILE, changed: true });
+    const applyButtons = within(packs).getAllByRole('button', { name: 'Apply to user' });
+    fireEvent.click(applyButtons[applyButtons.length - 1]);
+    await waitFor(() =>
+      expect(mocks.previewSettingsTemplate).toHaveBeenCalledWith({ id: 'team-web', scope: 'user', project: undefined }),
+    );
+    const dialog = await screen.findByRole('dialog', { name: "Apply pack 'Team web' to user" });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    await waitFor(() =>
+      expect(mocks.applySettingsEdit).toHaveBeenCalledWith(expect.objectContaining({ baseHash: 'hash-u' })),
     );
   });
 });
