@@ -8,6 +8,7 @@ import {
   applyEdit,
   computeAddSettings,
   computeAdditiveRules,
+  computeMoveRules,
   computeRemoveAllowRule,
   hashContent,
   listBackups,
@@ -19,7 +20,7 @@ import { computeEffectiveSettings } from './merge.js';
 import { loadScopes, readScopeFile, scopePath, WRITABLE_SCOPES, type ScopeName, type WritableScopeName } from './scopes.js';
 import { structuralSchema } from './schema.js';
 import { simulate } from './simulator.js';
-import { loadTemplatePacks } from './templates.js';
+import { loadTemplateCatalog, saveUserTemplatePack, userTemplatesDir } from './templates.js';
 
 export interface SettingsManagerStationOptions {
   /** Home-directory override (user scope + backups root) -- tests never touch the real home. */
@@ -31,6 +32,8 @@ export interface SettingsManagerStationOptions {
    * authority and these are additive. */
   allowedProjectDirs?: string[];
   templatesDir?: string;
+  /** User-defined template packs directory override (tests) -- default `<home>/.suite/settings-templates`. */
+  userTemplatesDir?: string;
   now?: () => Date;
 }
 
@@ -95,6 +98,35 @@ const addPreviewBodySchema = z.object({
 const revokePreviewBodySchema = z.object({
   project: z.string().min(1),
   rule: z.string().min(1),
+});
+
+const permissionListEnum = z.enum(['allow', 'ask', 'deny']);
+
+const movePreviewBodySchema = z.object({
+  scope: writableScopeEnum,
+  project: z.string().optional(),
+  moves: z
+    .array(
+      z.object({
+        rule: z.string().min(1).max(1000),
+        from: permissionListEnum,
+        to: permissionListEnum.optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
+});
+
+const templateCreateBodySchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z.string().min(1).max(200),
+  version: z.string().min(1).max(50).default('1.0.0'),
+  description: z.string().max(2000).default(''),
+  permissions: z.object({
+    allow: z.array(z.string().min(1).max(1000)).default([]),
+    deny: z.array(z.string().min(1).max(1000)).default([]),
+    ask: z.array(z.string().min(1).max(1000)).default([]),
+  }),
 });
 
 function editErrorStatus(code: SettingsEditError['code']): number {
@@ -333,14 +365,61 @@ export function createSettingsManagerStation(options: SettingsManagerStationOpti
         }
       });
 
+      /* ── rule moves: generic move/remove across allow/ask/deny (the D1/D4 fix) ── */
+
+      app.post('/api/settings-manager/move/preview', async (request, reply) => {
+        const parsed = movePreviewBodySchema.safeParse(request.body);
+        if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+        const targetPath = resolveTargetPath(parsed.data.scope, parsed.data.project, reply);
+        if (targetPath === null) return reply;
+        const current = readScopeFile(parsed.data.scope, targetPath);
+        if (!current.exists || current.raw === undefined) {
+          return reply.code(404).send({ error: `no ${parsed.data.scope} settings file to move rules in` });
+        }
+        if (current.error) {
+          return reply.code(409).send({ error: `target is malformed: ${current.error}`, code: 'malformed-target' });
+        }
+        try {
+          const { newContent, moved, removed } = computeMoveRules(current.raw, parsed.data.moves);
+          const preview = previewEdit({ targetPath, newContent }, { homeDir });
+          return { newContent, moved, removed, preview };
+        } catch (err) {
+          if (err instanceof SettingsEditError) {
+            return reply.code(editErrorStatus(err.code)).send({ error: err.message, code: err.code });
+          }
+          throw err;
+        }
+      });
+
       /* ── template packs ── */
 
-      app.get('/api/settings-manager/templates', async () => loadTemplatePacks(options.templatesDir));
+      const templateDirs = {
+        templatesDir: options.templatesDir,
+        userTemplatesDir: options.userTemplatesDir ?? userTemplatesDir(homeDir),
+      };
+
+      app.get('/api/settings-manager/templates', async () => loadTemplateCatalog(templateDirs));
+
+      app.post('/api/settings-manager/templates', async (request, reply) => {
+        if (!requireDeckHeader(request, reply)) return reply;
+        const parsed = templateCreateBodySchema.safeParse(request.body);
+        if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
+        try {
+          const pack = saveUserTemplatePack(parsed.data, templateDirs);
+          ctx.log(`settings-manager: created user template pack '${pack.id}'`);
+          return reply.code(201).send({ pack });
+        } catch (err) {
+          if (err instanceof SettingsEditError) {
+            return reply.code(editErrorStatus(err.code)).send({ error: err.message, code: err.code, details: err.details });
+          }
+          throw err;
+        }
+      });
 
       app.post('/api/settings-manager/templates/preview', async (request, reply) => {
         const parsed = templatePreviewBodySchema.safeParse(request.body);
         if (!parsed.success) return reply.code(400).send({ error: parsed.error.message });
-        const pack = loadTemplatePacks(options.templatesDir).find((candidate) => candidate.id === parsed.data.id);
+        const pack = loadTemplateCatalog(templateDirs).packs.find((candidate) => candidate.id === parsed.data.id);
         if (!pack) return reply.code(404).send({ error: `no such template pack: ${parsed.data.id}` });
         const targetPath = resolveTargetPath(parsed.data.scope, parsed.data.project, reply);
         if (targetPath === null) return reply;
@@ -393,7 +472,7 @@ export function createSettingsManagerStation(options: SettingsManagerStationOpti
         ok: true,
         schemaSource: structuralSchema.source,
         backups: listBackups(homeDir).length,
-        templates: loadTemplatePacks(options.templatesDir).length,
+        templates: loadTemplateCatalog(templateDirs).packs.length,
       }));
     },
   };

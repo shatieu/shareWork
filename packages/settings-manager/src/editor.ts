@@ -351,6 +351,113 @@ export function computeRemoveAllowRule(currentText: string, rule: string): strin
   return `${JSON.stringify(next, null, 2)}\n`;
 }
 
+export type PermissionListName = 'allow' | 'ask' | 'deny';
+
+export interface RuleMove {
+  /** Exact rule string as it appears in the source list. */
+  rule: string;
+  from: PermissionListName;
+  /** Destination list; omit to REMOVE the rule entirely. */
+  to?: PermissionListName;
+}
+
+/**
+ * Generic move/remove over the three permission lists (the D1/D4 fix): each move takes ONE
+ * occurrence of `rule` out of `from` and, when `to` is given, appends it to `to` (unless already
+ * present there). Pure -- composes the full new document; the write leg is the EXISTING
+ * preview/apply rail. Post-verified: every list must equal the original minus the moved-out
+ * occurrences plus only the requested appends, and nothing outside allow/ask/deny may change.
+ */
+export function computeMoveRules(
+  currentText: string,
+  moves: RuleMove[],
+): { newContent: string; moved: number; removed: number } {
+  if (moves.length === 0) {
+    throw new SettingsEditError('invalid-content', 'no moves requested');
+  }
+  for (const [index, move] of moves.entries()) {
+    if (move.to === move.from) {
+      throw new SettingsEditError('invalid-content', `move of ${JSON.stringify(move.rule)} targets its own list '${move.from}'`);
+    }
+    for (const other of moves.slice(0, index)) {
+      if (other.rule !== move.rule) continue;
+      // Same (rule, from) twice or a chain (out of a list another move puts it into) would make
+      // the batch order-dependent -- refuse; the caller can issue two batches.
+      if (other.from === move.from || other.to === move.from || move.to === other.from) {
+        throw new SettingsEditError('invalid-content', `conflicting moves for rule ${JSON.stringify(move.rule)}`);
+      }
+    }
+  }
+  const original = parseDocument(currentText);
+  const { next, permissions } = clonePermissions(original);
+  const lists: Record<PermissionListName, unknown[]> = {
+    allow: Array.isArray(permissions.allow) ? [...(permissions.allow as unknown[])] : [],
+    ask: Array.isArray(permissions.ask) ? [...(permissions.ask as unknown[])] : [],
+    deny: Array.isArray(permissions.deny) ? [...(permissions.deny as unknown[])] : [],
+  };
+
+  let moved = 0;
+  let removed = 0;
+  for (const move of moves) {
+    const source = lists[move.from];
+    const index = source.indexOf(move.rule);
+    if (index === -1) {
+      throw new SettingsEditError('rule-not-found', `${move.from} rule not present: ${JSON.stringify(move.rule)}`);
+    }
+    source.splice(index, 1);
+    if (move.to === undefined) {
+      removed += 1;
+    } else {
+      if (!lists[move.to].includes(move.rule)) lists[move.to].push(move.rule);
+      moved += 1;
+    }
+  }
+  for (const list of ['allow', 'ask', 'deny'] as const) {
+    // Preserve "list absent" when it was absent AND stays empty; never drop an existing key.
+    if (lists[list].length > 0 || permissions[list] !== undefined) permissions[list] = lists[list];
+  }
+
+  // Post-check 1: each result list must equal an INDEPENDENTLY computed expectation over the
+  // original: original entries minus one occurrence per move-out (order preserved), plus an
+  // appended tail of exactly the requested move-ins that were not already present.
+  for (const list of ['allow', 'ask', 'deny'] as const) {
+    const originalList = Array.isArray(
+      (original.permissions as Record<string, unknown> | undefined)?.[list],
+    )
+      ? ([...((original.permissions as Record<string, unknown>)[list] as unknown[])] as unknown[])
+      : [];
+    const expected = [...originalList];
+    for (const move of moves) {
+      if (move.from !== list) continue;
+      expected.splice(expected.indexOf(move.rule), 1);
+    }
+    for (const move of moves) {
+      if (move.to !== list) continue;
+      if (!expected.includes(move.rule)) expected.push(move.rule);
+    }
+    if (JSON.stringify(lists[list]) !== JSON.stringify(expected)) {
+      throw new SettingsEditError('subtractive-violation', `move would corrupt the '${list}' list`);
+    }
+  }
+  // Post-check 2: with the three lists blanked on both sides, the documents must be identical --
+  // proof nothing outside allow/ask/deny changed (additionalDirectories, defaultMode, ...).
+  const blankLists = (doc: Record<string, unknown>): string => {
+    const copy = structuredClone(doc);
+    const perms =
+      typeof copy.permissions === 'object' && copy.permissions !== null && !Array.isArray(copy.permissions)
+        ? (copy.permissions as Record<string, unknown>)
+        : {};
+    for (const list of ['allow', 'ask', 'deny'] as const) delete perms[list];
+    copy.permissions = perms;
+    return JSON.stringify(copy);
+  };
+  if (blankLists(next) !== blankLists(original)) {
+    throw new SettingsEditError('subtractive-violation', 'move would change keys outside the permission lists');
+  }
+
+  return { newContent: `${JSON.stringify(next, null, 2)}\n`, moved, removed };
+}
+
 /**
  * Template-pack application: additively merge permission rules into a document (missing file =
  * empty document). Post-verified additive: result is the original plus only the appended rules.

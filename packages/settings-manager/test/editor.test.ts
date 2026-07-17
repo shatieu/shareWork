@@ -6,6 +6,7 @@ import {
   applyEdit,
   backupsDir,
   computeAdditiveRules,
+  computeMoveRules,
   computeRemoveAllowRule,
   hashContent,
   listBackups,
@@ -263,5 +264,90 @@ describe('structured edits (pure computations feeding the same rails)', () => {
     const { newContent, addedRules } = computeAdditiveRules(undefined, { allow: ['A'] });
     expect(JSON.parse(newContent).permissions.allow).toEqual(['A']);
     expect(addedRules).toBe(1);
+  });
+});
+
+describe('computeMoveRules (generic move/remove -- the D1/D4 fix)', () => {
+  const DOC = JSON.stringify(
+    {
+      model: 'opus',
+      permissions: {
+        allow: ['Bash(git status)', 'Bash(git push *)', 'Read(./src)'],
+        ask: ['Bash(npm *)'],
+        deny: ['Bash(rm *)'],
+        defaultMode: 'default',
+        additionalDirectories: ['../shared'],
+      },
+      hooks: { Stop: [] },
+    },
+    null,
+    2,
+  );
+
+  it('moves a single rule between lists, everything else identical', () => {
+    const { newContent, moved, removed } = computeMoveRules(DOC, [
+      { rule: 'Bash(npm *)', from: 'ask', to: 'deny' },
+    ]);
+    const next = JSON.parse(newContent);
+    expect(moved).toBe(1);
+    expect(removed).toBe(0);
+    expect(next.permissions.ask).toEqual([]);
+    expect(next.permissions.deny).toEqual(['Bash(rm *)', 'Bash(npm *)']);
+    expect(next.permissions.allow).toEqual(['Bash(git status)', 'Bash(git push *)', 'Read(./src)']);
+    expect(next.permissions.additionalDirectories).toEqual(['../shared']);
+    expect(next.permissions.defaultMode).toBe('default');
+    expect(next.model).toBe('opus');
+    expect(next.hooks).toEqual({ Stop: [] });
+  });
+
+  it('moves a whole group (multiple rules) in one batch', () => {
+    const { newContent, moved } = computeMoveRules(DOC, [
+      { rule: 'Bash(git status)', from: 'allow', to: 'deny' },
+      { rule: 'Bash(git push *)', from: 'allow', to: 'deny' },
+    ]);
+    const next = JSON.parse(newContent);
+    expect(moved).toBe(2);
+    expect(next.permissions.allow).toEqual(['Read(./src)']);
+    expect(next.permissions.deny).toEqual(['Bash(rm *)', 'Bash(git status)', 'Bash(git push *)']);
+  });
+
+  it('omitting `to` removes the rule entirely', () => {
+    const { newContent, moved, removed } = computeMoveRules(DOC, [{ rule: 'Bash(rm *)', from: 'deny' }]);
+    const next = JSON.parse(newContent);
+    expect(moved).toBe(0);
+    expect(removed).toBe(1);
+    expect(next.permissions.deny).toEqual([]);
+  });
+
+  it('does not duplicate a rule already present in the destination list', () => {
+    const doc = JSON.stringify({ permissions: { allow: ['A'], deny: ['A'] } });
+    const next = JSON.parse(computeMoveRules(doc, [{ rule: 'A', from: 'allow', to: 'deny' }]).newContent);
+    expect(next.permissions.allow).toEqual([]);
+    expect(next.permissions.deny).toEqual(['A']);
+  });
+
+  it('absent rule = typed rule-not-found; nothing composed', () => {
+    expect(() => computeMoveRules(DOC, [{ rule: 'NotThere', from: 'allow', to: 'deny' }])).toThrowError(
+      expect.objectContaining({ code: 'rule-not-found' }),
+    );
+  });
+
+  it('refuses no-op, conflicting, and empty batches with typed errors', () => {
+    expect(() => computeMoveRules(DOC, [])).toThrowError(expect.objectContaining({ code: 'invalid-content' }));
+    expect(() =>
+      computeMoveRules(DOC, [{ rule: 'Bash(rm *)', from: 'deny', to: 'deny' }]),
+    ).toThrowError(expect.objectContaining({ code: 'invalid-content' }));
+    expect(() =>
+      computeMoveRules(DOC, [
+        { rule: 'Bash(npm *)', from: 'ask', to: 'deny' },
+        { rule: 'Bash(npm *)', from: 'deny', to: 'allow' },
+      ]),
+    ).toThrowError(expect.objectContaining({ code: 'invalid-content' }));
+  });
+
+  it('refuses malformed input', () => {
+    expect(() => computeMoveRules('{broken', [{ rule: 'A', from: 'allow', to: 'ask' }])).toThrowError(
+      expect.objectContaining({ code: 'invalid-content' }),
+    );
   });
 });

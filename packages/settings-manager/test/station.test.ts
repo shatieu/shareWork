@@ -232,10 +232,176 @@ describe('editor routes: the rails over HTTP', () => {
   });
 });
 
+describe('rule moves over HTTP (move/preview + the existing apply rail)', () => {
+  it('moving a group to deny changes the target settings.json bytes on disk through preview→apply', async () => {
+    // Seed a second allow rule so the "git group" has two members.
+    writeFileSync(
+      join(project, '.claude', 'settings.json'),
+      `${JSON.stringify({ permissions: { deny: ['Bash(rm *)'], allow: ['Bash(git status)', 'Bash(git push *)'] } }, null, 2)}\n`,
+      'utf8',
+    );
+    const previewResponse = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/move/preview',
+      payload: {
+        scope: 'project',
+        project,
+        moves: [
+          { rule: 'Bash(git status)', from: 'allow', to: 'deny' },
+          { rule: 'Bash(git push *)', from: 'allow', to: 'deny' },
+        ],
+      },
+    });
+    expect(previewResponse.statusCode).toBe(200);
+    const body = previewResponse.json();
+    expect(body.moved).toBe(2);
+    expect(body.removed).toBe(0);
+    expect(body.preview.unifiedDiff).toContain('+');
+
+    const applied = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/apply',
+      headers: { [DECK_CLIENT_HEADER]: '1' },
+      payload: { scope: 'project', project, newContent: body.newContent, baseHash: body.preview.baseHash },
+    });
+    expect(applied.statusCode).toBe(200);
+    expect(applied.json().changed).toBe(true);
+
+    // The manual proof: the real file's bytes changed to exactly the composed document.
+    const onDisk = readFileSync(join(project, '.claude', 'settings.json'), 'utf8');
+    expect(onDisk).toBe(body.newContent);
+    const parsed = JSON.parse(onDisk);
+    expect(parsed.permissions.allow).toEqual([]);
+    expect(parsed.permissions.deny).toEqual(['Bash(rm *)', 'Bash(git status)', 'Bash(git push *)']);
+  });
+
+  it('a removal (no `to`) previews the subtraction', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/move/preview',
+      payload: { scope: 'project', project, moves: [{ rule: 'Bash(ls *)', from: 'allow' }] },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().removed).toBe(1);
+    expect(JSON.parse(response.json().newContent).permissions.allow).toEqual([]);
+  });
+
+  it('guards hold: missing file 404, absent rule 400, unregistered project 403, managed scope rejected', async () => {
+    const missing = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/move/preview',
+      payload: { scope: 'local', project, moves: [{ rule: 'X', from: 'allow', to: 'deny' }] },
+    });
+    expect(missing.statusCode).toBe(404);
+
+    const notFound = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/move/preview',
+      payload: { scope: 'project', project, moves: [{ rule: 'NotThere', from: 'allow', to: 'deny' }] },
+    });
+    expect(notFound.statusCode).toBe(400);
+    expect(notFound.json().code).toBe('rule-not-found');
+
+    const forbidden = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/move/preview',
+      payload: { scope: 'project', project: outsideProject, moves: [{ rule: 'X', from: 'allow', to: 'deny' }] },
+    });
+    expect(forbidden.statusCode).toBe(403);
+
+    const managed = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/move/preview',
+      payload: { scope: 'managed', project, moves: [{ rule: 'X', from: 'allow', to: 'deny' }] },
+    });
+    expect(managed.statusCode).toBe(400); // zod: managed is not a writable scope
+  });
+
+  it('a malformed target is a typed 409, byte-identical', async () => {
+    writeFileSync(join(project, '.claude', 'settings.json'), '{broken', 'utf8');
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/move/preview',
+      payload: { scope: 'project', project, moves: [{ rule: 'Bash(ls *)', from: 'allow' }] },
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json().code).toBe('malformed-target');
+    expect(readFileSync(join(project, '.claude', 'settings.json'), 'utf8')).toBe('{broken');
+  });
+});
+
 describe('template packs + ship integration', () => {
-  it('GET /templates serves the curated packs', async () => {
+  it('GET /templates serves the curated packs with sources + warnings', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/settings-manager/templates' });
-    expect(response.json().map((p: { id: string }) => p.id)).toContain('crew-defaults');
+    const body = response.json();
+    expect(body.packs.map((p: { id: string }) => p.id)).toContain('crew-defaults');
+    expect(body.packs.every((p: { source: string }) => p.source === 'builtin')).toBe(true);
+    expect(body.warnings).toEqual([]);
+  });
+
+  it('POST /templates creates a user pack (header-gated, schema-validated, atomic) and it is applyable', async () => {
+    const pack = {
+      id: 'team-web',
+      name: 'Team web',
+      permissions: { allow: ['Bash(pnpm *)'], deny: ['Read(./.env)'], ask: [] },
+    };
+    const noHeader = await app.inject({ method: 'POST', url: '/api/settings-manager/templates', payload: pack });
+    expect(noHeader.statusCode).toBe(403);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/templates',
+      headers: { [DECK_CLIENT_HEADER]: '1' },
+      payload: pack,
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().pack).toMatchObject({ id: 'team-web', version: '1.0.0', source: 'user' });
+    // Default user dir wiring: <homeDir>/.suite/settings-templates
+    const onDisk = JSON.parse(readFileSync(join(home, '.suite', 'settings-templates', 'team-web.json'), 'utf8'));
+    expect(onDisk.permissions.allow).toEqual(['Bash(pnpm *)']);
+
+    const listed = await app.inject({ method: 'GET', url: '/api/settings-manager/templates' });
+    expect(listed.json().packs.find((p: { id: string }) => p.id === 'team-web')?.source).toBe('user');
+
+    const applyPreview = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/templates/preview',
+      payload: { id: 'team-web', scope: 'project', project },
+    });
+    expect(applyPreview.statusCode).toBe(200);
+    expect(JSON.parse(applyPreview.json().newContent).permissions.deny).toContain('Read(./.env)');
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/templates',
+      headers: { [DECK_CLIENT_HEADER]: '1' },
+      payload: { ...pack, id: 'Bad Id!' },
+    });
+    expect(invalid.statusCode).toBe(400);
+
+    const duplicate = await app.inject({
+      method: 'POST',
+      url: '/api/settings-manager/templates',
+      headers: { [DECK_CLIENT_HEADER]: '1' },
+      payload: pack,
+    });
+    expect(duplicate.statusCode).toBe(400);
+    expect(duplicate.json().error).toContain('already exists');
+  });
+
+  it('a user pack colliding with a built-in id is served suffixed with a warning', async () => {
+    const userDir = join(home, '.suite', 'settings-templates');
+    mkdirSync(userDir, { recursive: true });
+    writeFileSync(
+      join(userDir, 'crew-defaults.json'),
+      `${JSON.stringify({ id: 'crew-defaults', name: 'Impostor', version: '9.9.9', description: 'x', permissions: { allow: [], deny: [], ask: [] } }, null, 2)}\n`,
+      'utf8',
+    );
+    const response = await app.inject({ method: 'GET', url: '/api/settings-manager/templates' });
+    const body = response.json();
+    expect(body.packs.find((p: { id: string }) => p.id === 'crew-defaults').name).not.toBe('Impostor');
+    expect(body.packs.find((p: { id: string }) => p.id === 'crew-defaults-user')?.name).toBe('Impostor');
+    expect(body.warnings).toHaveLength(1);
   });
 
   it('POST /templates/preview computes an additive diff for a scope', async () => {

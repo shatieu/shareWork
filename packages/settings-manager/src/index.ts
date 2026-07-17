@@ -30,6 +30,7 @@ export {
   applyEdit,
   computeAddSettings,
   computeAdditiveRules,
+  computeMoveRules,
   computeRemoveAllowRule,
   hashContent,
   listBackups,
@@ -42,10 +43,22 @@ export {
   type EditPreview,
   type AddSettingsResult,
   type EditorOptions,
+  type PermissionListName,
+  type RuleMove,
   type SettingsAdditions,
   type SettingsEditErrorCode,
 } from './editor.js';
 export { structuralSchema, KNOWN_TOP_LEVEL, PERMISSION_MODES, type KeyKind, type SchemaProvider, type ValidationResult } from './schema.js';
 export { diffLines, formatUnifiedDiff, countChanges, type DiffOp } from './diff.js';
-export { loadTemplatePacks, getTemplatePack, type TemplatePack } from './templates.js';
+export {
+  getTemplatePack,
+  loadTemplateCatalog,
+  loadTemplatePacks,
+  saveUserTemplatePack,
+  userTemplatesDir,
+  type LoadedTemplatePack,
+  type TemplateCatalog,
+  type TemplateDirOptions,
+  type TemplatePack,
+} from './templates.js';
 export { createSettingsManagerStation, type SettingsManagerStationOptions } from './station.js';
