@@ -6,6 +6,7 @@ import { openSkillAnalyticsDb, skillAnalyticsDbPath } from './db.js';
 import { collectTranscripts, type CollectResult } from './collect.js';
 import { defaultClaudeProjectsDir } from './transcripts.js';
 import { listInstalledSkills } from './installed.js';
+import { getSessionUsage, listSessionUsage, type SessionUsageEntry } from './sessions.js';
 import {
   buildSummary,
   findDeadSkills,
@@ -88,6 +89,51 @@ export function createSkillAnalyticsStation(
         const installed = listInstalledSkills({ homeDir, projectDirs: knownProjectDirs(db) });
         return findDeadSkills(db, installed, { days: intQuery(request.query.days), now });
       });
+
+      // Per-session token usage (wave2-I). Deck-header-gated: session ids + transcript paths
+      // are more identifying than the aggregate summary, so only the Deck client reads them.
+      // Watched state joins from ship-log's existing in-process contract when that station is
+      // mounted; display names are NOT joined (ship-log offers no such contract today) — the
+      // session id + transcript-derived project label is the honest identity here.
+      const withWatched = (entries: SessionUsageEntry[]): SessionUsageEntry[] => {
+        const listUnwatched = ctx.getContract<() => string[]>('ship-log', 'listUnwatchedSessionIds');
+        if (!listUnwatched) return entries;
+        try {
+          const unwatched = new Set(listUnwatched());
+          return entries.map((e) => ({ ...e, watched: !unwatched.has(e.sessionId) }));
+        } catch {
+          return entries;
+        }
+      };
+
+      app.get<{ Querystring: { project?: string; limit?: string } }>(
+        '/api/skill-analytics/sessions',
+        async (request, reply) => {
+          if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+            return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+          }
+          const sessions = withWatched(
+            listSessionUsage(db, {
+              project: request.query.project,
+              limit: intQuery(request.query.limit),
+            }),
+          );
+          return { generatedAt: now().toISOString(), sessions };
+        },
+      );
+
+      app.get<{ Params: { id: string } }>(
+        '/api/skill-analytics/sessions/:id',
+        async (request, reply) => {
+          if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+            return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+          }
+          const session = getSessionUsage(db, request.params.id);
+          if (!session) return reply.code(404).send({ error: 'unknown session' });
+          const [entry] = withWatched([session]);
+          return entry;
+        },
+      );
 
       // Mutating route → Deck CSRF header required, same rail as every station's writes.
       app.post('/api/skill-analytics/collect', async (request, reply) => {

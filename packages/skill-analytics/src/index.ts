@@ -1,7 +1,9 @@
 export { parseLine } from './parse.js';
 export type { InvocationKind, ParsedInvocation, ParsedLine, ParsedUsage, TriggerMode } from './parse.js';
 export { openSkillAnalyticsDb, projectFromCwd, skillAnalyticsDbPath } from './db.js';
-export type { FileCursorRow, InvocationRow } from './db.js';
+export type { FileCursorRow, InvocationRow, SessionUsageRow } from './db.js';
+export { getSessionUsage, listSessionUsage } from './sessions.js';
+export type { ListSessionUsageOptions, SessionUsageEntry } from './sessions.js';
 export { defaultClaudeProjectsDir, listTranscriptFiles } from './transcripts.js';
 export type { TranscriptFile } from './transcripts.js';
 export { collectTranscripts } from './collect.js';
