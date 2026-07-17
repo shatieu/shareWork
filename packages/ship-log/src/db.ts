@@ -5,7 +5,11 @@ import Database from 'better-sqlite3';
 
 const SHIP_DIR_NAME = '.ship';
 const DB_FILE_NAME = 'log.db';
-const SCHEMA_VERSION = 1;
+/** v2 (wave2-E): `sessions.watched` -- the fleet-view hide flag. The vendor fleet list
+ * (`claude agents --json`) is stateless and keeps re-reporting a session, so "unwatch" must be a
+ * persisted server-side filter; the suite's only persisted session table lives here (wave2-e
+ * findings §b option 2). */
+const SCHEMA_VERSION = 2;
 
 /** Path to the SQLite truth store (plan §3.4). Accepts a `homeDir` override so every test and
  * the standalone CLI can point at a disposable temp directory -- no test ever opens the real
@@ -27,6 +31,8 @@ export interface SessionRow {
   ended_at: string | null;
   end_reason: string | null;
   captured: number;
+  /** 1 = shown in fleet views (default); 0 = hidden ("unwatched") until rewatched. */
+  watched: number;
 }
 
 export interface EntryRow {
@@ -85,7 +91,8 @@ export function openShipLogDb(homeDir: string = homedir()): Database.Database {
       last_stop_at TEXT,
       ended_at TEXT,
       end_reason TEXT,
-      captured INTEGER NOT NULL DEFAULT 0
+      captured INTEGER NOT NULL DEFAULT 0,
+      watched INTEGER NOT NULL DEFAULT 1
     );
 
     CREATE TABLE IF NOT EXISTS entries (
@@ -115,11 +122,21 @@ export function openShipLogDb(homeDir: string = homedir()): Database.Database {
     );
   `);
 
+  // v1 -> v2 migration: pre-existing sessions tables lack `watched`. `ALTER TABLE ADD COLUMN`
+  // with a non-null default is safe/idempotent-guarded here and preserves every existing row
+  // (existing sessions default to watched = 1, the pre-migration behavior).
+  const sessionColumns = db.pragma('table_info(sessions)') as { name: string }[];
+  if (!sessionColumns.some((column) => column.name === 'watched')) {
+    db.exec('ALTER TABLE sessions ADD COLUMN watched INTEGER NOT NULL DEFAULT 1');
+  }
+
   const meta = db.prepare('SELECT version FROM schema_meta LIMIT 1').get() as
     | { version: number }
     | undefined;
   if (!meta) {
     db.prepare('INSERT INTO schema_meta (version) VALUES (?)').run(SCHEMA_VERSION);
+  } else if (meta.version < SCHEMA_VERSION) {
+    db.prepare('UPDATE schema_meta SET version = ?').run(SCHEMA_VERSION);
   }
 
   return db;
@@ -208,6 +225,35 @@ export function markSessionEnded(
 
 export function markCaptured(db: Database.Database, sessionId: string): void {
   db.prepare(`UPDATE sessions SET captured = 1 WHERE session_id = ?`).run(sessionId);
+}
+
+/**
+ * Persist the fleet-view watch flag (wave2-E). The vendor fleet keeps re-reporting sessions
+ * ship-log may never have seen a SessionStart for (started before the hull, other machines'
+ * spools), and the hide must still stick -- so unwatching an unknown session plants a minimal
+ * stub row (cwd '', started_at now), the same degraded posture as `ensureSessionRow`. A real
+ * SessionStart arriving later only updates cwd/transcript (upsertSessionStart), never `watched`.
+ */
+export function setSessionWatched(
+  db: Database.Database,
+  sessionId: string,
+  watched: boolean,
+  nowIso: string,
+): SessionRow {
+  db.prepare(
+    `INSERT INTO sessions (session_id, cwd, started_at, captured, watched)
+     VALUES (?, '', ?, 0, ?)
+     ON CONFLICT(session_id) DO UPDATE SET watched = excluded.watched`,
+  ).run(sessionId, nowIso, watched ? 1 : 0);
+  return getSession(db, sessionId) as SessionRow;
+}
+
+/** The persisted hide-list consumed by fleet views (ship-console overview filter contract). */
+export function listUnwatchedSessionIds(db: Database.Database): string[] {
+  const rows = db
+    .prepare('SELECT session_id FROM sessions WHERE watched = 0 ORDER BY session_id')
+    .all() as { session_id: string }[];
+  return rows.map((row) => row.session_id);
 }
 
 /** Sessions eligible for the orphan sweep (plan §3.8): last checkpointed more than `olderThanMs`

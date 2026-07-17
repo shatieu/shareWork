@@ -8,7 +8,13 @@ import {
   type HostContext,
   type StationDescriptor,
 } from 'suite-conventions';
-import { openShipLogDb, listEntries, type EntryRow } from './db.js';
+import {
+  listEntries,
+  listUnwatchedSessionIds,
+  openShipLogDb,
+  setSessionWatched,
+  type EntryRow,
+} from './db.js';
 import { createCaptureContext, sweepOrphans, type CaptureContext } from './capture.js';
 import { ingestEnvelope } from './ingest.js';
 import { drainSpool, spoolPending } from './spool.js';
@@ -161,6 +167,24 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
         },
       );
 
+      // Fleet-view watch flag (wave2-E): the sessions table is the suite's only persisted
+      // session store, so ship-log owns the unwatch/rewatch mutation; fleet views (ship-console
+      // overview) consume the hide-list via the listUnwatchedSessionIds contract.
+      app.post<{ Params: { sessionId: string } }>(
+        '/api/ship-log/sessions/:sessionId/watch',
+        async (request, reply) => {
+          if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+            return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+          }
+          const body = request.body as { watched?: unknown } | null;
+          if (body === null || typeof body !== 'object' || typeof body.watched !== 'boolean') {
+            return reply.code(400).send({ error: 'body must be { watched: boolean }' });
+          }
+          const row = setSessionWatched(db, request.params.sessionId, body.watched, now().toISOString());
+          return { sessionId: row.session_id, watched: row.watched === 1 };
+        },
+      );
+
       app.get('/api/ship-log/health', async () => ({
         ok: true,
         dbPath: shipLogDbPath(homeDir),
@@ -183,6 +207,12 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
       /** In-process contract for the console package (9) -- `HostContext.getContract('ship-log',
        * 'getRollup')`. Kept as a plain function reference, never the db itself. */
       getRollup: (date: string) => getStoredRollup(db, date),
+      /** Fleet-view hide-list (wave2-E): session ids the human unwatched. Consumed by
+       * ship-console's overview filter; plain function, never the db. */
+      listUnwatchedSessionIds: () => listUnwatchedSessionIds(db),
+      /** Unwatch/rewatch mutation seam for siblings (the HTTP route above is the Deck's leg). */
+      setSessionWatched: (sessionId: string, watched: boolean) =>
+        setSessionWatched(db, sessionId, watched, now().toISOString()),
     },
   };
 
