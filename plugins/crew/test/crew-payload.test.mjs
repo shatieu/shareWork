@@ -21,6 +21,11 @@ const ROLES = [
   'quartermaster',
 ];
 
+// Companion-session charters: launched as a session's MAIN agent, never dispatched with a
+// report contract (the chaplain converses with the Captain; wave2-C chapel chat resumes it).
+const COMPANION_AGENTS = ['chaplain'];
+const ALL_AGENTS = [...ROLES, ...COMPANION_AGENTS];
+
 function frontmatterOf(markdown, file) {
   const match = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   expect(match, `${file} must start with YAML frontmatter`).toBeTruthy();
@@ -28,14 +33,14 @@ function frontmatterOf(markdown, file) {
 }
 
 describe('crew plugin phase-4 payload', () => {
-  it('agents/ contains ONLY the six role charters -- every agents/*.md becomes a dispatchable agent type (a README there turns into a bogus "README" agent, observed live in package-8 acceptance)', async () => {
+  it('agents/ contains ONLY the known charters -- every agents/*.md becomes a dispatchable agent type (a README there turns into a bogus "README" agent, observed live in package-8 acceptance)', async () => {
     const { readdirSync } = await import('node:fs');
     const files = readdirSync(join(CREW_DIR, 'agents')).filter((f) => f.endsWith('.md'));
-    expect(files.sort()).toEqual(ROLES.map((r) => `${r}.md`).sort());
+    expect(files.sort()).toEqual(ALL_AGENTS.map((r) => `${r}.md`).sort());
   });
 
-  it('ships the full Ship_Spec §7 role set with name+description frontmatter', () => {
-    for (const role of ROLES) {
+  it('ships the full Ship_Spec §7 role set (plus companions) with name+description frontmatter', () => {
+    for (const role of ALL_AGENTS) {
       const path = join(CREW_DIR, 'agents', `${role}.md`);
       expect(existsSync(path), `missing agents/${role}.md`).toBe(true);
       const fm = frontmatterOf(readFileSync(path, 'utf8'), `agents/${role}.md`);

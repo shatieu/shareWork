@@ -30,6 +30,7 @@ import { DocView } from './components/DocView.js';
 import { ConsolePage } from './console/ConsolePage.js';
 import { InboxPage } from './inbox/InboxPage.js';
 import { ShipInboxPage } from './shipinbox/ShipInboxPage.js';
+import { AskHumanPage } from './askhuman/AskHumanPage.js';
 import { SettingsPage } from './settings/SettingsPage.js';
 import { useSetupWizard } from './setup/useSetupWizard.js';
 import { VoyagePage } from './voyage/VoyagePage.js';
@@ -48,6 +49,8 @@ interface DeckRoute {
   docKey?: string;
   /** `#/inbox` -- the cross-repo inbox, rendered as Docs-tab content. */
   isInbox?: boolean;
+  /** `#/askhuman/<cwd>/<sessionId>` -- a session's pending ask-human form (wave2-E). */
+  askHuman?: { cwd: string; sessionId: string };
 }
 
 // Hash-based navigation, no router dependency -- the hash fragment never reaches the server, so
@@ -55,6 +58,7 @@ interface DeckRoute {
 // refreshes with zero SPA-fallback config on the daemon side. Existing `#/repo/...` and
 // `#/inbox` deep links keep working unchanged; `#/voyage` and `#/chapel` are the only added routes.
 const DOC_ROUTE_RE = /^#\/repo\/([^/]+)(?:\/doc\/([^/]+))?$/;
+const ASKHUMAN_ROUTE_RE = /^#\/askhuman\/([^/]+)\/([^/]+)$/;
 const INBOX_ROUTE = '#/inbox';
 const VOYAGE_ROUTE = '#/voyage';
 const CHAPEL_ROUTE = '#/chapel';
@@ -78,6 +82,13 @@ function parseHash(hash: string): DeckRoute {
   if (hash === SETTINGS_ROUTE) return { tab: 'settings' };
   if (hash === CONSOLE_ROUTE) return { tab: 'console' };
   if (hash === INBOX_ROUTE) return { tab: 'docs', isInbox: true };
+  const askMatch = ASKHUMAN_ROUTE_RE.exec(hash);
+  if (askMatch) {
+    return {
+      tab: 'docs',
+      askHuman: { cwd: decodeURIComponent(askMatch[1]), sessionId: decodeURIComponent(askMatch[2]) },
+    };
+  }
   const match = DOC_ROUTE_RE.exec(hash);
   if (!match) return { tab: 'docs' };
   return {
@@ -149,7 +160,7 @@ export default function App(): ReactElement {
   useEffect(() => {
     // `#/inbox` is deliberately excluded: with a hull-mounted Inbox tab it belongs to that tab,
     // and even standalone, "back to Docs" should land on a doc, not bounce to the inbox.
-    if (route.tab === 'docs' && !route.isInbox) lastDocsHashRef.current = hash;
+    if (route.tab === 'docs' && !route.isInbox && !route.askHuman) lastDocsHashRef.current = hash;
   }, [route.tab, route.isInbox, hash]);
 
   /* ── station tabs (from the hull; standalone `chartroom serve` = Docs-only mode) ── */
@@ -378,7 +389,8 @@ export default function App(): ReactElement {
   // Ship_Spec §5); standalone chartroom keeps rendering the docs-only InboxPage inside Docs.
   const hasInboxTab = tabs.some((tab) => tab.id === 'inbox');
   const showShipInbox = route.isInbox === true && hasInboxTab;
-  const activeTabId = showShipInbox ? 'inbox' : route.tab;
+  const showAskHuman = route.askHuman !== undefined;
+  const activeTabId = showShipInbox || (showAskHuman && hasInboxTab) ? 'inbox' : route.tab;
 
   /* ── top chrome ── */
 
@@ -535,6 +547,12 @@ export default function App(): ReactElement {
           <SettingsPage />
         ) : route.tab === 'console' ? (
           <ConsolePage />
+        ) : showAskHuman ? (
+          <main className="paper-frame">
+            <div className="paper">
+              <AskHumanPage cwd={route.askHuman!.cwd} sessionId={route.askHuman!.sessionId} />
+            </div>
+          </main>
         ) : showShipInbox ? (
           <main className="paper-frame">
             <div className="paper">
