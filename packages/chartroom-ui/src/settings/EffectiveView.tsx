@@ -4,14 +4,20 @@ import type {
   SettingsEffectiveResponse,
   SettingsScopeInfo,
 } from '../api/client.js';
+import { PermissionChips } from './PermissionChips.js';
 import { ScopeBadge, SourceFile } from './ScopeBadge.js';
+import type { DiffFlowApi } from './useDiffFlow.js';
 
 export interface EffectiveViewProps {
   effective: SettingsEffectiveResponse;
   scopes: SettingsScopeInfo[];
+  /** Selected project directory -- chip moves into project/local scopes target it. */
+  project?: string;
+  flow: DiffFlowApi;
+  onApplied: () => void;
 }
 
-function RuleGroup({ title, rules }: { title: 'deny' | 'ask' | 'allow' | 'additionalDirectories'; rules: AttributedSettingsRule[] }): ReactElement {
+function RuleGroup({ title, rules }: { title: 'additionalDirectories'; rules: AttributedSettingsRule[] }): ReactElement {
   return (
     <div className={`settings-rules settings-rules--${title}`}>
       <h3 className="settings-rules__title">
@@ -33,12 +39,12 @@ function RuleGroup({ title, rules }: { title: 'deny' | 'ask' | 'allow' | 'additi
 }
 
 /**
- * The merged effective view (Trio_Specs §B): permission rules grouped in evaluation order
- * (deny → ask → allow; arrays MERGE across scopes), the winning defaultMode with its shadowed
- * values, every other top-level key with provenance, and per-scope file status -- malformed
- * scopes are excluded from the merge and loudly flagged.
+ * The merged effective view (Trio_Specs §B): permission rules as movable chips in evaluation
+ * order (deny → ask → allow; arrays MERGE across scopes), the winning defaultMode with its
+ * shadowed values, every other top-level key with provenance, and per-scope file status --
+ * malformed scopes are excluded from the merge and loudly flagged.
  */
-export function EffectiveView({ effective, scopes }: EffectiveViewProps): ReactElement {
+export function EffectiveView({ effective, scopes, project, flow, onApplied }: EffectiveViewProps): ReactElement {
   const valueEntries = Object.entries(effective.values).sort(([a], [b]) => a.localeCompare(b));
   const mode = effective.permissions.defaultMode;
 
@@ -57,14 +63,10 @@ export function EffectiveView({ effective, scopes }: EffectiveViewProps): ReactE
         </div>
       )}
 
-      <div className="settings-rules-grid">
-        <RuleGroup title="deny" rules={effective.permissions.deny} />
-        <RuleGroup title="ask" rules={effective.permissions.ask} />
-        <RuleGroup title="allow" rules={effective.permissions.allow} />
-        {effective.permissions.additionalDirectories.length > 0 && (
-          <RuleGroup title="additionalDirectories" rules={effective.permissions.additionalDirectories} />
-        )}
-      </div>
+      <PermissionChips effective={effective} project={project} flow={flow} onApplied={onApplied} />
+      {effective.permissions.additionalDirectories.length > 0 && (
+        <RuleGroup title="additionalDirectories" rules={effective.permissions.additionalDirectories} />
+      )}
 
       <div className="settings-mode">
         <h3 className="settings-rules__title">defaultMode</h3>

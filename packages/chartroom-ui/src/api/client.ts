@@ -909,11 +909,63 @@ export interface SettingsTemplatePack {
   version: string;
   description: string;
   permissions: { allow: string[]; deny: string[]; ask: string[] };
+  /** Built-in packs ship with the package; user packs live in ~/.suite/settings-templates. */
+  source: 'builtin' | 'user';
 }
 
-/** `GET /api/settings-manager/templates` -- the curated permission packs. */
-export function fetchSettingsTemplates(): Promise<SettingsTemplatePack[]> {
-  return getJson<SettingsTemplatePack[]>('/api/settings-manager/templates');
+export interface SettingsTemplatesResponse {
+  packs: SettingsTemplatePack[];
+  /** Catalog degradations: malformed user packs skipped, id collisions served suffixed. */
+  warnings: string[];
+}
+
+/** `GET /api/settings-manager/templates` -- built-in + user permission packs, merged. */
+export function fetchSettingsTemplates(): Promise<SettingsTemplatesResponse> {
+  return getJson<SettingsTemplatesResponse>('/api/settings-manager/templates');
+}
+
+export interface SettingsTemplateCreateRequest {
+  id: string;
+  name: string;
+  /** Defaults server-side to '1.0.0'. */
+  version?: string;
+  description?: string;
+  permissions: { allow: string[]; deny: string[]; ask: string[] };
+}
+
+/** `POST /api/settings-manager/templates` -- creates a user-defined pack (schema-validated,
+ * atomic write into ~/.suite/settings-templates; built-in ids are reserved). */
+export function createSettingsTemplate(
+  request: SettingsTemplateCreateRequest,
+): Promise<{ pack: SettingsTemplatePack }> {
+  return postSettings<{ pack: SettingsTemplatePack }>('/api/settings-manager/templates', request);
+}
+
+export type SettingsPermissionList = 'allow' | 'ask' | 'deny';
+
+export interface SettingsRuleMove {
+  rule: string;
+  from: SettingsPermissionList;
+  /** Destination list; omit to remove the rule entirely. */
+  to?: SettingsPermissionList;
+}
+
+export interface SettingsMovePreviewResponse {
+  /** The composed content -- what apply must send verbatim alongside `preview.baseHash`. */
+  newContent: string;
+  moved: number;
+  removed: number;
+  preview: SettingsEditPreview;
+}
+
+/** `POST /api/settings-manager/move/preview` -- generic rule move/remove across allow/ask/deny
+ * within one scope file; the apply leg is the EXISTING `/apply` rail. */
+export function previewSettingsMove(request: {
+  scope: WritableSettingsScope;
+  project?: string;
+  moves: SettingsRuleMove[];
+}): Promise<SettingsMovePreviewResponse> {
+  return postSettings<SettingsMovePreviewResponse>('/api/settings-manager/move/preview', request);
 }
 
 export interface SettingsTemplatePreviewResponse {

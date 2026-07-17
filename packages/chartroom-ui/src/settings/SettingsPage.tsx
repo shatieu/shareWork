@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactElement } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactElement } from 'react';
 import {
   fetchSettingsEffective,
   fetchSettingsScopes,
@@ -38,6 +38,11 @@ export function SettingsPage(): ReactElement {
   const [refreshTick, setRefreshTick] = useState(0);
   const [addOpen, setAddOpen] = useState(false);
   const flow = useDiffFlow();
+  /** D3 guard: the editor reports unsaved edits; a project switch then requires confirmation. */
+  const editorDirty = useRef(false);
+  const onEditorDirtyChange = useCallback((dirty: boolean) => {
+    editorDirty.current = dirty;
+  }, []);
 
   // Bootstrap: an unscoped /scopes call yields the registered-project list; then restore the
   // persisted selection when it is still registered, else default to the first project.
@@ -117,7 +122,11 @@ export function SettingsPage(): ReactElement {
             className="settings-select"
             aria-label="Project"
             value={project ?? ''}
-            onChange={(event) => setProject(event.target.value)}
+            onChange={(event) => {
+              // D3: never silently discard unsaved editor edits on a project switch.
+              if (editorDirty.current && !window.confirm('Discard unsaved edits in the settings editor?')) return;
+              setProject(event.target.value);
+            }}
           >
             <option value="">(user scope only)</option>
             {scopesResponse.projects.map((candidate) => (
@@ -147,9 +156,21 @@ export function SettingsPage(): ReactElement {
       )}
 
       <Simulator project={projectArg} />
-      <EffectiveView effective={effective} scopes={scopesResponse.scopes} />
-      <ScopeEditor project={projectArg} flow={flow} onApplied={refresh} />
-      <TemplatePacks project={projectArg} flow={flow} onApplied={refresh} />
+      <EffectiveView
+        effective={effective}
+        scopes={scopesResponse.scopes}
+        project={projectArg}
+        flow={flow}
+        onApplied={refresh}
+      />
+      <ScopeEditor
+        project={projectArg}
+        flow={flow}
+        refreshToken={refreshTick}
+        onDirtyChange={onEditorDirtyChange}
+        onApplied={refresh}
+      />
+      <TemplatePacks project={projectArg} effective={effective} flow={flow} onApplied={refresh} />
       <AlwaysAllowed flow={flow} onApplied={refresh} />
       <BackupsSection scopes={scopesResponse.scopes} project={projectArg} flow={flow} onApplied={refresh} />
 

@@ -15,6 +15,14 @@ export interface DiffFlowRequest {
   scope: WritableSettingsScope;
   project?: string;
   newContent: string;
+  /** D5 fix: server-composed flows (moves, template packs, adds) recompose against the file's
+   * CURRENT bytes on a base-drift recovery -- a merge, never a re-send of the stale composition.
+   * Without it, re-preview diffs the same `newContent` against the fresh base (raw-editor
+   * semantics: the human's whole-document edit IS the intent). */
+  recompose?: () => Promise<{ newContent: string; preview: SettingsEditPreview }>;
+  /** D6 fix: preview-step failures surface next to the triggering section when provided,
+   * instead of the page-top fallback. */
+  onOpenError?: (message: string) => void;
   onApplied?: (result: SettingsApplyResult) => void;
 }
 
@@ -58,7 +66,11 @@ export function useDiffFlow(): DiffFlowApi {
       setOpenError(null);
       previewSettingsEdit({ scope: request.scope, project: request.project, newContent: request.newContent })
         .then((preview) => openWithPreview(request, preview))
-        .catch((err: unknown) => setOpenError(err instanceof Error ? err.message : String(err)));
+        .catch((err: unknown) => {
+          const message = err instanceof Error ? err.message : String(err);
+          if (request.onOpenError) request.onOpenError(message);
+          else setOpenError(message);
+        });
     },
     [openWithPreview],
   );
@@ -68,13 +80,27 @@ export function useDiffFlow(): DiffFlowApi {
   const rePreview = useCallback(() => {
     if (!state || state.busy) return;
     setState({ ...state, busy: true });
-    previewSettingsEdit({
-      scope: state.request.scope,
-      project: state.request.project,
-      newContent: state.request.newContent,
-    })
-      .then((preview) =>
-        setState((latest) => (latest ? { ...latest, preview, busy: false, error: null, errorCode: null } : latest)),
+    const recomposed: Promise<{ newContent: string; preview: SettingsEditPreview }> = state.request.recompose
+      ? state.request.recompose()
+      : previewSettingsEdit({
+          scope: state.request.scope,
+          project: state.request.project,
+          newContent: state.request.newContent,
+        }).then((preview) => ({ newContent: state.request.newContent, preview }));
+    recomposed
+      .then(({ newContent, preview }) =>
+        setState((latest) =>
+          latest
+            ? {
+                ...latest,
+                request: { ...latest.request, newContent },
+                preview,
+                busy: false,
+                error: null,
+                errorCode: null,
+              }
+            : latest,
+        ),
       )
       .catch((err: unknown) =>
         setState((latest) =>

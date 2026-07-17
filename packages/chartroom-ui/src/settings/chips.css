@@ -1,0 +1,71 @@
+/* Permission chips (Settings tab rework): grouped, draggable rule chips. Layout-only additions;
+ * colors lean on the classes base.css already styles (settings-rules--*, scope-badge). */
+
+.chips-col {
+  min-height: 6rem;
+}
+
+.chip-group {
+  margin: 0.5rem 0;
+}
+
+.chip-group__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: grab;
+}
+
+.chip-group__actions,
+.chip__actions {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.chip-group__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid rgba(128, 128, 128, 0.45);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: grab;
+}
+
+.chip--managed {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.chip__btn {
+  border: none;
+  background: transparent;
+  padding: 0 0.15rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.chip__btn:hover,
+.chip__btn:focus-visible {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+.chip__btn--remove {
+  color: #b04a4a;
+}
+
+.chip__lock {
+  font-size: 0.75rem;
+}

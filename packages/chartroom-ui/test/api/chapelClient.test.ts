@@ -7,6 +7,12 @@ import {
   fetchChapelProject,
   fetchChapelProjects,
 } from '../../src/api/client.js';
+import {
+  chapelChat,
+  fetchChapelChatLog,
+  fetchChapelConfession,
+  fetchChapelConfessions,
+} from '../../src/api/chapelClient.js';
 
 /** Fetch-level contract for the /api/chapel routes (deck-chapel-tab plan): the x-ship-deck
  * header rides EVERY call (GETs included -- the whole family is deck-header-guarded), bodies
@@ -134,5 +140,77 @@ describe('chapelOpenSession fetch contract', () => {
       vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}), text: async () => '' } as unknown as Response),
     );
     await expect(fetchChapelBrief()).rejects.toThrow('chartroom-ui: chapel brief fetch failed');
+  });
+});
+
+/* ── wave2-C additions (src/api/chapelClient.ts): chat + confession-history contracts ── */
+
+describe('chapelChat fetch contract', () => {
+  it('POSTs { text } to /api/chapel/chat with header + content-type and returns { reply, sessionId }', async () => {
+    const body = { reply: 'Peace, Captain.', sessionId: 'chat-session-1' };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(chapelChat('am I on course?')).resolves.toEqual(body);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/api/chapel/chat');
+    expect(init?.method).toBe('POST');
+    expect(headerOf(init, 'x-ship-deck')).toBe('1');
+    expect(headerOf(init, 'Content-Type')).toBe('application/json');
+    expect(JSON.parse(init?.body as string)).toEqual({ text: 'am I on course?' });
+  });
+
+  it('a 500 (spawn failure) surfaces as a status-carrying ChapelApiError with the server message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse(500, { error: 'chaplain chat failed: spawn claude ENOENT' })),
+    );
+    const failure = chapelChat('hello?');
+    await expect(failure).rejects.toBeInstanceOf(ChapelApiError);
+    await expect(failure).rejects.toMatchObject({
+      status: 500,
+      message: 'chaplain chat failed: spawn claude ENOENT',
+    });
+  });
+});
+
+describe('chapel chat log + confessions fetch contracts', () => {
+  it('fetchChapelChatLog GETs /api/chapel/chat/log with the header', async () => {
+    const body = { messages: [{ role: 'captain', text: 'hi', at: '2026-07-17T08:00:00.000Z' }] };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchChapelChatLog()).resolves.toEqual(body);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/api/chapel/chat/log');
+    expect(headerOf(init, 'x-ship-deck')).toBe('1');
+  });
+
+  it('fetchChapelConfessions GETs /api/chapel/confessions with the header', async () => {
+    const body = {
+      confessions: [
+        { stamp: '2026-07-16T17-48-43-472Z', project: null, excerpt: '55555', updatedAt: '2026-07-16T17:50:11.048Z' },
+      ],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchChapelConfessions()).resolves.toEqual(body);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/api/chapel/confessions');
+    expect(headerOf(init, 'x-ship-deck')).toBe('1');
+  });
+
+  it('fetchChapelConfession encodes the stamp and surfaces a 404 {error} body', async () => {
+    const body = { stamp: 'a b', project: null, text: 'sin', updatedAt: '2026-07-16T17:50:11.048Z' };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(fetchChapelConfession('a b')).resolves.toEqual(body);
+    expect(lastCall(fetchMock)[0]).toBe('/api/chapel/confessions/a%20b');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(404, { error: "unknown confession 'gone'" })));
+    const failure = fetchChapelConfession('gone');
+    await expect(failure).rejects.toThrow("unknown confession 'gone'");
+    await expect(failure).rejects.toMatchObject({ name: 'ChapelApiError', status: 404 });
   });
 });

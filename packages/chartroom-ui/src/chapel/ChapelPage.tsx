@@ -8,10 +8,20 @@ import {
   fetchChapelBrief,
   fetchChapelProject,
   fetchChapelProjects,
+  fetchRepos,
   type ChapelBrief,
   type ChapelProjectDetail,
   type ChapelProjectSummary,
 } from '../api/client.js';
+import {
+  chapelChat,
+  fetchChapelChatLog,
+  fetchChapelConfession,
+  fetchChapelConfessions,
+  type ChapelChatMessage,
+  type ChapelConfessionDetail,
+  type ChapelConfessionSummary,
+} from '../api/chapelClient.js';
 import './chapel.css';
 
 function formatTimestamp(iso: string | null | undefined): string | null {
@@ -28,6 +38,19 @@ interface ChapelToast {
 
 const TOAST_DISMISS_MS = 4_000;
 
+/** Same sanitation the confess route applies server-side -- the marker a chip inserts always
+ * matches the id the chaplain's dossiers use. */
+function projectMarkerId(id: string): string {
+  return id.toLowerCase().replace(/[^a-z0-9-]/g, '');
+}
+
+/** Registered-repo chips (cross-project markers). Clicking a chip INSERTS a `project: <id>`
+ * marker into the composed text -- never a hard filter; the chaplain stays global. */
+interface ProjectChip {
+  id: string;
+  label: string;
+}
+
 /** Bare ReactMarkdown+remarkGfm, the CompareQuestion precedent -- deliberately NOT DocView's
  * directive pipeline; the Chaplain's files are plain markdown, not Chart Room docs. */
 function ChapelMarkdown({ children }: { children: string }): ReactElement {
@@ -39,10 +62,10 @@ function ChapelMarkdown({ children }: { children: string }): ReactElement {
 }
 
 /**
- * Chapel tab: the Chaplain's standing brief and per-project dossiers, a confession drop-box,
- * and a button that opens a live chaplain terminal session. Everything degrades independently:
- * a missing brief is a friendly empty pane (the confession box still works), and a hull without
- * the spawn contract turns the session button into its 501 explanation.
+ * Chapel tab -- the Captain's confessor. The main feature is a persistent CHAT with the chaplain
+ * (headless `claude -p` turns server-side; the conversation survives reloads via the hull's
+ * chat log). Around it: the standing brief, per-project dossiers, the confession drop-box, and
+ * the past-confessions archive. Everything degrades independently.
  */
 export function ChapelPage(): ReactElement {
   const [brief, setBrief] = useState<ChapelBrief | null>(null);
@@ -51,6 +74,18 @@ export function ChapelPage(): ReactElement {
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [dossier, setDossier] = useState<ChapelProjectDetail | null>(null);
   const [dossierError, setDossierError] = useState<string | null>(null);
+
+  const [chatMessages, setChatMessages] = useState<ChapelChatMessage[] | null>(null);
+  const [chatError, setChatError] = useState<string | null>(null);
+  const [chatInput, setChatInput] = useState('');
+  const [chatPending, setChatPending] = useState(false);
+  const chatListRef = useRef<HTMLDivElement | null>(null);
+
+  const [chips, setChips] = useState<ProjectChip[]>([]);
+
+  const [confessions, setConfessions] = useState<ChapelConfessionSummary[] | null>(null);
+  const [confessionsError, setConfessionsError] = useState<string | null>(null);
+  const [openConfession, setOpenConfession] = useState<ChapelConfessionDetail | null>(null);
 
   const [confessionText, setConfessionText] = useState('');
   const [confessionProject, setConfessionProject] = useState('');
@@ -81,6 +116,15 @@ export function ChapelPage(): ReactElement {
     [],
   );
 
+  const refreshConfessions = useCallback((): Promise<void> => {
+    return fetchChapelConfessions()
+      .then((next) => {
+        setConfessions(next.confessions);
+        setConfessionsError(null);
+      })
+      .catch((err: unknown) => setConfessionsError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     fetchChapelBrief()
@@ -103,9 +147,67 @@ export function ChapelPage(): ReactElement {
       .catch((err: unknown) => {
         if (!cancelled) setProjectsError(err instanceof Error ? err.message : String(err));
       });
+    fetchChapelChatLog()
+      .then((next) => {
+        if (!cancelled) {
+          setChatMessages(next.messages);
+          setChatError(null);
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setChatError(err instanceof Error ? err.message : String(err));
+      });
+    // Registered repos feed the cross-project marker chips; a failed fetch just hides the row.
+    fetchRepos()
+      .then((repos) => {
+        if (!cancelled) {
+          setChips(
+            repos
+              .map((repo) => ({ id: projectMarkerId(repo.name), label: repo.name }))
+              .filter((chip) => chip.id !== ''),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setChips([]);
+      });
+    void refreshConfessions();
     return () => {
       cancelled = true;
     };
+  }, [refreshConfessions]);
+
+  // Keep the newest exchange in view as messages arrive.
+  useEffect(() => {
+    const list = chatListRef.current;
+    if (list) list.scrollTop = list.scrollHeight;
+  }, [chatMessages, chatPending]);
+
+  const handleSendChat = useCallback(() => {
+    const text = chatInput.trim();
+    if (!text || chatPending) return;
+    setChatPending(true);
+    setChatInput('');
+    const at = new Date().toISOString();
+    setChatMessages((prev) => [...(prev ?? []), { role: 'captain', text, at }]);
+    chapelChat(text)
+      .then(({ reply }) => {
+        setChatMessages((prev) => [...(prev ?? []), { role: 'chaplain', text: reply, at: new Date().toISOString() }]);
+      })
+      .catch((err: unknown) => {
+        setChatInput(text); // keep the message for retry
+        showToast({ kind: 'error', text: `Chaplain chat failed: ${err instanceof Error ? err.message : String(err)}` });
+      })
+      .finally(() => setChatPending(false));
+  }, [chatInput, chatPending, showToast]);
+
+  const handleInsertMarker = useCallback((chipId: string) => {
+    const marker = `project: ${chipId}`;
+    setChatInput((prev) => {
+      if (prev === '') return `${marker} `;
+      const separator = prev.endsWith(' ') || prev.endsWith('\n') ? '' : ' ';
+      return `${prev}${separator}${marker} `;
+    });
   }, []);
 
   const handleOpenDossier = useCallback((id: string) => {
@@ -113,6 +215,12 @@ export function ChapelPage(): ReactElement {
     fetchChapelProject(id)
       .then(setDossier)
       .catch((err: unknown) => setDossierError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  const handleOpenConfession = useCallback((stamp: string) => {
+    fetchChapelConfession(stamp)
+      .then(setOpenConfession)
+      .catch((err: unknown) => setConfessionsError(err instanceof Error ? err.message : String(err)));
   }, []);
 
   const handleConfess = useCallback(() => {
@@ -123,12 +231,13 @@ export function ChapelPage(): ReactElement {
       .then(() => {
         setConfessionText('');
         showToast({ kind: 'ok', text: 'Confession delivered to the Chaplain' });
+        void refreshConfessions();
       })
       .catch((err: unknown) =>
         showToast({ kind: 'error', text: `Confession failed: ${err instanceof Error ? err.message : String(err)}` }),
       )
       .finally(() => setConfessPending(false));
-  }, [confessionText, confessionProject, showToast]);
+  }, [confessionText, confessionProject, showToast, refreshConfessions]);
 
   const handleOpenSession = useCallback(() => {
     setSessionPending(true);
@@ -148,6 +257,45 @@ export function ChapelPage(): ReactElement {
   }, [showToast]);
 
   const briefUpdated = formatTimestamp(brief?.updatedAt);
+
+  let chatBody: ReactElement;
+  if (chatError !== null) {
+    chatBody = (
+      <p className="chapel__error" role="alert">
+        Conversation unavailable: {chatError}
+      </p>
+    );
+  } else if (chatMessages === null) {
+    chatBody = <p className="chapel__loading">Loading conversation…</p>;
+  } else if (chatMessages.length === 0 && !chatPending) {
+    chatBody = (
+      <div className="chapel-chat__empty">
+        <p className="chapel-brief__empty-title">The confessional is open.</p>
+        <p className="chapel-brief__empty-hint">
+          Ask the Chaplain anything — how a project is doing, what to take on next, what weighs on the mission.
+        </p>
+      </div>
+    );
+  } else {
+    chatBody = (
+      <>
+        {chatMessages.map((message, index) => (
+          <div
+            key={`${message.at}-${String(index)}`}
+            className={`chapel-chat__msg chapel-chat__msg--${message.role}`}
+          >
+            <span className="chapel-chat__role">{message.role === 'captain' ? 'Captain' : 'Chaplain'}</span>
+            {message.role === 'chaplain' ? (
+              <ChapelMarkdown>{message.text}</ChapelMarkdown>
+            ) : (
+              <p className="chapel-chat__text">{message.text}</p>
+            )}
+          </div>
+        ))}
+        {chatPending && <p className="chapel-chat__waiting">The Chaplain is listening…</p>}
+      </>
+    );
+  }
 
   let briefPane: ReactElement;
   if (briefError !== null) {
@@ -217,6 +365,57 @@ export function ChapelPage(): ReactElement {
     );
   }
 
+  let confessionsPane: ReactElement;
+  if (openConfession !== null) {
+    const openUpdated = formatTimestamp(openConfession.updatedAt);
+    confessionsPane = (
+      <div className="chapel-past__detail">
+        <div className="chapel-dossier__head">
+          <button type="button" className="chapel-dossier__back" onClick={() => setOpenConfession(null)}>
+            ← all confessions
+          </button>
+          {openConfession.project !== null && (
+            <span className="chapel-past__project">project: {openConfession.project}</span>
+          )}
+          {openUpdated && <span className="chapel-dossier__updated">{openUpdated}</span>}
+        </div>
+        <p className="chapel-past__text">{openConfession.text}</p>
+      </div>
+    );
+  } else if (confessionsError !== null) {
+    confessionsPane = (
+      <p className="chapel__error" role="alert">
+        Past confessions unavailable: {confessionsError}
+      </p>
+    );
+  } else if (confessions === null) {
+    confessionsPane = <p className="chapel__loading">Loading past confessions…</p>;
+  } else if (confessions.length === 0) {
+    confessionsPane = <p className="chapel__empty">Nothing confessed yet.</p>;
+  } else {
+    confessionsPane = (
+      <ul className="chapel-past-list">
+        {confessions.map((confession) => (
+          <li key={confession.stamp}>
+            <button
+              type="button"
+              className="chapel-past-list__item"
+              onClick={() => handleOpenConfession(confession.stamp)}
+            >
+              <span className="chapel-past-list__meta">
+                {formatTimestamp(confession.updatedAt) ?? confession.stamp}
+                {confession.project !== null && (
+                  <span className="chapel-past__project">project: {confession.project}</span>
+                )}
+              </span>
+              <span className="chapel-past-list__excerpt">{confession.excerpt}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
     <div className="chapel">
       <div className="chapel__head">
@@ -238,11 +437,56 @@ export function ChapelPage(): ReactElement {
         </p>
       )}
       <div className="chapel__body">
-        <section className="chapel-brief" aria-label="Chaplain's brief">
-          <h2 className="chapel__section-title">Brief</h2>
-          {briefPane}
+        <section className="chapel-chat" aria-label="Chaplain conversation">
+          <h2 className="chapel__section-title">Confessional</h2>
+          <div className="chapel-chat__messages" ref={chatListRef} role="log" aria-label="Conversation log">
+            {chatBody}
+          </div>
+          {chips.length > 0 && (
+            <div className="chapel-chat__chips" role="group" aria-label="Project markers">
+              {chips.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className="chapel-chat__chip"
+                  title={`Insert a project: ${chip.id} marker`}
+                  onClick={() => handleInsertMarker(chip.id)}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="chapel-chat__composer">
+            <textarea
+              className="chapel-chat__input"
+              aria-label="Chat message"
+              placeholder="Speak with the Chaplain…"
+              rows={2}
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  handleSendChat();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="chapel-chat__send"
+              onClick={handleSendChat}
+              disabled={chatPending || chatInput.trim() === ''}
+            >
+              {chatPending ? 'listening…' : 'Send'}
+            </button>
+          </div>
         </section>
         <div className="chapel__rail">
+          <section className="chapel-brief" aria-label="Chaplain's brief">
+            <h2 className="chapel__section-title">Brief</h2>
+            {briefPane}
+          </section>
           <section className="chapel-dossiers" aria-label="Dossiers">
             <h2 className="chapel__section-title">Dossiers</h2>
             {dossierError !== null && (
@@ -285,6 +529,10 @@ export function ChapelPage(): ReactElement {
                 {confessPending ? 'confessing…' : 'Confess'}
               </button>
             </div>
+          </section>
+          <section className="chapel-past" aria-label="Past confessions">
+            <h2 className="chapel__section-title">Past confessions</h2>
+            {confessionsPane}
           </section>
         </div>
       </div>

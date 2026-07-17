@@ -9,8 +9,16 @@ import {
   fetchChapelBrief,
   fetchChapelProject,
   fetchChapelProjects,
+  fetchRepos,
   type ChapelBrief,
+  type RepoSummary,
 } from '../../src/api/client.js';
+import {
+  chapelChat,
+  fetchChapelChatLog,
+  fetchChapelConfession,
+  fetchChapelConfessions,
+} from '../../src/api/chapelClient.js';
 
 vi.mock('../../src/api/client.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/api/client.js')>();
@@ -19,8 +27,20 @@ vi.mock('../../src/api/client.js', async (importOriginal) => {
     fetchChapelBrief: vi.fn(),
     fetchChapelProjects: vi.fn(),
     fetchChapelProject: vi.fn(),
+    fetchRepos: vi.fn(),
     chapelConfess: vi.fn(),
     chapelOpenSession: vi.fn(),
+  };
+});
+
+vi.mock('../../src/api/chapelClient.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/api/chapelClient.js')>();
+  return {
+    ...actual,
+    chapelChat: vi.fn(),
+    fetchChapelChatLog: vi.fn(),
+    fetchChapelConfessions: vi.fn(),
+    fetchChapelConfession: vi.fn(),
   };
 });
 
@@ -28,9 +48,26 @@ const mocks = {
   fetchChapelBrief: vi.mocked(fetchChapelBrief),
   fetchChapelProjects: vi.mocked(fetchChapelProjects),
   fetchChapelProject: vi.mocked(fetchChapelProject),
+  fetchRepos: vi.mocked(fetchRepos),
   chapelConfess: vi.mocked(chapelConfess),
   chapelOpenSession: vi.mocked(chapelOpenSession),
+  chapelChat: vi.mocked(chapelChat),
+  fetchChapelChatLog: vi.mocked(fetchChapelChatLog),
+  fetchChapelConfessions: vi.mocked(fetchChapelConfessions),
+  fetchChapelConfession: vi.mocked(fetchChapelConfession),
 };
+
+/** Only `id`/`name` matter to the chip row; the rest is RepoSummary ballast. */
+function repo(name: string): RepoSummary {
+  return {
+    id: name,
+    name,
+    absPath: `C:\\repos\\${name}`,
+    docCount: 0,
+    brokenLinkCount: 0,
+    askMeCount: 0,
+  } as unknown as RepoSummary;
+}
 
 const briefFixture: ChapelBrief = {
   brief: '# Standing brief\n\nThe crew ships **well**.\n\n| risk | state |\n| --- | --- |\n| scope creep | watched |',
@@ -47,8 +84,13 @@ beforeEach(() => {
     ],
   });
   mocks.fetchChapelProject.mockRejectedValue(new Error('not under test'));
+  mocks.fetchRepos.mockResolvedValue([]);
   mocks.chapelConfess.mockResolvedValue({ ok: true });
   mocks.chapelOpenSession.mockResolvedValue({ ok: true });
+  mocks.chapelChat.mockResolvedValue({ reply: 'Peace, Captain.', sessionId: 'chat-session-1' });
+  mocks.fetchChapelChatLog.mockResolvedValue({ messages: [] });
+  mocks.fetchChapelConfessions.mockResolvedValue({ confessions: [] });
+  mocks.fetchChapelConfession.mockRejectedValue(new Error('not under test'));
 });
 
 afterEach(() => {
@@ -194,5 +236,129 @@ describe('Open Chaplain session button', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open Chaplain session' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Chaplain session failed: spawn failed: wt.exe not found');
     expect(screen.getByRole('button', { name: 'Open Chaplain session' })).toBeEnabled();
+  });
+});
+
+describe('confessor chat (the tab main feature)', () => {
+  it('loads the persisted conversation: captain lines plain, chaplain replies as markdown', async () => {
+    mocks.fetchChapelChatLog.mockResolvedValue({
+      messages: [
+        { role: 'captain', text: 'how is the wave going?', at: '2026-07-17T08:00:00.000Z' },
+        { role: 'chaplain', text: '## Steady\n\nAll green so far.', at: '2026-07-17T08:00:20.000Z' },
+      ],
+    });
+    render(<ChapelPage />);
+
+    expect(await screen.findByText('how is the wave going?')).toBeInTheDocument();
+    // Markdown proof: the chaplain's `##` becomes a real heading.
+    expect(await screen.findByRole('heading', { name: 'Steady' })).toBeInTheDocument();
+  });
+
+  it('sends a message: shows the captain line at once, calls chapelChat, appends the reply', async () => {
+    render(<ChapelPage />);
+    await screen.findByRole('heading', { name: 'Standing brief' });
+
+    fireEvent.change(screen.getByLabelText('Chat message'), { target: { value: '  am I on course?  ' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(screen.getByText('am I on course?')).toBeInTheDocument(); // optimistic captain line
+    await waitFor(() => expect(mocks.chapelChat).toHaveBeenCalledExactlyOnceWith('am I on course?'));
+    expect(await screen.findByText('Peace, Captain.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Chat message')).toHaveValue('');
+  });
+
+  it('the Send button stays disabled while the input is empty/whitespace', async () => {
+    render(<ChapelPage />);
+    await screen.findByRole('heading', { name: 'Standing brief' });
+    const send = screen.getByRole('button', { name: 'Send' });
+    expect(send).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Chat message'), { target: { value: '   ' } });
+    expect(send).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Chat message'), { target: { value: 'x' } });
+    expect(send).toBeEnabled();
+  });
+
+  it('a failed send toasts the server error and restores the input for retry', async () => {
+    mocks.chapelChat.mockRejectedValue(new ChapelApiError('chaplain chat failed: spawn claude ENOENT', 500));
+    render(<ChapelPage />);
+    await screen.findByRole('heading', { name: 'Standing brief' });
+
+    fireEvent.change(screen.getByLabelText('Chat message'), { target: { value: 'hello?' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Chaplain chat failed: chaplain chat failed: spawn claude ENOENT');
+    expect(screen.getByLabelText('Chat message')).toHaveValue('hello?');
+  });
+});
+
+describe('cross-project marker chips', () => {
+  it('renders a chip per registered repo and click INSERTS a project: marker into the chat input', async () => {
+    mocks.fetchRepos.mockResolvedValue([repo('shareWork'), repo('AllFrame')]);
+    render(<ChapelPage />);
+
+    const chipRow = await screen.findByRole('group', { name: 'Project markers' });
+    fireEvent.click(within(chipRow).getByRole('button', { name: 'shareWork' }));
+    expect(screen.getByLabelText('Chat message')).toHaveValue('project: sharework ');
+
+    // A second chip appends -- markers are additive text, never a filter.
+    fireEvent.click(within(chipRow).getByRole('button', { name: 'AllFrame' }));
+    expect(screen.getByLabelText('Chat message')).toHaveValue('project: sharework project: allframe ');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() =>
+      expect(mocks.chapelChat).toHaveBeenCalledExactlyOnceWith('project: sharework project: allframe'),
+    );
+  });
+
+  it('no repos (or a failed fetch) simply hides the chip row', async () => {
+    mocks.fetchRepos.mockRejectedValue(new Error('hull unreachable'));
+    render(<ChapelPage />);
+    await screen.findByRole('heading', { name: 'Standing brief' });
+    expect(screen.queryByRole('group', { name: 'Project markers' })).not.toBeInTheDocument();
+  });
+});
+
+describe('past confessions (archive panel)', () => {
+  it('lists archive entries and opens one in full with a back button', async () => {
+    mocks.fetchChapelConfessions.mockResolvedValue({
+      confessions: [
+        {
+          stamp: '2026-07-16T17-48-43-472Z',
+          project: 'sharework',
+          excerpt: 'what if I add something here',
+          updatedAt: '2026-07-16T17:48:43.472Z',
+        },
+      ],
+    });
+    mocks.fetchChapelConfession.mockResolvedValue({
+      stamp: '2026-07-16T17-48-43-472Z',
+      project: 'sharework',
+      text: 'what if I add something here\n\nand a second thought',
+      updatedAt: '2026-07-16T17:48:43.472Z',
+    });
+    render(<ChapelPage />);
+
+    const panel = await screen.findByRole('region', { name: 'Past confessions' });
+    expect(within(panel).getByText('what if I add something here')).toBeInTheDocument();
+    expect(within(panel).getByText('project: sharework')).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole('button', { name: /what if I add something here/ }));
+    await waitFor(() =>
+      expect(mocks.fetchChapelConfession).toHaveBeenCalledExactlyOnceWith('2026-07-16T17-48-43-472Z'),
+    );
+    expect(await within(panel).findByText(/and a second thought/)).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByRole('button', { name: '← all confessions' }));
+    expect(await within(panel).findByRole('button', { name: /what if I add something here/ })).toBeInTheDocument();
+  });
+
+  it('shows the empty state, and refreshes the listing after a successful confession', async () => {
+    render(<ChapelPage />);
+    expect(await screen.findByText('Nothing confessed yet.')).toBeInTheDocument();
+    expect(mocks.fetchChapelConfessions).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByLabelText('Confession text'), { target: { value: 'a new sin' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confess' }));
+    await waitFor(() => expect(mocks.fetchChapelConfessions).toHaveBeenCalledTimes(2));
   });
 });
