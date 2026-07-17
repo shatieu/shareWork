@@ -13,12 +13,10 @@ import {
   type ReactElement,
 } from 'react';
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from '@milkdown/react';
-import { editorViewCtx } from '@milkdown/kit/core';
-import type { JSONRecord } from '@milkdown/kit/transformer';
+import { editorViewCtx, type Editor } from '@milkdown/kit/core';
 import {
   buildDocNodeFromBlocks,
   buildUncreatedEditor,
-  createHeadlessEngine,
   extractCurrentBlocks,
   reconstructFile,
   wrapEditorCtx,
@@ -40,48 +38,12 @@ export interface DocEditorProps {
   onSaveComplete: (newRaw: string) => void;
 }
 
-/** Builds the initial ProseMirror doc JSON once per (repoId, docId, raw) — async because it needs
- * a short-lived headless Milkdown engine (destroyed immediately after) purely to obtain a `Schema`
- * instance before the real, interactive editor exists (a Schema is only produced by creating an
- * Editor, so *some* editor has to exist first — plan §3.1 step 4's "concatenate blocks" design). */
-function useInitialDoc(raw: string): {
-  ready: boolean;
-  segmented: SegmentedDocument | null;
-  initialJson: JSONRecord | null;
-} {
-  const [state, setState] = useState<{ segmented: SegmentedDocument; initialJson: JSONRecord } | null>(
-    null,
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-    setState(null);
-    void (async () => {
-      const engine = await createHeadlessEngine();
-      try {
-        const segmented = segmentDocument(raw);
-        const doc = buildDocNodeFromBlocks(engine, segmented.blocks);
-        const initialJson = doc.toJSON() as JSONRecord;
-        if (!cancelled) setState({ segmented, initialJson });
-      } finally {
-        await engine.destroy();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [raw]);
-
-  return { ready: state !== null, segmented: state?.segmented ?? null, initialJson: state?.initialJson ?? null };
-}
-
 function EditorInner({
   repoId,
   docId,
   docPath,
   docs,
   segmented,
-  initialJson,
   onSaveComplete,
 }: {
   repoId: string;
@@ -89,20 +51,68 @@ function EditorInner({
   docPath: string;
   docs: DocSummary[];
   segmented: SegmentedDocument;
-  initialJson: JSONRecord;
   onSaveComplete: (newRaw: string) => void;
 }): ReactElement {
-  const [, getInstance] = useInstance();
+  const [loading, getInstance] = useInstance();
   const [linkPickerOpen, setLinkPickerOpen] = useState(false);
   const [linkPickerSelectedText, setLinkPickerSelectedText] = useState<string | undefined>(undefined);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mountError, setMountError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEditor(
-    (root) => buildUncreatedEditor(root, { type: 'json', value: initialJson }),
-    [initialJson],
-  );
+  useEditor((root) => {
+    const editor = buildUncreatedEditor(root, '');
+    // `@milkdown/react`'s `useGetEditor` swallows `editor.create()` rejections into
+    // `console.error` (read from its shipped lib during the wave2-A recon) — exactly how the
+    // original "empty editor" bug shipped invisibly. Wrap `create` so any future mount failure
+    // surfaces as a visible error state instead of console-only.
+    const innerCreate = editor.create.bind(editor);
+    // `create` is an own instance property assigned in Editor's constructor (confirmed in
+    // @milkdown/core's shipped lib), so reassigning it works at runtime — only the published
+    // type marks it readonly, hence the cast.
+    (editor as { create: () => Promise<Editor> }).create = async () => {
+      try {
+        return await innerCreate();
+      } catch (err) {
+        setMountError(err instanceof Error ? err.message : String(err));
+        throw err;
+      }
+    };
+    return editor;
+  }, []);
+
+  // Splices the initial document into the live editor once it exists (and re-splices when `raw` —
+  // and therefore `segmented` — changes, e.g. the post-save refresh). The document is built with
+  // `buildDocNodeFromBlocks` against the LIVE editor instance's own schema, via lenient
+  // `NodeType.create` — deliberately never handed across as JSON: Milkdown resolves a
+  // `{ type: 'json' }` DefaultValue through prosemirror-model's strict `Node.fromJSON`, whose attr
+  // validation rejects Milkdown's own parser-produced list `spread` attr shape (string, schema
+  // says boolean) and crashed mount for any doc containing a list — the wave2-A "edit makes all
+  // text disappear" bug (see `listAttrCompat.ts` and `.ship-crew/exchange/wave2-a/findings.md`).
+  const splicedForRef = useRef<SegmentedDocument | null>(null);
+  useEffect(() => {
+    if (loading) return;
+    const editor = getInstance();
+    if (!editor) return;
+    if (splicedForRef.current === segmented) return;
+    try {
+      editor.action((ctx) => {
+        const engine = wrapEditorCtx(ctx);
+        const built = buildDocNodeFromBlocks(engine, segmented.blocks);
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        view.dispatch(
+          state.tr
+            .replaceWith(0, state.doc.content.size, built.content)
+            .setMeta('addToHistory', false),
+        );
+      });
+      splicedForRef.current = segmented;
+    } catch (err) {
+      setMountError(err instanceof Error ? err.message : String(err));
+    }
+  }, [loading, getInstance, segmented]);
 
   const handleSave = useCallback(async () => {
     const editor = getInstance();
@@ -161,6 +171,12 @@ function EditorInner({
         </button>
         {error && <span className="doc-editor__error">{error}</span>}
       </div>
+      {mountError && (
+        <div className="doc-editor__mount-error" role="alert">
+          The editor failed to load this document (its content is safe and untouched on disk):{' '}
+          {mountError}
+        </div>
+      )}
       <div
         className="doc-editor__surface"
         ref={containerRef}
@@ -184,11 +200,11 @@ function EditorInner({
 }
 
 export function DocEditor({ repoId, docId, docPath, raw, docs, onSaveComplete }: DocEditorProps): ReactElement {
-  const { ready, segmented, initialJson } = useInitialDoc(raw);
-
-  if (!ready || !segmented || !initialJson) {
-    return <p className="doc-editor__loading">Loading editor…</p>;
-  }
+  // Pure, synchronous, Milkdown-independent segmentation — recomputed only when `raw` changes.
+  // The document itself is deliberately NOT pre-built here: it is constructed against the live
+  // editor's own schema and spliced in by `EditorInner`'s effect (see the comment there for why
+  // the old headless-engine → `toJSON` → `defaultValueCtx { type: 'json' }` handoff was removed).
+  const segmented = useMemo(() => segmentDocument(raw), [raw]);
 
   return (
     <MilkdownProvider>
@@ -198,7 +214,6 @@ export function DocEditor({ repoId, docId, docPath, raw, docs, onSaveComplete }:
         docPath={docPath}
         docs={docs}
         segmented={segmented}
-        initialJson={initialJson}
         onSaveComplete={onSaveComplete}
       />
     </MilkdownProvider>
