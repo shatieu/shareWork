@@ -1,5 +1,18 @@
 {
   "enabledPlugins": {
     "ship-crew@sharework": true
+  },
+  "hooks": {
+    "PostToolUseFailure": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/chartroom-post-tool-use.mjs\""
+          }
+        ]
+      }
+    ]
   }
 }
