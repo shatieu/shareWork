@@ -558,6 +558,54 @@ export function fetchVoyage(): Promise<VoyageResponse> {
   return getJson<VoyageResponse>('/api/voyage');
 }
 
+/** One selectable Voyage project (wave2-D): the `--voyage` file is `default`; every
+ * chartroom-registered repo with `.ship/voyage/progress.json` is its own project. */
+export interface VoyageProject {
+  id: string;
+  name: string;
+  file: string;
+  isDefault: boolean;
+}
+
+/** `GET /api/voyage/projects` -- re-scanned server-side per call; rejects on older hulls
+ * without multi-project support (callers fall back to the default project only). */
+export function fetchVoyageProjects(): Promise<VoyageProject[]> {
+  return getJson<VoyageProject[]>('/api/voyage/projects');
+}
+
+/** `GET /api/voyage/:project` -- one project's snapshot; 404 for unknown projects. */
+export function fetchVoyageProject(project: string): Promise<VoyageResponse> {
+  return getJson<VoyageResponse>(`/api/voyage/${encodeURIComponent(project)}`);
+}
+
+/** SSE URL for a project's live updates. The default project keeps the bare back-compat path so
+ * the page also works against a hull without multi-project routes. */
+export function voyageEventsUrl(project: string): string {
+  return project === 'default' ? '/api/voyage/events' : `/api/voyage/${encodeURIComponent(project)}/events`;
+}
+
+export interface VoyageAddItemInput {
+  title: string;
+  difficulty?: VoyageDifficulty | null;
+  note?: string;
+}
+
+/** `POST /api/voyage/:project/items` -- appends a pending item to that project's progress.json
+ * (server assigns id/status/stage_progress/updated_at). A 409 carries the server's readable
+ * error: the file currently fails to parse and it refuses to clobber a hand edit. */
+export async function addVoyageItem(project: string, input: VoyageAddItemInput): Promise<VoyageItem> {
+  const response = await fetch(`/api/voyage/${encodeURIComponent(project)}/items`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [DECK_CLIENT_HEADER]: '1' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `chartroom-ui: add voyage item failed with status ${response.status}`);
+  }
+  return ((await response.json()) as { item: VoyageItem }).item;
+}
+
 /* ── chapel endpoints (hull-owned, like voyage; deck-chapel-tab plan) ──
  * The /api/chapel routes are ALWAYS registered under a hull (confessions must work before the
  * first chaplain session ever runs; missing files are 200-with-null, not 404), so the brief

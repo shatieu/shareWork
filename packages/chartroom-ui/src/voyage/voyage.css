@@ -1,0 +1,86 @@
+/* Voyage multi-project + add-item extensions (wave2-D). Component-scoped stylesheet, same
+   pattern as chapel.css / setup.css; chips reuse base.css's .filter-chip grammar, so only the
+   layout containers and the add form live here. */
+
+.voyage__projects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.voyage-add {
+  margin-bottom: 12px;
+}
+
+.voyage-add__toggle {
+  border: 1px dashed var(--panel-border);
+  background: none;
+  color: var(--ink-55);
+  border-radius: 10px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.voyage-add__toggle:hover {
+  color: var(--brass-bright);
+  border-color: var(--brass-mid);
+}
+
+.voyage-add__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.voyage-add__form input,
+.voyage-add__form select {
+  border: 1px solid var(--panel-border);
+  background: none;
+  color: var(--ink);
+  border-radius: 6px;
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.voyage-add__title {
+  flex: 1 1 180px;
+  min-width: 140px;
+}
+
+.voyage-add__note {
+  flex: 2 1 220px;
+  min-width: 160px;
+}
+
+.voyage-add__form button {
+  border: 1px solid var(--panel-border);
+  background: none;
+  color: var(--ink-65);
+  border-radius: 10px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.voyage-add__submit:not(:disabled) {
+  color: var(--brass-bright);
+  border-color: var(--brass-mid);
+}
+
+.voyage-add__form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.voyage-add__error {
+  margin: 6px 0 0;
+  color: var(--rust-bright);
+  font-size: 10.5px;
+}

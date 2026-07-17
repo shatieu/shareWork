@@ -1,8 +1,19 @@
-import { useEffect, useState, type ReactElement } from 'react';
-import { fetchVoyage, type VoyageItem, type VoyageResponse } from '../api/client.js';
+import { useEffect, useRef, useState, type FormEvent, type ReactElement } from 'react';
+import {
+  addVoyageItem,
+  fetchVoyage,
+  fetchVoyageProject,
+  fetchVoyageProjects,
+  voyageEventsUrl,
+  type VoyageDifficulty,
+  type VoyageItem,
+  type VoyageProject,
+  type VoyageResponse,
+} from '../api/client.js';
 import { ProgressBar } from './ProgressBar.js';
 import { DifficultyBadge } from './DifficultyBadge.js';
 import { StageSection } from './StageSection.js';
+import './voyage.css';
 
 export type VoyageSection = 'inflight' | 'pending' | 'done' | 'parked';
 
@@ -77,19 +88,145 @@ const SECTIONS: Array<{ key: VoyageSection; title: string }> = [
   { key: 'parked', title: 'Parked' },
 ];
 
+const ADD_DIFFICULTIES: VoyageDifficulty[] = ['S', 'M', 'L', 'XL'];
+
+/** "Add item" affordance: collapsed to one button; expands to a single-row form posting to
+ * `POST /api/voyage/:project/items`. A 409 (progress.json hand edit mid-flight) surfaces the
+ * server's readable error inline. */
+function VoyageAddForm({ project, onAdded }: { project: string; onAdded: () => void }): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [title, setTitle] = useState('');
+  const [difficulty, setDifficulty] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const close = (): void => {
+    setOpen(false);
+    setAddError(null);
+  };
+
+  const submit = (event: FormEvent): void => {
+    event.preventDefault();
+    const trimmed = title.trim();
+    if (trimmed === '' || saving) return;
+    setSaving(true);
+    setAddError(null);
+    addVoyageItem(project, {
+      title: trimmed,
+      difficulty: difficulty === '' ? undefined : (difficulty as VoyageDifficulty),
+      note: note.trim() === '' ? undefined : note.trim(),
+    })
+      .then(() => {
+        setTitle('');
+        setDifficulty('');
+        setNote('');
+        setOpen(false);
+        // The SSE broadcast delivers the append anyway; this refetch is the poll-path fast lane.
+        onAdded();
+      })
+      .catch((err: unknown) => {
+        setAddError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        setSaving(false);
+      });
+  };
+
+  if (!open) {
+    return (
+      <div className="voyage-add">
+        <button type="button" className="voyage-add__toggle" onClick={() => setOpen(true)}>
+          + Add item
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="voyage-add">
+      <form className="voyage-add__form" onSubmit={submit}>
+        <input
+          className="voyage-add__title"
+          aria-label="Item title"
+          placeholder="Title"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+        />
+        <select
+          className="voyage-add__difficulty"
+          aria-label="Difficulty"
+          value={difficulty}
+          onChange={(event) => setDifficulty(event.target.value)}
+        >
+          <option value="">difficulty?</option>
+          {ADD_DIFFICULTIES.map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+        <input
+          className="voyage-add__note"
+          aria-label="Note"
+          placeholder="Note (optional)"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+        />
+        <button type="submit" className="voyage-add__submit" disabled={saving || title.trim() === ''}>
+          {saving ? 'Adding…' : 'Add'}
+        </button>
+        <button type="button" className="voyage-add__cancel" onClick={close}>
+          Cancel
+        </button>
+      </form>
+      {addError !== null && (
+        <p className="voyage-add__error" role="alert">
+          {addError}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
- * Voyage tab: the live mission-progress ledger. Fetches `/api/voyage` once, then live-updates
- * over SSE (`/api/voyage/events`) when the runtime has `EventSource`; environments without it
- * (jsdom, ancient webviews) and SSE failures fall back to a 5 s poll of the GET endpoint.
+ * Voyage tab: the live mission-progress ledger. Fetches the selected project's snapshot once,
+ * then live-updates over SSE when the runtime has `EventSource`; environments without it (jsdom,
+ * ancient webviews) and SSE failures fall back to a 5 s poll of the GET endpoint. Multi-project
+ * (wave2-D): `/api/voyage/projects` feeds a chip switcher (hidden when only the default project
+ * exists or the hull predates the route); items can be appended via the add form.
  */
 export function VoyagePage(): ReactElement {
   const [data, setData] = useState<VoyageResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [projects, setProjects] = useState<VoyageProject[]>([]);
+  const [project, setProject] = useState('default');
+  /** Latest refresh fn from the data effect -- lets the add-item flow trigger an immediate
+   * refetch (poll-fallback runtimes would otherwise wait up to 5 s; SSE runtimes get the
+   * broadcast anyway, so this is just a fast path). */
+  const refreshRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchVoyageProjects()
+      .then((list) => {
+        if (!cancelled) setProjects(list);
+      })
+      .catch(() => {
+        /* older hull without /projects -- default-only, switcher stays hidden */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
     let source: EventSource | null = null;
+
+    setData(null);
+    setError(null);
 
     const apply = (next: VoyageResponse): void => {
       if (cancelled) return;
@@ -97,12 +234,14 @@ export function VoyagePage(): ReactElement {
       setError(null);
     };
     const refresh = (): void => {
-      fetchVoyage()
+      // The default project keeps the bare endpoint so the page works against older hulls too.
+      (project === 'default' ? fetchVoyage() : fetchVoyageProject(project))
         .then(apply)
         .catch((err: unknown) => {
           if (!cancelled) setError(String(err));
         });
     };
+    refreshRef.current = refresh;
     const startPolling = (): void => {
       if (pollTimer === null) pollTimer = setInterval(refresh, POLL_INTERVAL_MS);
     };
@@ -112,7 +251,7 @@ export function VoyagePage(): ReactElement {
       // Feature-detect: no SSE in this runtime -- poll only.
       startPolling();
     } else {
-      source = new EventSource('/api/voyage/events');
+      source = new EventSource(voyageEventsUrl(project));
       source.addEventListener('voyage', (event) => {
         try {
           apply(JSON.parse((event as MessageEvent<string>).data) as VoyageResponse);
@@ -129,7 +268,7 @@ export function VoyagePage(): ReactElement {
       if (pollTimer !== null) clearInterval(pollTimer);
       source?.close();
     };
-  }, []);
+  }, [project]);
 
   if (data === null) {
     return error !== null ? (
@@ -162,6 +301,23 @@ export function VoyagePage(): ReactElement {
           </span>
         )}
       </div>
+      {projects.length > 1 && (
+        <div className="voyage__projects" role="group" aria-label="Voyage projects">
+          {projects.map((candidate) => (
+            <button
+              key={candidate.id}
+              type="button"
+              className={`filter-chip${candidate.id === project ? ' filter-chip--on' : ''}`}
+              aria-pressed={candidate.id === project}
+              title={candidate.file}
+              onClick={() => setProject(candidate.id)}
+            >
+              {candidate.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <VoyageAddForm project={project} onAdded={() => refreshRef.current()} />
       <div className="voyage-overall">
         <div className="voyage-overall__row">
           <span className="voyage-overall__label">Mission progress (difficulty-weighted)</span>

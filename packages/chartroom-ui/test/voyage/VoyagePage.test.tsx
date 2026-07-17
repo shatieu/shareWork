@@ -1,15 +1,39 @@
 import '@testing-library/jest-dom/vitest';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VoyagePage, missionProgress, sectionOf } from '../../src/voyage/VoyagePage.js';
-import { fetchVoyage, type VoyageItem, type VoyageResponse } from '../../src/api/client.js';
+import {
+  addVoyageItem,
+  fetchVoyage,
+  fetchVoyageProject,
+  fetchVoyageProjects,
+  type VoyageItem,
+  type VoyageProject,
+  type VoyageResponse,
+} from '../../src/api/client.js';
 
 vi.mock('../../src/api/client.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/api/client.js')>();
-  return { ...actual, fetchVoyage: vi.fn() };
+  return {
+    ...actual,
+    fetchVoyage: vi.fn(),
+    fetchVoyageProjects: vi.fn(),
+    fetchVoyageProject: vi.fn(),
+    addVoyageItem: vi.fn(),
+  };
 });
 
 const mockFetchVoyage = vi.mocked(fetchVoyage);
+const mockFetchVoyageProjects = vi.mocked(fetchVoyageProjects);
+const mockFetchVoyageProject = vi.mocked(fetchVoyageProject);
+const mockAddVoyageItem = vi.mocked(addVoyageItem);
+
+const DEFAULT_PROJECT: VoyageProject = {
+  id: 'default',
+  name: 'default',
+  file: 'suite-design/overnight/progress.json',
+  isDefault: true,
+};
 
 function item(overrides: Partial<VoyageItem> & Pick<VoyageItem, 'id' | 'title'>): VoyageItem {
   return {
@@ -35,6 +59,11 @@ const fixture: VoyageResponse = {
 beforeEach(() => {
   vi.useFakeTimers();
   mockFetchVoyage.mockReset();
+  mockFetchVoyageProjects.mockReset();
+  mockFetchVoyageProject.mockReset();
+  mockAddVoyageItem.mockReset();
+  // Single-project baseline: the switcher stays hidden and every pre-wave2-D test is unchanged.
+  mockFetchVoyageProjects.mockResolvedValue([DEFAULT_PROJECT]);
 });
 
 afterEach(() => {
@@ -136,5 +165,89 @@ describe('VoyagePage (jsdom has no EventSource, so this exercises the poll path)
 
     await flush(5_000);
     expect(screen.getByText('Captains Deck')).toBeInTheDocument();
+  });
+});
+
+describe('project switcher (wave2-D multi-project)', () => {
+  const REPO_PROJECT: VoyageProject = { id: 'repoa', name: 'repo-a', file: '/repos/repo-a/.ship/voyage/progress.json', isDefault: false };
+  const repoFixture: VoyageResponse = {
+    file: REPO_PROJECT.file,
+    updatedAt: '2026-07-17T12:00:00.000Z',
+    packages: [item({ id: 1, title: 'Repo-A thing', status: 'implementing', stage_progress: 30 })],
+  };
+
+  it('stays hidden with a single project and when /projects is unavailable (older hull)', async () => {
+    mockFetchVoyage.mockResolvedValue(fixture);
+    render(<VoyagePage />);
+    await flush();
+    expect(screen.queryByRole('group', { name: 'Voyage projects' })).not.toBeInTheDocument();
+    cleanup();
+
+    mockFetchVoyageProjects.mockRejectedValue(new Error('404'));
+    render(<VoyagePage />);
+    await flush();
+    expect(screen.getByText('Captains Deck')).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Voyage projects' })).not.toBeInTheDocument();
+  });
+
+  it('renders chips from /projects and switches fetch to the selected project', async () => {
+    mockFetchVoyage.mockResolvedValue(fixture);
+    mockFetchVoyageProjects.mockResolvedValue([DEFAULT_PROJECT, REPO_PROJECT]);
+    mockFetchVoyageProject.mockResolvedValue(repoFixture);
+    render(<VoyagePage />);
+    await flush();
+
+    const switcher = screen.getByRole('group', { name: 'Voyage projects' });
+    const repoChip = within(switcher).getByRole('button', { name: 'repo-a' });
+    expect(within(switcher).getByRole('button', { name: 'default' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(repoChip);
+    await flush();
+
+    expect(mockFetchVoyageProject).toHaveBeenCalledWith('repoa');
+    expect(repoChip).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Repo-A thing')).toBeInTheDocument();
+    expect(screen.queryByText('Captains Deck')).not.toBeInTheDocument();
+  });
+});
+
+describe('add item (wave2-D)', () => {
+  it('posts the form to the selected project and refetches immediately on success', async () => {
+    mockFetchVoyage.mockResolvedValue(fixture);
+    mockAddVoyageItem.mockResolvedValue({
+      id: 6, title: 'Fresh idea', status: 'pending', stage_progress: 0,
+      difficulty: 'L', remaining_guess_h: null, updated_at: '2026-07-17T12:00:00.000Z',
+    });
+    render(<VoyagePage />);
+    await flush();
+    expect(mockFetchVoyage).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add item' }));
+    fireEvent.change(screen.getByLabelText('Item title'), { target: { value: 'Fresh idea' } });
+    fireEvent.change(screen.getByLabelText('Difficulty'), { target: { value: 'L' } });
+    fireEvent.change(screen.getByLabelText('Note'), { target: { value: 'from the deck' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await flush();
+
+    expect(mockAddVoyageItem).toHaveBeenCalledWith('default', { title: 'Fresh idea', difficulty: 'L', note: 'from the deck' });
+    // Optimistic refresh: an immediate refetch, not a 5 s poll wait.
+    expect(mockFetchVoyage).toHaveBeenCalledTimes(2);
+    // Form collapsed back to the toggle.
+    expect(screen.getByRole('button', { name: '+ Add item' })).toBeInTheDocument();
+  });
+
+  it('surfaces the server 409 message inline and keeps the form open', async () => {
+    mockFetchVoyage.mockResolvedValue(fixture);
+    mockAddVoyageItem.mockRejectedValue(new Error('refusing to add item: progress.json currently fails to parse'));
+    render(<VoyagePage />);
+    await flush();
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add item' }));
+    fireEvent.change(screen.getByLabelText('Item title'), { target: { value: 'Doomed' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await flush();
+
+    expect(screen.getByRole('alert')).toHaveTextContent('fails to parse');
+    expect(screen.getByLabelText('Item title')).toHaveValue('Doomed');
   });
 });
