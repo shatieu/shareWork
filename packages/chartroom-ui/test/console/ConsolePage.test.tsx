@@ -55,12 +55,22 @@ const emptySkillSummary = {
   deadSkills: [],
 };
 
+/** Empty token-usage sessions list: the embedded TokenUsagePanel (wave2-I) renders its quiet
+ * empty state so the fleet assertions stay exact. Panel behavior is covered in its own test. */
+const emptyTokenSessions = { generatedAt: '2026-07-06T12:00:00.000Z', sessions: [] };
+
 beforeEach(() => {
   window.location.hash = '';
   mockFetch.mockReset();
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(JSON.stringify(emptySkillSummary), { status: 200 })),
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/skill-analytics/sessions')) {
+        return new Response(JSON.stringify(emptyTokenSessions), { status: 200 });
+      }
+      return new Response(JSON.stringify(emptySkillSummary), { status: 200 });
+    }),
   );
 });
 
@@ -94,6 +104,9 @@ describe('ConsolePage', () => {
 
     // Package 11: the self-contained skill-analytics dashboard rides at the bottom of the tab.
     expect(await screen.findByRole('heading', { name: 'Skill analytics' })).toBeInTheDocument();
+
+    // wave2-I: the token-usage panel mounts beside it.
+    expect(await screen.findByRole('heading', { name: 'Token usage' })).toBeInTheDocument();
   });
 
   it('inbox chip navigates to #/inbox', async () => {

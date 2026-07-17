@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactElement } from 'react';
 import { fetchConsoleOverview, type ConsoleOverview, type ConsoleSession } from '../api/client.js';
 import { SkillAnalyticsPanel } from '../skillanalytics/SkillAnalyticsPanel.js';
+import { TokenUsagePanel } from './TokenUsagePanel.js';
 
 /** 10 s poll -- the fleet endpoint shells out to `claude agents --json` server-side, so the
  * console polls gently (half Voyage's cadence) and offers a manual refresh for impatience. */
@@ -167,6 +168,10 @@ export function ConsolePage(): ReactElement {
           station fetches, styles and error states; degrades to an inline alert when the
           skill-analytics station isn't mounted. */}
       <SkillAnalyticsPanel />
+
+      {/* Per-session token usage (wave2-I): deduped counts from the same station; self-hides
+          when the station isn't mounted. Counts only — never cost estimates. */}
+      <TokenUsagePanel />
     </div>
   );
 }

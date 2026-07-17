@@ -1,0 +1,95 @@
+/* Token usage panel (wave2-I) — SCOPED stylesheet imported only by TokenUsagePanel, mirroring
+ * the sibling skill-analytics panel's token/fallback discipline so the two read as one page. */
+
+.token-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  color: var(--ink, #d8d2c4);
+  font-family: var(--font-sans, system-ui, sans-serif);
+}
+
+.token-usage__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.token-usage__title {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--brass-bright, #d8b96a);
+}
+
+.token-usage__refresh {
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--brass-dark, #7a6127);
+  border-radius: var(--radius, 6px);
+  background: transparent;
+  color: var(--brass-bright, #d8b96a);
+  cursor: pointer;
+  font: inherit;
+}
+
+.token-usage__sums {
+  margin: 0;
+  opacity: 0.85;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-usage__error {
+  margin: 0;
+  color: var(--err, #d06a5a);
+}
+
+.token-usage__empty {
+  margin: 0.25rem 0;
+  opacity: 0.65;
+  font-size: 0.9rem;
+}
+
+.token-usage__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.token-usage__table th,
+.token-usage__table td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--panel-line, rgba(255, 255, 255, 0.08));
+  text-align: left;
+}
+
+.token-usage__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-usage__total {
+  font-weight: 600;
+}
+
+.token-usage__id {
+  font-family: var(--font-mono, monospace);
+  opacity: 0.7;
+  font-size: 0.8em;
+}
+
+.token-usage__row--unwatched {
+  opacity: 0.55;
+}
+
+.token-usage__last {
+  white-space: nowrap;
+}
+
+.token-usage__footnote {
+  margin: 0;
+  opacity: 0.6;
+  font-size: 0.8rem;
+  font-style: italic;
+}
