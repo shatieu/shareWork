@@ -7,7 +7,10 @@ import {
   type ShipInboxItems,
   type ShipPermissionRequest,
 } from '../api/client.js';
+import { respondShipQuestion, type SessionDeliveryInfo } from '../api/inboxClient.js';
 import { PermissionCard } from './PermissionCard.js';
+import { QuestionCard, type InboxQuestion } from './QuestionCard.js';
+import { SessionsPanel } from './SessionsPanel.js';
 
 export interface ShipInboxPageProps {
   /** Deep-links a Chart Room item to `#/repo/<repoId>/doc/<docId>` -- same mechanism as the
@@ -59,8 +62,12 @@ export function ShipInboxPage({ onNavigate, onChanged }: ShipInboxPageProps): Re
   }, [refresh, onChanged]);
 
   const handleDecide = useCallback(
-    (request: ShipPermissionRequest, behavior: 'allow' | 'deny', alwaysAllowRule?: string) => {
-      decideShipPermission(request.id, { behavior, alwaysAllowRule })
+    (
+      request: ShipPermissionRequest,
+      behavior: 'allow' | 'deny',
+      opts?: { alwaysAllowRule?: string; message?: string },
+    ) => {
+      decideShipPermission(request.id, { behavior, alwaysAllowRule: opts?.alwaysAllowRule, message: opts?.message })
         .then(afterAction)
         .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)));
     },
@@ -74,6 +81,17 @@ export function ShipInboxPage({ onNavigate, onChanged }: ShipInboxPageProps): Re
         .catch((err: unknown) => setActionError(err instanceof Error ? err.message : String(err)));
     },
     [afterAction],
+  );
+
+  const handleRespond = useCallback(
+    async (id: string, text: string): Promise<SessionDeliveryInfo> => {
+      const answered = await respondShipQuestion(id, text);
+      // Refresh badges but NOT the list mid-interaction: the card itself shows the delivery
+      // outcome; the row leaves the queue on the next refresh.
+      onChanged?.();
+      return answered.delivery;
+    },
+    [onChanged],
   );
 
   if (error) {
@@ -115,26 +133,14 @@ export function ShipInboxPage({ onNavigate, onChanged }: ShipInboxPageProps): Re
           <ul className="inbox-page__list">
             {items.questions.map((question) => (
               <li key={question.id} className="inbox-page__item ship-inbox__question">
-                <div className="ship-inbox__question-body">
-                  <span className={`inbox-page__kind ship-inbox__kind--${question.kind}`}>{question.kind}</span>
-                  <span className="inbox-page__label">{question.message || '(no message)'}</span>
-                  <span className="inbox-page__doc-path">
-                    {question.project ?? question.cwd} · session {question.sessionId.slice(0, 8)}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="ship-inbox__btn"
-                  onClick={() => handleAck(question.id)}
-                  aria-label={`Dismiss question ${question.message}`}
-                >
-                  dismiss
-                </button>
+                <QuestionCard question={question as InboxQuestion} onAck={handleAck} onRespond={handleRespond} />
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      <SessionsPanel onChanged={onChanged} />
 
       {items.docs.length > 0 && (
         <section className="inbox-page__group" aria-label="Docs needing you">
