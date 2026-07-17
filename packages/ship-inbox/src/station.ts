@@ -15,6 +15,7 @@ import {
   decidePermissionRequest,
   expirePermissionRequest,
   expireStalePending,
+  getAgentQuestion,
   getPermissionRequest,
   listAgentQuestions,
   listAlwaysAllowedRules,
@@ -22,6 +23,7 @@ import {
   openShipInboxDb,
   permissionToJson,
   questionToJson,
+  respondAgentQuestion,
   shipInboxDbPath,
   DEFAULT_PENDING_TTL_MS,
   PERMISSION_STATUSES,
@@ -29,8 +31,29 @@ import {
   type PermissionStatus,
   type QuestionStatus,
 } from './db.js';
+import {
+  isValidAskHumanSessionId,
+  listAskHumanSessions,
+  readAskHumanSpec,
+  writeAskHumanAnswers,
+  type AskHumanAnswerInput,
+} from './askhuman.js';
 import { applyAlwaysAllowRule, SettingsWriteError } from './settings-writer.js';
 import { createDecisionWaiters } from './waiters.js';
+
+/** Outcome of one text-to-session delivery attempt. `delivered` is honest spawn-level truth:
+ * the transport is ship-voice's fire-and-forget `claude -p <text> --resume <sessionId>`, which
+ * appends to the session's TRANSCRIPT (picked up on resume / a headless sibling turn) -- it is
+ * NOT mid-task injection into the running interactive session (agent-comms plan §1.2/§3). */
+export interface SessionDelivery {
+  delivered: boolean;
+  detail?: string;
+}
+
+/** Transport seam (wave2-E findings §c recommendation): every respond/send path goes through
+ * `deliver(sessionId, text)` so the transcript-resume transport can be swapped for a real
+ * mid-task channel (agent-comms plan Option A) without touching routes or callers. */
+export type SessionDeliverer = (sessionId: string, text: string) => Promise<SessionDelivery>;
 
 export interface ShipInboxStationOptions {
   /** Home-directory override for `~/.ship/inbox.db` -- tests never touch the real home. */
@@ -38,6 +61,10 @@ export interface ShipInboxStationOptions {
   now?: () => Date;
   /** Lazy-expiry TTL for pending permission requests (default 10 min). */
   pendingTtlMs?: number;
+  /** Delivery-transport override (tests / future comms station). Default: resolve the exact
+   * sessionId against the `ship-voice.fleetSource` contract, then inject the sibling's own
+   * `/api/ship-voice/send_to_session` route (ship-voice's inject-vs-HTTP convention). */
+  deliver?: SessionDeliverer;
 }
 
 export interface ShipInboxStation extends StationDescriptor {
@@ -67,6 +94,50 @@ const decisionBodySchema = z.object({
    * suggestion) -- the server validates shape and applies it additively/atomically. */
   alwaysAllowRule: z.string().min(1).max(500).optional(),
 });
+
+const respondBodySchema = z.object({
+  text: z.string().min(1).max(20_000),
+});
+
+const sendBodySchema = z.object({
+  text: z.string().min(1).max(20_000),
+});
+
+const askHumanAnswersBodySchema = z.object({
+  cwd: z.string().min(1),
+  session: z.string().min(1).max(200),
+  answers: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        type: z.string().min(1),
+        value: z.union([z.string(), z.number(), z.array(z.string())]),
+        attachments: z
+          .array(z.object({ filename: z.string().optional(), dataUrl: z.string().optional() }))
+          .optional(),
+      }),
+    )
+    .min(1),
+});
+
+/** Last path segment of a cwd (both separators) -- the fallback fleet address for a nameless
+ * session, mirroring ship-voice's speakable-name derivation. */
+function folderOf(cwd: string | undefined): string | undefined {
+  if (!cwd) return undefined;
+  const folder = cwd.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+  return folder && folder.length > 0 ? folder : undefined;
+}
+
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/** The fleetSource contract shape (typed locally -- stations never import sibling internals). */
+interface FleetSessionLike {
+  sessionId: string;
+  name?: string;
+  cwd?: string;
+}
 
 /** Chart Room inbox item shape as served by `getContract('chartroom', 'listInbox')` -- typed
  * loosely here on purpose: ship-inbox forwards these untouched to the Deck page and must not
@@ -141,6 +212,58 @@ export function createShipInboxStation(options: ShipInboxStationOptions = {}): S
     db,
 
     registerRoutes(app: FastifyInstance, ctx: HostContext) {
+      /**
+       * Default transport: exact-sessionId resolution against `ship-voice.fleetSource`, then an
+       * inject call to the sibling's `/api/ship-voice/send_to_session`. The sibling route
+       * addresses by fuzzy NAME only, so the exact session's own name (else its cwd folder) is
+       * passed -- a tie among same-named sessions surfaces as an honest 'ambiguous' failure
+       * rather than a misdelivery. Swappable via options.deliver (findings §c: keep the
+       * transport behind a deliver(sessionId, text) seam).
+       */
+      const deliver: SessionDeliverer =
+        options.deliver ??
+        (async (sessionId, text) => {
+          const fleetSource = ctx.getContract<{ list(): Promise<FleetSessionLike[] | null> }>(
+            'ship-voice',
+            'fleetSource',
+          );
+          if (!fleetSource) {
+            return { delivered: false, detail: 'ship-voice is not aboard (no fleet access)' };
+          }
+          let sessions: FleetSessionLike[] | null = null;
+          try {
+            sessions = await fleetSource.list();
+          } catch {
+            sessions = null;
+          }
+          if (sessions === null) return { delivered: false, detail: 'the fleet is unreadable right now' };
+          const target = sessions.find((session) => session.sessionId === sessionId);
+          if (!target) return { delivered: false, detail: 'session is not in the live fleet' };
+          const name = target.name ?? folderOf(target.cwd);
+          if (!name) return { delivered: false, detail: 'session has no addressable name' };
+
+          const res = await app.inject({
+            method: 'POST',
+            url: '/api/ship-voice/send_to_session',
+            headers: { host: '127.0.0.1', [DECK_CLIENT_HEADER]: '1' },
+            payload: { name, text },
+          });
+          if (res.statusCode === 200) return { delivered: true };
+          if (res.statusCode === 409) {
+            return { delivered: false, detail: `ambiguous session name '${name}' -- more than one match` };
+          }
+          if (res.statusCode === 404) {
+            return { delivered: false, detail: `no ship-voice send route, or '${name}' resolved to nothing` };
+          }
+          return { delivered: false, detail: `send_to_session answered ${res.statusCode}` };
+        });
+
+      /** Every delivery answer the Deck sees carries the transport truth label. */
+      const deliveryJson = (delivery: SessionDelivery) => ({
+        ...delivery,
+        transport: 'transcript-resume' as const,
+      });
+
       /* ── permission queue ── */
 
       app.post('/api/ship-inbox/permissions', async (request, reply) => {
@@ -251,7 +374,24 @@ export function createShipInboxStation(options: ShipInboxStationOptions = {}): S
           );
           if (!decided) return reply.code(409).send({ error: 'already decided' });
           waiters.notify(row.id);
-          return permissionToJson(decided);
+
+          // Deny reasons (defect D2): the PermissionRequest hook's decision JSON is
+          // behavior-only -- verified against the hooks docs 2026-07-17
+          // (code.claude.com/docs/en/hooks.md#PermissionRequest: `decision` carries `behavior`
+          // + optional `updatedInput`, no reason/message field; PreToolUse's
+          // `permissionDecisionReason` has no counterpart here). So the note is delivered to
+          // the session's TRANSCRIPT via the deliver seam instead, and the outcome is reported
+          // honestly, never assumed.
+          let messageDelivery: ReturnType<typeof deliveryJson> | undefined;
+          if (body.behavior === 'deny' && body.message) {
+            messageDelivery = deliveryJson(
+              await deliver(
+                row.session_id,
+                `The captain denied your "${row.tool_name}" permission request with this note: ${body.message}`,
+              ),
+            );
+          }
+          return { ...permissionToJson(decided), ...(messageDelivery ? { messageDelivery } : {}) };
         },
       );
 
@@ -301,14 +441,142 @@ export function createShipInboxStation(options: ShipInboxStationOptions = {}): S
         },
       );
 
+      // Defect D1 (wave2-E): questions become answerable. The reply is stored on the row AND
+      // delivered to the asking session via the deliver seam. The emitting Notification hook is
+      // long gone (fire-and-forget), so delivery goes to the session's transcript -- stored
+      // either way; a failed delivery is reported, never hidden (the reply survives on the row).
+      app.post<{ Params: { id: string } }>(
+        '/api/ship-inbox/questions/:id/respond',
+        async (request, reply) => {
+          if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+            return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+          }
+          const parsed = respondBodySchema.safeParse(request.body);
+          if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.message });
+          }
+          const row = getAgentQuestion(db, request.params.id);
+          if (!row) return reply.code(404).send({ error: 'no such question' });
+          if (row.status !== 'open') {
+            return reply.code(409).send({ error: `already ${row.status}` });
+          }
+
+          const delivery = await deliver(
+            row.session_id,
+            `Captain's reply from the Ship inbox (re: "${clip(row.message, 160)}"): ${parsed.data.text}`,
+          );
+          const updated = respondAgentQuestion(
+            db,
+            row.id,
+            { text: parsed.data.text, delivered: delivery.delivered },
+            nowIso(),
+          );
+          if (!updated) return reply.code(409).send({ error: 'already decided' });
+          return { ...questionToJson(updated), delivery: deliveryJson(delivery) };
+        },
+      );
+
+      /* ── free-text send to any tracked session (defect D4: session-shaped, not row-shaped) ── */
+
+      app.post<{ Params: { sessionId: string } }>(
+        '/api/ship-inbox/sessions/:sessionId/send',
+        async (request, reply) => {
+          if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+            return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+          }
+          const parsed = sendBodySchema.safeParse(request.body);
+          if (!parsed.success) {
+            return reply.code(400).send({ error: parsed.error.message });
+          }
+          const delivery = await deliver(request.params.sessionId, parsed.data.text);
+          if (!delivery.delivered) {
+            return reply
+              .code(502)
+              .send({ error: delivery.detail ?? 'delivery failed', ...deliveryJson(delivery) });
+          }
+          return { sessionId: request.params.sessionId, ...deliveryJson(delivery) };
+        },
+      );
+
+      /* ── ask-human bridge (wave2-E item 4): list/read specs, write byte-compatible answers ──
+       * All three carry the deck header (the GETs too -- they read filesystem paths taken from
+       * the query string, same guarded-family posture as the hull's /api/fs routes). */
+
+      app.get<{ Querystring: { cwd?: string } }>('/api/ship-inbox/askhuman', async (request, reply) => {
+        if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+          return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+        }
+        const cwd = request.query.cwd;
+        if (!cwd) return reply.code(400).send({ error: 'cwd query parameter required' });
+        return { cwd, sessions: listAskHumanSessions(cwd) };
+      });
+
+      app.get<{ Querystring: { cwd?: string; session?: string } }>(
+        '/api/ship-inbox/askhuman/spec',
+        async (request, reply) => {
+          if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+            return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+          }
+          const { cwd, session } = request.query;
+          if (!cwd || !session) {
+            return reply.code(400).send({ error: 'cwd and session query parameters required' });
+          }
+          if (!isValidAskHumanSessionId(session)) {
+            return reply.code(400).send({ error: `invalid session id '${session}'` });
+          }
+          const questions = readAskHumanSpec(cwd, session);
+          if (!questions) return reply.code(404).send({ error: 'no valid spec.json for that session' });
+          return { cwd, sessionId: session, questions };
+        },
+      );
+
+      app.post('/api/ship-inbox/askhuman/answers', async (request, reply) => {
+        if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+          return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+        }
+        const parsed = askHumanAnswersBodySchema.safeParse(request.body);
+        if (!parsed.success) {
+          return reply.code(400).send({ error: parsed.error.message });
+        }
+        const { cwd, session, answers } = parsed.data;
+        if (!isValidAskHumanSessionId(session)) {
+          return reply.code(400).send({ error: `invalid session id '${session}'` });
+        }
+        if (!readAskHumanSpec(cwd, session)) {
+          return reply.code(404).send({ error: 'no valid spec.json for that session' });
+        }
+        const written = writeAskHumanAnswers(cwd, session, answers as AskHumanAnswerInput[]);
+        return { ok: true, path: written.path };
+      });
+
       /* ── the one page (Ship_Spec §5) ── */
 
       app.get('/api/ship-inbox/items', async () => {
         expireStalePending(db, nowIso(), ttlMs);
         const listInbox = ctx.getContract<() => ChartroomInboxItem[]>('chartroom', 'listInbox');
+        const questions = listAgentQuestions(db, { status: 'open' }).map(questionToJson);
+        // Pending ask-human forms discoverable from each question's cwd (one filesystem scan per
+        // unique cwd; a scan failure means "none", never a 500) -- the Deck links these to the
+        // ask-questions page.
+        const askHumanByCwd = new Map<string, string[]>();
+        for (const question of questions) {
+          if (askHumanByCwd.has(question.cwd)) continue;
+          let pending: string[] = [];
+          try {
+            pending = listAskHumanSessions(question.cwd)
+              .filter((session) => !session.answered)
+              .map((session) => session.sessionId);
+          } catch {
+            pending = [];
+          }
+          askHumanByCwd.set(question.cwd, pending);
+        }
         return {
           permissions: listPermissionRequests(db, { status: 'pending' }).map(permissionToJson),
-          questions: listAgentQuestions(db, { status: 'open' }).map(questionToJson),
+          questions: questions.map((question) => ({
+            ...question,
+            askHumanPending: askHumanByCwd.get(question.cwd) ?? [],
+          })),
           // Feature-unavailable = empty, never an error (HostContext contract rule).
           docs: listInbox ? listInbox() : [],
         };

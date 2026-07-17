@@ -13,6 +13,7 @@ export {
   permissionToJson,
   projectFromCwd,
   questionToJson,
+  respondAgentQuestion,
   shipInboxDbPath,
   DEFAULT_PENDING_TTL_MS,
   PERMISSION_SOURCES,
@@ -28,7 +29,18 @@ export {
   type PermissionSource,
   type PermissionStatus,
   type QuestionStatus,
+  type RespondQuestionInput,
 } from './db.js';
+export {
+  askHumanSessionsDir,
+  isValidAskHumanSessionId,
+  listAskHumanSessions,
+  readAskHumanSpec,
+  writeAskHumanAnswers,
+  type AskHumanAnswerInput,
+  type AskHumanSessionSummary,
+  type AskHumanSpecQuestion,
+} from './askhuman.js';
 export {
   applyAlwaysAllowRule,
   settingsLocalPath,
@@ -40,6 +52,8 @@ export {
 export { createDecisionWaiters, type DecisionWaiters } from './waiters.js';
 export {
   createShipInboxStation,
+  type SessionDeliverer,
+  type SessionDelivery,
   type ShipInboxStation,
   type ShipInboxStationOptions,
 } from './station.js';

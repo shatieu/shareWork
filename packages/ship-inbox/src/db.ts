@@ -6,7 +6,10 @@ import Database from 'better-sqlite3';
 
 const SHIP_DIR_NAME = '.ship';
 const DB_FILE_NAME = 'inbox.db';
-const SCHEMA_VERSION = 1;
+/** v2 (wave2-E, defect D1): agent questions become answerable -- status gains 'answered' and the
+ * row stores the captain's reply text + delivery outcome. Requires a table rebuild on existing
+ * databases (SQLite CHECK constraints can't be altered in place). */
+const SCHEMA_VERSION = 2;
 
 /** How long a pending permission request stays actionable before lazy expiry flips it to
  * 'expired' on read (plan 06 §1.1): the resolver hook that could deliver the decision into the
@@ -26,7 +29,7 @@ export type PermissionStatus = (typeof PERMISSION_STATUSES)[number];
 export const PERMISSION_SOURCES = ['resolver', 'hook'] as const;
 export type PermissionSource = (typeof PERMISSION_SOURCES)[number];
 
-export const QUESTION_STATUSES = ['open', 'acknowledged'] as const;
+export const QUESTION_STATUSES = ['open', 'acknowledged', 'answered'] as const;
 export type QuestionStatus = (typeof QUESTION_STATUSES)[number];
 
 export interface PermissionRequestRow {
@@ -55,6 +58,11 @@ export interface AgentQuestionRow {
   status: QuestionStatus;
   created_at: string;
   acked_at: string | null;
+  /** The captain's reply (status 'answered' only). */
+  response_text: string | null;
+  responded_at: string | null;
+  /** 1/0 = whether delivery to the session's transcript succeeded; null until responded. */
+  response_delivered: number | null;
 }
 
 export function shipInboxDbPath(homeDir?: string): string {
@@ -72,6 +80,24 @@ export function projectFromCwd(cwd: string): string | null {
   return last || null;
 }
 
+/** The v2 agent_questions shape -- shared between fresh creates and the v1 rebuild migration so
+ * the two paths can never drift. */
+const AGENT_QUESTIONS_TABLE_SQL = `
+    CREATE TABLE IF NOT EXISTS agent_questions (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      cwd TEXT NOT NULL DEFAULT '',
+      project TEXT,
+      kind TEXT NOT NULL,
+      message TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL CHECK (status IN ('open', 'acknowledged', 'answered')),
+      created_at TEXT NOT NULL,
+      acked_at TEXT,
+      response_text TEXT,
+      responded_at TEXT,
+      response_delivered INTEGER
+    );`;
+
 export function openShipInboxDb(homeDir?: string): Database.Database {
   const path = shipInboxDbPath(homeDir);
   const dir = dirname(path);
@@ -79,7 +105,6 @@ export function openShipInboxDb(homeDir?: string): Database.Database {
 
   const db = new Database(path);
   db.pragma('journal_mode = WAL');
-  db.pragma(`user_version = ${SCHEMA_VERSION}`);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS permission_requests (
@@ -99,23 +124,36 @@ export function openShipInboxDb(homeDir?: string): Database.Database {
     );
     CREATE INDEX IF NOT EXISTS idx_permission_requests_status
       ON permission_requests (status, created_at);
-
-    CREATE TABLE IF NOT EXISTS agent_questions (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL,
-      cwd TEXT NOT NULL DEFAULT '',
-      project TEXT,
-      kind TEXT NOT NULL,
-      message TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL CHECK (status IN ('open', 'acknowledged')),
-      created_at TEXT NOT NULL,
-      acked_at TEXT
-    );
+    ${AGENT_QUESTIONS_TABLE_SQL}
     CREATE INDEX IF NOT EXISTS idx_agent_questions_status
       ON agent_questions (status, created_at);
   `);
 
+  migrateAgentQuestionsToV2(db);
+  db.pragma(`user_version = ${SCHEMA_VERSION}`);
+
   return db;
+}
+
+/** v1 -> v2: the old CHECK ('open','acknowledged') rejects the new 'answered' status and SQLite
+ * cannot alter a CHECK in place, so a v1 table (detected by its missing response_text column --
+ * the CREATE IF NOT EXISTS above was a no-op on it) is rebuilt with rows preserved. */
+function migrateAgentQuestionsToV2(db: Database.Database): void {
+  const columns = db.pragma('table_info(agent_questions)') as { name: string }[];
+  if (columns.some((column) => column.name === 'response_text')) return;
+
+  db.exec(`
+    BEGIN;
+    ALTER TABLE agent_questions RENAME TO agent_questions_v1;
+    ${AGENT_QUESTIONS_TABLE_SQL}
+    INSERT INTO agent_questions (id, session_id, cwd, project, kind, message, status, created_at, acked_at)
+      SELECT id, session_id, cwd, project, kind, message, status, created_at, acked_at
+      FROM agent_questions_v1;
+    DROP TABLE agent_questions_v1;
+    CREATE INDEX IF NOT EXISTS idx_agent_questions_status
+      ON agent_questions (status, created_at);
+    COMMIT;
+  `);
 }
 
 /* ── permission requests ── */
@@ -376,6 +414,33 @@ export function ackAgentQuestion(
   return getAgentQuestion(db, id);
 }
 
+export interface RespondQuestionInput {
+  /** The captain's reply text, stored verbatim (the transport may wrap it for context). */
+  text: string;
+  /** Honest delivery outcome -- false is stored, never hidden (the reply text still survives on
+   * the row for a later manual send). */
+  delivered: boolean;
+}
+
+/** Records the captain's reply iff the question is still open (same WHERE-guard concurrency
+ * control as decidePermissionRequest -- a raced respond/ack comes back undefined -> 409). */
+export function respondAgentQuestion(
+  db: Database.Database,
+  id: string,
+  input: RespondQuestionInput,
+  nowIso: string,
+): AgentQuestionRow | undefined {
+  const result = db
+    .prepare(
+      `UPDATE agent_questions
+       SET status = 'answered', response_text = ?, responded_at = ?, response_delivered = ?
+       WHERE id = ? AND status = 'open'`,
+    )
+    .run(input.text, nowIso, input.delivered ? 1 : 0, id);
+  if (result.changes === 0) return undefined;
+  return getAgentQuestion(db, id);
+}
+
 export interface AgentQuestionJson {
   id: string;
   sessionId: string;
@@ -386,6 +451,9 @@ export interface AgentQuestionJson {
   status: QuestionStatus;
   createdAt: string;
   ackedAt: string | null;
+  responseText: string | null;
+  respondedAt: string | null;
+  responseDelivered: boolean | null;
 }
 
 export function questionToJson(row: AgentQuestionRow): AgentQuestionJson {
@@ -399,5 +467,8 @@ export function questionToJson(row: AgentQuestionRow): AgentQuestionJson {
     status: row.status,
     createdAt: row.created_at,
     ackedAt: row.acked_at,
+    responseText: row.response_text,
+    respondedAt: row.responded_at,
+    responseDelivered: row.response_delivered === null ? null : row.response_delivered === 1,
   };
 }
