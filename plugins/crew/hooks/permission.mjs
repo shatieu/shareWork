@@ -103,7 +103,16 @@ function httpJson(method, url, { body, timeoutMs }) {
 }
 
 /** The documented PermissionRequest resolution contract (researcher R1): exit 0 + this exact
- * stdout shape. Kept minimal on purpose -- behavior only, no invented fields. */
+ * stdout shape. Kept minimal on purpose -- behavior only, no invented fields.
+ *
+ * Verified against the hooks docs 2026-07-17
+ * (code.claude.com/docs/en/hooks.md#PermissionRequest): the decision object supports ONLY
+ * `behavior` plus an optional `updatedInput` when allowing -- there is NO message/reason field
+ * (PreToolUse's `permissionDecisionReason` has no PermissionRequest counterpart). The inbox's
+ * stored decision `message` therefore CANNOT ride this JSON; a deny note typed in the Deck is
+ * instead delivered to the session's transcript by ship-inbox via ship-voice's send_to_session
+ * (see ship-inbox station.ts, decision route), so this hook stays behavior-only by contract,
+ * not by omission. */
 function printDecision(behavior) {
   process.stdout.write(
     JSON.stringify({
