@@ -5,7 +5,7 @@ id: the-ship-how-to-use-it
 # The Ship — How to use it
 
 > **Living document.** Any change that alters user-facing behavior MUST update this file in the
-> same package (rule in `CLAUDE.md`). Last updated: 2026-07-17 (wave 2).
+> same package (rule in `CLAUDE.md`). Last updated: 2026-07-18 (wave 2).
 
 ## Start
 
@@ -68,6 +68,19 @@ Repos carry a scrutiny preset (`ship.scrutiny` in `.claude/settings.json`): `sol
 `paranoid` (+ stop gate). Say "go rigorous on this one" to override per session. The
 quartermaster answers "what shipped this week?" from the ledger; the chaplain answers
 "how are my projects doing?" in the Chapel tab.
+
+## Agents talking to each other
+
+With the Deck running, any agent can message another session through the hull's **ship-comms**
+station: `POST /api/ship-comms/send {from?, to, text}` (with the `x-ship-deck: 1` header).
+`to` is an exact session id (UUID — stored even if the session is busy or gone) or a session
+name, resolved against the live fleet; an ambiguous name fails loudly with candidates instead of
+guessing. The Crew plugin delivers queued messages automatically: its `Stop` hook polls the hull
+and injects them as `[ship-comms] message from <session>: …` context — so delivery is **at the
+receiver's next turn boundary, not instant** (an idle session sees it on its next activity; hull
+down = messages wait in `~/.ship/ship-comms.db`). `GET /api/ship-comms/history?session=<id>`
+shows a session's full conversation, both directions. Keep messages short — pointers to exchange
+files, not content.
 
 ## Where things live
 
