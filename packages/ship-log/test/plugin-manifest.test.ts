@@ -65,7 +65,8 @@ describe('plugins/crew manifest', () => {
     // per-event -- exactly these scripts, nothing else, and the capture emitter must survive.
     const expectedScriptsByEvent: Record<string, string[]> = {
       SessionStart: ['emit.mjs', 'scrutiny.mjs'],
-      Stop: ['emit.mjs', 'stop-gate.mjs'],
+      // wave2-F adds comms.mjs at Stop (ship-comms turn-boundary delivery).
+      Stop: ['comms.mjs', 'emit.mjs', 'stop-gate.mjs'],
       SessionEnd: ['emit.mjs'],
       Notification: ['emit.mjs'],
       PermissionRequest: ['permission.mjs'],
