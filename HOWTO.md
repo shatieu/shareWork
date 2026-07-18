@@ -36,6 +36,14 @@ which project you mean. Drop-a-note confessions land durably in the archive — 
 **Past confessions** panel lists them all. (The chaplain's inbox copy is consumed when a
 chaplain session next runs its rite; the archive copy is forever.)
 
+**Chaplain rounds — "he knows everything".** Every captured session's haiku summary is rolled
+into a daily, per-project digest at `~/.ship/chaplain/rounds/<date>.md` (built lazily once per
+day at the first hull boot/capture of a new day, or on demand via the Chapel tab's **Run rounds
+now** button). The chaplain reads the newest rounds file at session start as his all-projects
+situational picture, and the Chapel tab shows it under **Rounds** with a date picker.
+Note: session capture is per-repo opt-in — enable `"ship-crew@sharework": true` under
+`enabledPlugins` in `~/.claude/settings.json` to cover every repo on the machine.
+
 **Inbox** — everything needing a human: permission requests, agent questions, doc questions.
 You can now **respond with text** to any question (delivery resumes that session's transcript —
 it is not mid-task injection), send free text to any tracked session from the Tracked-sessions

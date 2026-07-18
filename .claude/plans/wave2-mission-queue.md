@@ -16,10 +16,13 @@ FO session: 2cce1eab. Lookout: lock held, sensor + waiter running. Harness tasks
 | D | #5 | Voyage: multi-project switcher + add-items — BUILT (a2fe15f/b03c245/3a549a9), inspector PASS (21/21 smoke, unknown fields preserved, 409-on-corrupt byte-safe) | PASS |
 | E | #6 | Inbox respond/send/unwatch/askhuman page; App.tsx wired by FO (20069b4); inspector PASS (ambiguity guard held, golden bytes vs real skill server) | PASS |
 | I | #10 | Token tracking + Console dashboard; dedupe fix red-proven (3x overcount), cursor-boundary + v1→v2 migration attacks held; inspector PASS | PASS |
-| F | #7 | PLAN ONLY: agent↔agent comms status + improvement plan; study `../claude peers` | DONE — plan committed, awaiting Captain decision |
+| F | #7 | Plan approved by Captain 2026-07-18 → IMPLEMENTED: ship-comms station (send/poll/history, ambiguity-safe addressing, at-most-once documented) + comms.mjs Stop-hook delivery + hull mount (9 stations). Inspector FAIL→2 findings fixed by FO (rowid ordering 5/5 green, honest semantics docs)→verified | DONE |
 | G | #8 | PLAN ONLY: modularization (partial adoption, separable vs core) — no edits until Captain confirms | DONE — plan committed, awaiting Captain decision |
 | H | #9 | HOWTO.md written (299fb56), living-doc rule in CLAUDE.md + FO memory | DONE |
 | I | #10 | Per-session token tracking + dashboard (added mid-mission) | pending |
+
+| J | #11 | Chaplain rounds: daily per-project haiku digest (~/.ship/chaplain/rounds/), lazy once-per-day + Deck run button, chapel routes + Rounds panel, charter rite reads it. Inspector FAIL was a wave2-F cross-lane test miss (fixed by FO); all 24 J-specific probes green | DONE |
+| QA | — | Real-browser pass over all tabs (Chrome ext connected 2026-07-18): all wave2 features verified; found+fixed stale-bundle turbo cache and overview-heading contrast. Captain still owes: enabledPlugins line for all-project capture | DONE |
 
 Order of execution: 0 → A (bugfix) → C (bugfix half first) → B → E → D → I → H.
 F and G run as parallel read-only research from the start; their deliverables are plan docs
