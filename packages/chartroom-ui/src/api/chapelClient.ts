@@ -97,3 +97,56 @@ export function fetchChapelConfession(stamp: string): Promise<ChapelConfessionDe
     `chartroom-ui: chapel confession ${stamp} fetch failed`,
   );
 }
+
+/* ── chaplain rounds (wave2-J): the machine-written daily all-projects digests ── */
+
+export interface ChapelRoundsSummary {
+  /** `YYYY-MM-DD` -- the rounds file's date and id. */
+  date: string;
+  updatedAt: string;
+}
+
+export interface ChapelRoundsListResponse {
+  rounds: ChapelRoundsSummary[];
+}
+
+/** `GET /api/chapel/rounds` -- available rounds dates, newest first; `[]` before the first run. */
+export function fetchChapelRounds(): Promise<ChapelRoundsListResponse> {
+  return getChapel<ChapelRoundsListResponse>('/api/chapel/rounds', 'chartroom-ui: chapel rounds fetch failed');
+}
+
+export interface ChapelRoundsDetail {
+  date: string;
+  /** The digest markdown as ship-log wrote it. */
+  content: string;
+  updatedAt: string;
+}
+
+/** `GET /api/chapel/rounds/:date` -- one day's digest in full; 404 for unknown dates. */
+export function fetchChapelRoundsDay(date: string): Promise<ChapelRoundsDetail> {
+  return getChapel<ChapelRoundsDetail>(
+    `/api/chapel/rounds/${encodeURIComponent(date)}`,
+    `chartroom-ui: chapel rounds ${date} fetch failed`,
+  );
+}
+
+export interface ChapelRoundsRunResponse {
+  date: string;
+  entryCount: number;
+  projectCount: number;
+  model: string | null;
+}
+
+/** `POST /api/chapel/rounds/run` -- build today's rounds now (the hull proxies to ship-log).
+ * Slowish by nature (one haiku call); 501 with a readable `{error}` when ship-log is not
+ * mounted on this hull. */
+export async function runChapelRounds(): Promise<ChapelRoundsRunResponse> {
+  const response = await fetch('/api/chapel/rounds/run', {
+    method: 'POST',
+    headers: { [DECK_CLIENT_HEADER]: '1' },
+  });
+  if (!response.ok) {
+    throw await chapelError(response, 'chartroom-ui: chapel rounds run failed');
+  }
+  return (await response.json()) as ChapelRoundsRunResponse;
+}

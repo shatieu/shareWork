@@ -18,9 +18,14 @@ import {
   fetchChapelChatLog,
   fetchChapelConfession,
   fetchChapelConfessions,
+  fetchChapelRounds,
+  fetchChapelRoundsDay,
+  runChapelRounds,
   type ChapelChatMessage,
   type ChapelConfessionDetail,
   type ChapelConfessionSummary,
+  type ChapelRoundsDetail,
+  type ChapelRoundsSummary,
 } from '../api/chapelClient.js';
 import './chapel.css';
 
@@ -83,6 +88,11 @@ export function ChapelPage(): ReactElement {
 
   const [chips, setChips] = useState<ProjectChip[]>([]);
 
+  const [rounds, setRounds] = useState<ChapelRoundsSummary[] | null>(null);
+  const [roundsError, setRoundsError] = useState<string | null>(null);
+  const [roundsDetail, setRoundsDetail] = useState<ChapelRoundsDetail | null>(null);
+  const [roundsRunPending, setRoundsRunPending] = useState(false);
+
   const [confessions, setConfessions] = useState<ChapelConfessionSummary[] | null>(null);
   const [confessionsError, setConfessionsError] = useState<string | null>(null);
   const [openConfession, setOpenConfession] = useState<ChapelConfessionDetail | null>(null);
@@ -114,6 +124,28 @@ export function ChapelPage(): ReactElement {
       if (toastTimer.current) clearTimeout(toastTimer.current);
     },
     [],
+  );
+
+  const handleOpenRounds = useCallback((date: string) => {
+    setRoundsError(null);
+    fetchChapelRoundsDay(date)
+      .then(setRoundsDetail)
+      .catch((err: unknown) => setRoundsError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  /** Refresh the rounds date list and open `openDate` (default: the newest available). */
+  const refreshRounds = useCallback(
+    (openDate?: string): Promise<void> => {
+      return fetchChapelRounds()
+        .then((next) => {
+          setRounds(next.rounds);
+          setRoundsError(null);
+          const target = openDate ?? next.rounds[0]?.date;
+          if (target !== undefined) handleOpenRounds(target);
+        })
+        .catch((err: unknown) => setRoundsError(err instanceof Error ? err.message : String(err)));
+    },
+    [handleOpenRounds],
   );
 
   const refreshConfessions = useCallback((): Promise<void> => {
@@ -172,10 +204,11 @@ export function ChapelPage(): ReactElement {
         if (!cancelled) setChips([]);
       });
     void refreshConfessions();
+    void refreshRounds();
     return () => {
       cancelled = true;
     };
-  }, [refreshConfessions]);
+  }, [refreshConfessions, refreshRounds]);
 
   // Keep the newest exchange in view as messages arrive.
   useEffect(() => {
@@ -209,6 +242,19 @@ export function ChapelPage(): ReactElement {
       return `${prev}${separator}${marker} `;
     });
   }, []);
+
+  const handleRunRounds = useCallback(() => {
+    setRoundsRunPending(true);
+    runChapelRounds()
+      .then((result) => {
+        showToast({ kind: 'ok', text: `Rounds made for ${result.date}` });
+        void refreshRounds(result.date);
+      })
+      .catch((err: unknown) =>
+        showToast({ kind: 'error', text: `Rounds run failed: ${err instanceof Error ? err.message : String(err)}` }),
+      )
+      .finally(() => setRoundsRunPending(false));
+  }, [refreshRounds, showToast]);
 
   const handleOpenDossier = useCallback((id: string) => {
     setDossierError(null);
@@ -317,6 +363,41 @@ export function ChapelPage(): ReactElement {
     );
   } else {
     briefPane = <ChapelMarkdown>{brief.brief}</ChapelMarkdown>;
+  }
+
+  let roundsPane: ReactElement;
+  if (roundsError !== null) {
+    roundsPane = (
+      <p className="chapel__error" role="alert">
+        Rounds unavailable: {roundsError}
+      </p>
+    );
+  } else if (rounds === null) {
+    roundsPane = <p className="chapel__loading">Loading rounds…</p>;
+  } else if (rounds.length === 0) {
+    roundsPane = <p className="chapel__empty">No rounds yet.</p>;
+  } else {
+    roundsPane = (
+      <>
+        <select
+          className="chapel-rounds__date"
+          aria-label="Rounds date"
+          value={roundsDetail?.date ?? rounds[0].date}
+          onChange={(event) => handleOpenRounds(event.target.value)}
+        >
+          {rounds.map((round) => (
+            <option key={round.date} value={round.date}>
+              {round.date}
+            </option>
+          ))}
+        </select>
+        {roundsDetail === null ? (
+          <p className="chapel__loading">Loading digest…</p>
+        ) : (
+          <ChapelMarkdown>{roundsDetail.content}</ChapelMarkdown>
+        )}
+      </>
+    );
   }
 
   let dossierPane: ReactElement;
@@ -486,6 +567,20 @@ export function ChapelPage(): ReactElement {
           <section className="chapel-brief" aria-label="Chaplain's brief">
             <h2 className="chapel__section-title">Brief</h2>
             {briefPane}
+          </section>
+          <section className="chapel-rounds" aria-label="Rounds">
+            <div className="chapel-rounds__head">
+              <h2 className="chapel__section-title">Rounds</h2>
+              <button
+                type="button"
+                className="chapel-rounds__run"
+                onClick={handleRunRounds}
+                disabled={roundsRunPending}
+              >
+                {roundsRunPending ? 'making rounds…' : 'Run rounds now'}
+              </button>
+            </div>
+            {roundsPane}
           </section>
           <section className="chapel-dossiers" aria-label="Dossiers">
             <h2 className="chapel__section-title">Dossiers</h2>

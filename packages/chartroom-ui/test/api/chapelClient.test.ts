@@ -12,6 +12,9 @@ import {
   fetchChapelChatLog,
   fetchChapelConfession,
   fetchChapelConfessions,
+  fetchChapelRounds,
+  fetchChapelRoundsDay,
+  runChapelRounds,
 } from '../../src/api/chapelClient.js';
 
 /** Fetch-level contract for the /api/chapel routes (deck-chapel-tab plan): the x-ship-deck
@@ -199,6 +202,54 @@ describe('chapel chat log + confessions fetch contracts', () => {
     const [url, init] = lastCall(fetchMock);
     expect(url).toBe('/api/chapel/confessions');
     expect(headerOf(init, 'x-ship-deck')).toBe('1');
+  });
+
+  it('fetchChapelRounds GETs /api/chapel/rounds with the header', async () => {
+    const body = { rounds: [{ date: '2026-07-18', updatedAt: '2026-07-18T06:00:00.000Z' }] };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(fetchChapelRounds()).resolves.toEqual(body);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/api/chapel/rounds');
+    expect(init?.method).toBeUndefined();
+    expect(headerOf(init, 'x-ship-deck')).toBe('1');
+  });
+
+  it('fetchChapelRoundsDay encodes the date, carries the header, and surfaces a 404 {error} body', async () => {
+    const body = { date: '2026-07-18', content: '# Rounds -- 2026-07-18', updatedAt: '2026-07-18T06:00:00.000Z' };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(fetchChapelRoundsDay('2026-07-18')).resolves.toEqual(body);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/api/chapel/rounds/2026-07-18');
+    expect(headerOf(init, 'x-ship-deck')).toBe('1');
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(404, { error: "no rounds for 'gone'" })));
+    const failure = fetchChapelRoundsDay('gone');
+    await expect(failure).rejects.toThrow("no rounds for 'gone'");
+    await expect(failure).rejects.toMatchObject({ name: 'ChapelApiError', status: 404 });
+  });
+
+  it('runChapelRounds POSTs /api/chapel/rounds/run with the header and no body; 501 surfaces readable', async () => {
+    const body = { date: '2026-07-18', entryCount: 3, projectCount: 2, model: 'haiku' };
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(200, body));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(runChapelRounds()).resolves.toEqual(body);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/api/chapel/rounds/run');
+    expect(init?.method).toBe('POST');
+    expect(headerOf(init, 'x-ship-deck')).toBe('1');
+    expect(init?.body).toBeUndefined();
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(jsonResponse(501, { error: 'rounds unavailable: the ship-log station is not mounted on this hull' })),
+    );
+    const failure = runChapelRounds();
+    await expect(failure).rejects.toBeInstanceOf(ChapelApiError);
+    await expect(failure).rejects.toMatchObject({ status: 501 });
   });
 
   it('fetchChapelConfession encodes the stamp and surfaces a 404 {error} body', async () => {

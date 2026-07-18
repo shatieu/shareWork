@@ -351,9 +351,56 @@
   padding: 4px 8px;
 }
 
+/* ── rounds (machine-written daily digests) ─────────────────────────── */
+
+.chapel-rounds__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.chapel-rounds__head .chapel__section-title {
+  flex: 1;
+}
+
+.chapel-rounds__run {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-bright);
+  background: none;
+  border: 1px solid var(--brass-mid);
+  border-radius: var(--radius);
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.chapel-rounds__run:hover:not(:disabled) {
+  background: rgba(201, 162, 78, 0.1);
+}
+
+.chapel-rounds__run:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.chapel-rounds__date {
+  display: block;
+  margin-bottom: 8px;
+  background: var(--well);
+  border: 1px solid var(--panel-line);
+  border-radius: var(--radius);
+  color: var(--ink-85);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
 /* ── dossiers ───────────────────────────────────────────────────────── */
 
 .chapel-dossiers,
+.chapel-rounds,
 .chapel-confess,
 .chapel-past {
   background: var(--panel-grad);

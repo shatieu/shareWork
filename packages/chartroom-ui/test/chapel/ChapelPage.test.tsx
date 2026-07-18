@@ -18,6 +18,9 @@ import {
   fetchChapelChatLog,
   fetchChapelConfession,
   fetchChapelConfessions,
+  fetchChapelRounds,
+  fetchChapelRoundsDay,
+  runChapelRounds,
 } from '../../src/api/chapelClient.js';
 
 vi.mock('../../src/api/client.js', async (importOriginal) => {
@@ -41,6 +44,9 @@ vi.mock('../../src/api/chapelClient.js', async (importOriginal) => {
     fetchChapelChatLog: vi.fn(),
     fetchChapelConfessions: vi.fn(),
     fetchChapelConfession: vi.fn(),
+    fetchChapelRounds: vi.fn(),
+    fetchChapelRoundsDay: vi.fn(),
+    runChapelRounds: vi.fn(),
   };
 });
 
@@ -55,6 +61,9 @@ const mocks = {
   fetchChapelChatLog: vi.mocked(fetchChapelChatLog),
   fetchChapelConfessions: vi.mocked(fetchChapelConfessions),
   fetchChapelConfession: vi.mocked(fetchChapelConfession),
+  fetchChapelRounds: vi.mocked(fetchChapelRounds),
+  fetchChapelRoundsDay: vi.mocked(fetchChapelRoundsDay),
+  runChapelRounds: vi.mocked(runChapelRounds),
 };
 
 /** Only `id`/`name` matter to the chip row; the rest is RepoSummary ballast. */
@@ -91,6 +100,9 @@ beforeEach(() => {
   mocks.fetchChapelChatLog.mockResolvedValue({ messages: [] });
   mocks.fetchChapelConfessions.mockResolvedValue({ confessions: [] });
   mocks.fetchChapelConfession.mockRejectedValue(new Error('not under test'));
+  mocks.fetchChapelRounds.mockResolvedValue({ rounds: [] });
+  mocks.fetchChapelRoundsDay.mockRejectedValue(new Error('not under test'));
+  mocks.runChapelRounds.mockResolvedValue({ date: '2026-07-18', entryCount: 0, projectCount: 0, model: null });
 });
 
 afterEach(() => {
@@ -315,6 +327,99 @@ describe('cross-project marker chips', () => {
     render(<ChapelPage />);
     await screen.findByRole('heading', { name: 'Standing brief' });
     expect(screen.queryByRole('group', { name: 'Project markers' })).not.toBeInTheDocument();
+  });
+});
+
+describe('rounds section (wave2-J: machine-written daily digests)', () => {
+  const twoDays = {
+    rounds: [
+      { date: '2026-07-18', updatedAt: '2026-07-18T06:00:00.000Z' },
+      { date: '2026-07-17', updatedAt: '2026-07-17T06:00:00.000Z' },
+    ],
+  };
+
+  function detail(date: string) {
+    return {
+      date,
+      content: `# Rounds -- ${date}\n\nLead digest for ${date}.\n\n## alpha (1 session)`,
+      updatedAt: `${date}T06:00:00.000Z`,
+    };
+  }
+
+  it('auto-opens the newest digest as markdown with a date picker (newest first)', async () => {
+    mocks.fetchChapelRounds.mockResolvedValue(twoDays);
+    mocks.fetchChapelRoundsDay.mockImplementation(async (date: string) => detail(date));
+    render(<ChapelPage />);
+
+    const panel = await screen.findByRole('region', { name: 'Rounds' });
+    expect(await within(panel).findByRole('heading', { name: 'Rounds -- 2026-07-18' })).toBeInTheDocument();
+    expect(mocks.fetchChapelRoundsDay).toHaveBeenCalledWith('2026-07-18');
+
+    const picker = within(panel).getByLabelText('Rounds date') as HTMLSelectElement;
+    expect(Array.from(picker.options).map((option) => option.value)).toEqual(['2026-07-18', '2026-07-17']);
+  });
+
+  it('picking a past date fetches and renders that digest', async () => {
+    mocks.fetchChapelRounds.mockResolvedValue(twoDays);
+    mocks.fetchChapelRoundsDay.mockImplementation(async (date: string) => detail(date));
+    render(<ChapelPage />);
+
+    const panel = await screen.findByRole('region', { name: 'Rounds' });
+    await within(panel).findByRole('heading', { name: 'Rounds -- 2026-07-18' });
+    fireEvent.change(within(panel).getByLabelText('Rounds date'), { target: { value: '2026-07-17' } });
+
+    expect(await within(panel).findByRole('heading', { name: 'Rounds -- 2026-07-17' })).toBeInTheDocument();
+    expect(mocks.fetchChapelRoundsDay).toHaveBeenLastCalledWith('2026-07-17');
+  });
+
+  it('shows the empty state before the first rounds run', async () => {
+    render(<ChapelPage />);
+    const panel = await screen.findByRole('region', { name: 'Rounds' });
+    expect(await within(panel).findByText('No rounds yet.')).toBeInTheDocument();
+    expect(mocks.fetchChapelRoundsDay).not.toHaveBeenCalled();
+  });
+
+  it('"Run rounds now" disables while pending, toasts, then refreshes and opens the run date', async () => {
+    mocks.runChapelRounds.mockResolvedValue({ date: '2026-07-18', entryCount: 3, projectCount: 2, model: 'haiku' });
+    // First load: nothing; after the run the listing has the new day.
+    mocks.fetchChapelRounds
+      .mockResolvedValueOnce({ rounds: [] })
+      .mockResolvedValue({ rounds: [{ date: '2026-07-18', updatedAt: '2026-07-18T06:00:00.000Z' }] });
+    mocks.fetchChapelRoundsDay.mockImplementation(async (date: string) => detail(date));
+    render(<ChapelPage />);
+
+    const panel = await screen.findByRole('region', { name: 'Rounds' });
+    await within(panel).findByText('No rounds yet.');
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Run rounds now' }));
+    expect(within(panel).getByRole('button', { name: 'making rounds…' })).toBeDisabled();
+
+    await waitFor(() => expect(mocks.runChapelRounds).toHaveBeenCalledTimes(1));
+    expect(await screen.findByRole('status')).toHaveTextContent('Rounds made for 2026-07-18');
+    expect(await within(panel).findByRole('heading', { name: 'Rounds -- 2026-07-18' })).toBeInTheDocument();
+    expect(within(panel).getByRole('button', { name: 'Run rounds now' })).toBeEnabled();
+  });
+
+  it('a failed run toasts the server error and re-enables the button', async () => {
+    mocks.runChapelRounds.mockRejectedValue(
+      new ChapelApiError('rounds unavailable: the ship-log station is not mounted on this hull', 501),
+    );
+    render(<ChapelPage />);
+    const panel = await screen.findByRole('region', { name: 'Rounds' });
+    await within(panel).findByText('No rounds yet.');
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Run rounds now' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Rounds run failed: rounds unavailable: the ship-log station is not mounted on this hull',
+    );
+    expect(within(panel).getByRole('button', { name: 'Run rounds now' })).toBeEnabled();
+  });
+
+  it('a failed listing shows a readable error in the panel', async () => {
+    mocks.fetchChapelRounds.mockRejectedValue(new Error('hull unreachable'));
+    render(<ChapelPage />);
+    const panel = await screen.findByRole('region', { name: 'Rounds' });
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('Rounds unavailable: hull unreachable');
   });
 });
 
