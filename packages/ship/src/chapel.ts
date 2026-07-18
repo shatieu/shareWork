@@ -60,6 +60,22 @@ const DOSSIER_ID = /^[A-Za-z0-9_-]+$/;
  * digits, dashes, `T`, `Z` only. Anything else is a plain 404, never a path segment. */
 const CONFESSION_STAMP = /^[0-9TZ-]+$/;
 
+/** Rounds files are date-named (`2026-07-18.md`, written by ship-log's rounds job). Same
+ * alphabet posture as {@link CONFESSION_STAMP}: a `:date` outside this shape is a plain 404
+ * and can never become a path segment. */
+const ROUNDS_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Structural mirror of ship-log's `runRounds` contract (wave2-J) -- same names-not-imports
+ * discipline as {@link SpawnTerminalContract}: the runtime object arrives via
+ * `HostContext.getContract('ship-log', 'runRounds')`. */
+export type RunRoundsContract = (date?: string) => Promise<{
+  date: string;
+  path: string;
+  entryCount: number;
+  projectCount: number;
+  model: string | null;
+}>;
+
 /** The fixed Chaplain session command (deck-chapel-tab plan). Server-side constant on purpose:
  * the POST body must never be able to influence what gets spawned. */
 const CHAPLAIN_ARGV = ['claude', '--agent', 'ship-crew:chaplain'];
@@ -174,7 +190,8 @@ function parseConfession(raw: string): { project: string | null; text: string } 
 
 /**
  * The hull's Chapel data source (deck-chapel-tab plan): the Chaplain's state home
- * `~/.ship/chaplain/` served read-only (brief + dossiers), plus a write path for confessions
+ * `~/.ship/chaplain/` served read-only (brief + dossiers + the machine-written `rounds/`
+ * digests, wave2-J), plus a write path for confessions
  * (`inbox/` for the chaplain's rite, a durable copy in `archive/` for the Captain's history),
  * a headless chat channel (`claude -p --agent ship-crew:chaplain` on a dedicated persisted
  * session id), and a session opener via the chartroom station's `spawnTerminal` contract.
@@ -190,6 +207,7 @@ export function createChapelBackend(options: ChapelOptions = {}): ChapelBackend 
   const projectsDir = join(chapelDir, 'projects');
   const inboxDir = join(chapelDir, 'inbox');
   const archiveDir = join(chapelDir, 'archive');
+  const roundsDir = join(chapelDir, 'rounds');
   const chatSessionFile = join(chapelDir, 'chat-session.json');
   const chatLogFile = join(chapelDir, 'chat-log.jsonl');
   const repoRoot = options.repoRoot ?? process.cwd();
@@ -353,6 +371,67 @@ export function createChapelBackend(options: ChapelOptions = {}): ChapelBackend 
             return { stamp, project, text, updatedAt: statSync(path).mtime.toISOString() };
           } catch {
             return reply.code(404).send({ error: `unknown confession '${stamp}'` });
+          }
+        });
+
+        // ── Chaplain rounds (wave2-J): the machine-written daily all-projects digests that
+        // ship-log drops in `rounds/<date>.md`. Read-only pair mirroring the confessions
+        // routes' guard + traversal posture, plus a run proxy to ship-log's contract.
+        chapel.get('/api/chapel/rounds', async () => {
+          let files: string[];
+          try {
+            files = readdirSync(roundsDir);
+          } catch {
+            files = [];
+          }
+          const rounds: { date: string; updatedAt: string }[] = [];
+          // Date-named files sort lexicographically = chronologically; newest first for the UI.
+          const dated = files
+            .filter((f) => f.endsWith('.md') && ROUNDS_DATE.test(f.slice(0, -'.md'.length)))
+            .sort()
+            .reverse();
+          for (const file of dated) {
+            try {
+              rounds.push({
+                date: file.slice(0, -'.md'.length),
+                updatedAt: statSync(join(roundsDir, file)).mtime.toISOString(),
+              });
+            } catch {
+              // Vanished between readdir and stat -- as good as never listed.
+            }
+          }
+          return { rounds };
+        });
+
+        chapel.get('/api/chapel/rounds/:date', async (request, reply) => {
+          const { date } = request.params as { date: string };
+          if (!ROUNDS_DATE.test(date)) {
+            return reply.code(404).send({ error: `no rounds for '${date}'` });
+          }
+          const path = join(roundsDir, `${date}.md`);
+          try {
+            return { date, content: readFileSync(path, 'utf8'), updatedAt: statSync(path).mtime.toISOString() };
+          } catch {
+            return reply.code(404).send({ error: `no rounds for '${date}'` });
+          }
+        });
+
+        chapel.post('/api/chapel/rounds/run', async (request, reply) => {
+          // Same cross-station pattern as the session route's spawnTerminal: the hull's
+          // getContract, never an import of ship-log internals. No date is passed -- the Deck
+          // button means "make today's rounds now"; ship-log defaults to its own clock.
+          const runRounds = ctx.getContract<RunRoundsContract>('ship-log', 'runRounds');
+          if (!runRounds) {
+            return reply
+              .code(501)
+              .send({ error: 'rounds unavailable: the ship-log station is not mounted on this hull' });
+          }
+          try {
+            const result = await runRounds();
+            // The local fs path stays server-side; the Deck only needs the outcome.
+            return { date: result.date, entryCount: result.entryCount, projectCount: result.projectCount, model: result.model };
+          } catch (err) {
+            return reply.code(500).send({ error: `rounds run failed: ${(err as Error).message}` });
           }
         });
 
