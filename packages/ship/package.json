@@ -29,6 +29,7 @@
     "commander": "^13.1.0",
     "fastify": "^5.9.0",
     "settings-manager": "workspace:*",
+    "ship-comms": "workspace:*",
     "ship-console": "workspace:*",
     "ship-inbox": "workspace:*",
     "ship-ledger": "workspace:*",

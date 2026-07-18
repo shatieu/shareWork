@@ -4,6 +4,7 @@ import type { Command } from 'commander';
 import type { FastifyInstance } from 'fastify';
 import { createChartroomStation } from 'chartroom/station';
 import { createSettingsManagerStation } from 'settings-manager/station';
+import { createShipCommsStation } from 'ship-comms/station';
 import { createShipConsoleStation } from 'ship-console/station';
 import { createShipInboxStation } from 'ship-inbox/station';
 import { createShipLedgerStation } from 'ship-ledger/station';
@@ -88,8 +89,13 @@ export function registerServeCommand(program: Command): void {
         // Skill analytics (Trio_Specs §A): headless station, no tab -- serves the JSON the
         // console renders and runs its incremental transcript collect off the boot path.
         const skillAnalytics = createSkillAnalyticsStation();
+        // Agent-to-agent comms (agent-comms plan Option A): headless message store; the Crew
+        // plugin's comms.mjs hook polls it per session at turn boundaries. Mounted after
+        // ship-voice, whose fleetSource contract resolves name addressing (lazily, so order is
+        // convention, not correctness).
+        const shipComms = createShipCommsStation();
         const hull = await createHull(
-          [chartroom, shipLog, shipLedger, shipInbox, shipVoice, settingsManager, shipConsole, skillAnalytics],
+          [chartroom, shipLog, shipLedger, shipInbox, shipVoice, settingsManager, shipConsole, skillAnalytics, shipComms],
           { voyageFile },
         );
 

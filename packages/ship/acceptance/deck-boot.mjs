@@ -149,7 +149,8 @@ async function phaseA() {
     // tab-less); package 6 (Bridge phase 3) mounts ship-inbox (Inbox tab); package 13 (Comm
     // phase 1) mounts ship-voice (tab-less -- its UI is the phone, phases 2-4); package 7
     // mounts settings-manager (Settings tab); package 9 mounts ship-console (Console tab);
-    // package 11 mounts skill-analytics (tab-less -- the console renders its JSON).
+    // package 11 mounts skill-analytics (tab-less -- the console renders its JSON);
+    // wave2-F mounts ship-comms (tab-less -- agent-to-agent message store).
     const stations = await getJson(`${base}/api/hull/stations`);
     const chartroomStation = stations.find((s) => s.name === 'chartroom');
     const shipLogStation = stations.find((s) => s.name === 'ship-log');
@@ -159,17 +160,42 @@ async function phaseA() {
     const settingsStation = stations.find((s) => s.name === 'settings-manager');
     const consoleStation = stations.find((s) => s.name === 'ship-console');
     const skillAnalyticsStation = stations.find((s) => s.name === 'skill-analytics');
+    const shipCommsStation = stations.find((s) => s.name === 'ship-comms');
     assert(
-      stations.length === 8 &&
+      stations.length === 9 &&
         chartroomStation?.tab?.id === 'docs' &&
         shipLogStation !== undefined && shipLogStation.tab === undefined &&
         shipLedgerStation !== undefined && shipLedgerStation.tab === undefined &&
         shipVoiceStation !== undefined && shipVoiceStation.tab === undefined &&
         skillAnalyticsStation !== undefined && skillAnalyticsStation.tab === undefined &&
+        shipCommsStation !== undefined && shipCommsStation.tab === undefined &&
         shipInboxStation?.tab?.id === 'inbox' && shipInboxStation.tab.title === 'Inbox' &&
         settingsStation?.tab?.id === 'settings' && settingsStation.tab.title === 'Settings' &&
         consoleStation?.tab?.id === 'console' && consoleStation.tab.title === 'Console',
-      'GET /api/hull/stations lists chartroom (Docs) + tab-less ship-log/ship-ledger/ship-voice/skill-analytics + ship-inbox (Inbox) + settings-manager (Settings) + ship-console (Console)',
+      'GET /api/hull/stations lists chartroom (Docs) + tab-less ship-log/ship-ledger/ship-voice/skill-analytics/ship-comms + ship-inbox (Inbox) + settings-manager (Settings) + ship-console (Console)',
+    );
+
+    // Agent comms through the hull (wave2-F): send by exact id -> poll returns + marks delivered.
+    const commsHdr = { 'content-type': 'application/json', 'x-ship-deck': '1' };
+    const commsTo = '99999999-1111-4222-8333-444444444444';
+    const sendRes = await fetch(`${base}/api/ship-comms/send`, {
+      method: 'POST',
+      headers: commsHdr,
+      body: JSON.stringify({ from: 'deck-boot', to: commsTo, text: 'acceptance ping' }),
+      signal: AbortSignal.timeout(3000),
+    });
+    assert(sendRes.status === 201, 'POST /api/ship-comms/send by exact id -> 201 through the hull');
+    const commsPoll = await (
+      await fetch(`${base}/api/ship-comms/poll?session=${commsTo}`, {
+        headers: commsHdr,
+        signal: AbortSignal.timeout(3000),
+      })
+    ).json();
+    assert(
+      commsPoll.messages.length === 1 &&
+        commsPoll.messages[0].text === 'acceptance ping' &&
+        commsPoll.messages[0].deliveredAt !== null,
+      'GET /api/ship-comms/poll returns the queued message and marks it delivered',
     );
 
     // Skill analytics through the hull (package 11): health answers with the store path.
