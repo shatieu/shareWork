@@ -9,15 +9,16 @@ FO session: 2cce1eab. Lookout: lock held, sensor + waiter running. Harness tasks
 
 | Pkg | Task# | Scope | Status |
 |---|---|---|---|
-| 0 | #1 | Commit+push inspected wave (chapel, wizard, lookout v2); team-tasks fixes separate; stale verify-repo cleanup; station.ts nit; .ship-crew gitignore; CAPTAIN-TODO one-liners (agent hook, pre-commit hook, MCP registrations) | in progress |
-| A | #2 | Deck MD editor bug: click Edit → all text disappears. Root-cause + fix + tests | pending |
-| B | #3 | Settings tab: grouped drag-drop permission chips (git → git push granularity), real project settings.json writes, fix editor, user-defined templates | pending |
-| C | #4 | Chapel: fix confession-not-stored bug; live chat window w/ chaplain as main feature; cross-project (project = click-insert marker); past-confessions view | pending |
-| D | #5 | Voyage: project switcher; add todos/items from UI | pending |
-| E | #6 | Sessions/inbox: unwatch session; full text respond to any tracked session; ship-styled ask-questions page (ask-human pattern) | pending |
-| F | #7 | PLAN ONLY: agent↔agent comms status + improvement plan; study `../claude peers` | pending |
-| G | #8 | PLAN ONLY: modularization (partial adoption, separable vs core) — no edits until Captain confirms | pending |
-| H | #9 | Human HOWTO.md (short), living doc + maintenance rule in CLAUDE.md/memory | pending (after A–E) |
+| 0 | #1 | Commit+push inspected wave (chapel, wizard, lookout v2); team-tasks fixes separate; stale verify-repo cleanup; station.ts nit; .ship-crew gitignore; CAPTAIN-TODO one-liners (agent hook, pre-commit hook, MCP registrations) | DONE 2026-07-17 (browser QA still blocked: Chrome ext not connected, 5th attempt) |
+| A | #2 | Editor blank-on-edit: Milkdown spread-attr bug, fixed via live-schema build + splice + compat shim; inspector PASS (147/147 mount, byte-safety held; 1 pre-existing malformed table doc fixed by FO) | PASS |
+| B | #3 | Settings chips + real writes + user packs; inspector PASS (28/28 smoke, byte-verified group move, hostile packs contained) | PASS |
+| C | #4 | Chapel chat + archive + history + marker chips; inspector PASS (injection + traversal held); FO hardenings: flag-proof chat text, atomic archive write (ea5f7ec) | PASS |
+| D | #5 | Voyage: multi-project switcher + add-items — BUILT (a2fe15f/b03c245/3a549a9), inspector PASS (21/21 smoke, unknown fields preserved, 409-on-corrupt byte-safe) | PASS |
+| E | #6 | Inbox respond/send/unwatch/askhuman page; App.tsx wired by FO (20069b4); inspector PASS (ambiguity guard held, golden bytes vs real skill server) | PASS |
+| I | #10 | Token tracking + Console dashboard; dedupe fix red-proven (3x overcount), cursor-boundary + v1→v2 migration attacks held; inspector PASS | PASS |
+| F | #7 | PLAN ONLY: agent↔agent comms status + improvement plan; study `../claude peers` | DONE — plan committed, awaiting Captain decision |
+| G | #8 | PLAN ONLY: modularization (partial adoption, separable vs core) — no edits until Captain confirms | DONE — plan committed, awaiting Captain decision |
+| H | #9 | HOWTO.md written (299fb56), living-doc rule in CLAUDE.md + FO memory | DONE |
 | I | #10 | Per-session token tracking + dashboard (added mid-mission) | pending |
 
 Order of execution: 0 → A (bugfix) → C (bugfix half first) → B → E → D → I → H.
