@@ -2813,13 +2813,15 @@ a.idlink:focus-visible .idlink__tip,
 .repo-overview__title {
   font-family: var(--font-serif);
   font-size: 24px;
-  color: var(--ink);
+  /* Renders inside the light paper pane -- paper ink, not the dark-chrome ink (browser QA
+   * 2026-07-18: --ink is parchment-on-dark and was near-invisible here). */
+  color: var(--paper-ink);
   margin: 0;
 }
 
 .repo-overview__sub {
   font-size: 11.5px;
-  color: var(--ink-55);
+  color: var(--paper-ink-55);
   margin: 0 0 22px;
 }
 

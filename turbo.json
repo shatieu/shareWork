@@ -7,11 +7,11 @@
     "dev": { "cache": false, "persistent": true },
     "chartroom#build:ui-bundle": {
       "dependsOn": ["build", "chartroom-ui#build"],
-      "outputs": ["dist/public/**"]
+      "cache": false
     },
     "ship#build:ui-bundle": {
       "dependsOn": ["build", "chartroom-ui#build"],
-      "outputs": ["dist/public/**"]
+      "cache": false
     }
   }
 }
