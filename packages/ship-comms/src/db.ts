@@ -67,15 +67,19 @@ export function createMessage(
 }
 
 /** Atomically hands over every undelivered message addressed to `session`: marks them delivered
- * (one transaction -- a crashed reader before the mark re-receives, never loses) and returns
- * them oldest-first. At-least-once semantics, matching the hook's fail-open posture. */
+ * in one synchronous transaction and returns them oldest-first. Concurrent polls can never
+ * double-deliver (better-sqlite3 is synchronous on one connection). Semantics are AT-MOST-ONCE
+ * per message: the mark commits before the HTTP response is written, so a hull crash in that
+ * window -- or the delivery hook timing out mid-response -- loses the message silently. Accepted
+ * for v1 (messages carry pointers, not payloads; the window is milliseconds); a claim/ack
+ * two-phase poll is the upgrade path if a delivery guarantee is ever needed. */
 export function pollMessages(db: Database.Database, session: string, nowIso: string): MessageRow[] {
   const take = db.transaction((): MessageRow[] => {
     const rows = db
       .prepare(
         `SELECT * FROM messages
          WHERE to_session = ? AND delivered_at IS NULL
-         ORDER BY created_at ASC, id ASC`,
+         ORDER BY created_at ASC, rowid ASC`,
       )
       .all(session) as MessageRow[];
     if (rows.length > 0) {
@@ -96,7 +100,7 @@ export function listHistory(db: Database.Database, session: string): MessageRow[
     .prepare(
       `SELECT * FROM messages
        WHERE to_session = ? OR from_session = ?
-       ORDER BY created_at ASC, id ASC`,
+       ORDER BY created_at ASC, rowid ASC`,
     )
     .all(session, session) as MessageRow[];
 }

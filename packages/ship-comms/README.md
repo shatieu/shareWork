@@ -19,7 +19,9 @@ daemons, no experimental channel flags.
     `ship-voice.fleetSource` contract. Name resolution fails honestly: a tie answers
     `409 + candidates`, no match `404`, no readable fleet `503` — never a guessed delivery.
   - `GET /poll?session=<id>[&waitMs=<n>]` — returns undelivered messages for that session and
-    marks them delivered (one transaction, at-least-once). `waitMs` long-polls up to 30 s using
+    marks them delivered (one transaction; at-most-once — a crash between the mark and the
+    response can drop a message, an accepted millisecond-scale window since messages carry
+    pointers, not payloads). `waitMs` long-polls up to 30 s using
     the ship-inbox waiter pattern: a send addressed to the session wakes the parked poll.
   - `GET /history?session=<id>` — both directions, delivered included, oldest-first.
   - `GET /health` — db path, parked waiters, undelivered count.
