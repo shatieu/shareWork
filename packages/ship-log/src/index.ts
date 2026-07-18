@@ -1,4 +1,4 @@
-export { openShipLogDb, shipLogDbPath, listEntries, getRollup, type EntryRow, type SessionRow, type RollupRow } from './db.js';
+export { openShipLogDb, shipLogDbPath, listEntries, listEntryDates, getRollup, type EntryRow, type SessionRow, type RollupRow } from './db.js';
 export { computeDelta, findRepoRoot, currentHead, currentBranch, type GitDelta, type CommitInfo } from './git-delta.js';
 export { readTranscriptTail } from './transcript.js';
 export { writeFragment, slugify, type FragmentInput, type FragmentResult } from './fragments.js';
@@ -15,6 +15,15 @@ export {
 } from './capture.js';
 export { ingestEnvelope, UnknownEnvelopeError } from './ingest.js';
 export { buildRollup, getStoredRollup } from './rollup.js';
+export {
+  buildRounds,
+  runPendingRounds,
+  chaplainRoundsDir,
+  roundsFilePath,
+  fallbackRoundsLead,
+  type RoundsDeps,
+  type RoundsRunResult,
+} from './rounds.js';
 export {
   defaultSummarizer,
   defaultRollupSummarizer,

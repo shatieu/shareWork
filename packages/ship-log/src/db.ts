@@ -332,6 +332,14 @@ export function listEntries(
     .all(params) as EntryRow[];
 }
 
+/** Distinct entry dates, oldest first -- the rounds job's worklist (rounds.ts). */
+export function listEntryDates(db: Database.Database): string[] {
+  const rows = db
+    .prepare('SELECT DISTINCT date FROM entries ORDER BY date ASC')
+    .all() as { date: string }[];
+  return rows.map((row) => row.date);
+}
+
 export function upsertRollup(db: Database.Database, row: RollupRow): void {
   db.prepare(
     `INSERT INTO rollups (date, digest_md, model, entry_count, created_at)

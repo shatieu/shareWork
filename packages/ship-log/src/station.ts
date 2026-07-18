@@ -19,6 +19,7 @@ import { createCaptureContext, sweepOrphans, type CaptureContext } from './captu
 import { ingestEnvelope } from './ingest.js';
 import { drainSpool, spoolPending } from './spool.js';
 import { buildRollup, getStoredRollup } from './rollup.js';
+import { buildRounds, isoDate, runPendingRounds, type RoundsDeps, type RoundsRunResult } from './rounds.js';
 import { defaultRollupSummarizer, defaultSummarizer } from './summarize.js';
 import { shipLogDbPath } from './db.js';
 
@@ -61,6 +62,30 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
   // (Notification/PermissionRequest, phase 3). Names, not imports.
   const consumerStations = options.consumerStations ?? ['ship-ledger', 'ship-inbox'];
 
+  // Chaplain rounds (wave2-J): the daily all-projects digest written to
+  // `~/.ship/chaplain/rounds/<date>.md`. Same summarizer knob as the rollup -- one haiku call
+  // per rounds run through the identical spawn/fallback posture.
+  const roundsDeps: RoundsDeps = { db, summarizer: rollupSummarizer, now, homeDir };
+  /** Serializer for rounds runs: concurrent triggers (station start, a SessionEnd capture, the
+   * Deck button) queue behind each other, so the file-exists check inside `runPendingRounds`
+   * makes the second lazy run a no-op instead of double-spending the day's one haiku call. */
+  let roundsChain: Promise<unknown> = Promise.resolve();
+  const enqueueRounds = <T,>(job: () => Promise<T>): Promise<T> => {
+    const run = roundsChain.then(job);
+    roundsChain = run.catch(() => undefined); // the chain survives a failed run
+    return run;
+  };
+  /** Lazy trigger (fire-and-forget: never blocks a hull boot or a capture reply on a summarizer
+   * call): first capture/boot of a new day builds the completed prior days' rounds. Chosen over
+   * a rounds-read trigger because rounds READS live in the ship hull's chapel backend, which
+   * only reaches ship-log via contracts -- capture time is the point where ship-log itself
+   * already knows a new day has data. */
+  const nudgePendingRounds = (log: (line: string) => void): void => {
+    void enqueueRounds(() => runPendingRounds(roundsDeps)).catch((err) => {
+      log(`ship-log: rounds run failed: ${(err as Error).message}`);
+    });
+  };
+
   /** Resolve the mounted hook-event consumers at call time (never captured at registration:
    * `getContract` searches the hull's full station array, and standalone mode's stub context
    * simply returns undefined -> Task events fall through to the unknown sidecar as in phase 1). */
@@ -90,9 +115,16 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
           // first, capture after (plan §3.5) -- SessionEnd's correctness never depends on WHEN
           // it runs, the session row's snapshot is already frozen.
           reply.code(202).send({ queued: true });
-          void ingestEnvelope(captureCtx, envelope, homeDir).catch((err) => {
-            ctx.log(`ship-log: async ingest failed: ${(err as Error).message}`);
-          });
+          void ingestEnvelope(captureCtx, envelope, homeDir)
+            .then(() => {
+              // First capture of a new day lazily builds the completed prior days' rounds
+              // (rounds.ts: file-exists check = at-most-once-per-day, so this is a cheap no-op
+              // on every same-day capture after the first).
+              nudgePendingRounds(ctx.log);
+            })
+            .catch((err) => {
+              ctx.log(`ship-log: async ingest failed: ${(err as Error).message}`);
+            });
           return;
         }
 
@@ -167,6 +199,25 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
         },
       );
 
+      // Chaplain rounds run (wave2-J): builds (or rebuilds -- an explicit run always overwrites)
+      // the rounds digest for one date, default today. Deck-gated like every mutating route.
+      // The Deck reaches this through the chapel backend's proxy (ship hull), which calls the
+      // `runRounds` contract below rather than this HTTP leg.
+      app.post('/api/ship-log/rounds/run', async (request, reply) => {
+        if (request.headers[DECK_CLIENT_HEADER] === undefined) {
+          return reply.code(403).send({ error: `missing ${DECK_CLIENT_HEADER} header` });
+        }
+        const body = (request.body ?? {}) as { date?: unknown };
+        let date = isoDate(now());
+        if (body.date !== undefined) {
+          if (typeof body.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+            return reply.code(400).send({ error: 'date must be YYYY-MM-DD' });
+          }
+          date = body.date;
+        }
+        return enqueueRounds(() => buildRounds(roundsDeps, date));
+      });
+
       // Fleet-view watch flag (wave2-E): the sessions table is the suite's only persisted
       // session store, so ship-log owns the unwatch/rewatch mutation; fleet views (ship-console
       // overview) consume the hide-list via the listUnwatchedSessionIds contract.
@@ -197,6 +248,9 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
         await ingestEnvelope(captureCtx, raw, homeDir, consumersFrom(ctx));
       }, homeDir);
       await sweepOrphans(captureCtx);
+      // Boot leg of the lazy rounds trigger (a hull booting on a new day is often the first
+      // "capture activity" that day). Fire-and-forget: never delays hull start on a haiku call.
+      nudgePendingRounds(ctx.log);
     },
 
     async stop() {
@@ -213,6 +267,10 @@ export function createShipLogStation(options: ShipLogStationOptions = {}): ShipL
       /** Unwatch/rewatch mutation seam for siblings (the HTTP route above is the Deck's leg). */
       setSessionWatched: (sessionId: string, watched: boolean) =>
         setSessionWatched(db, sessionId, watched, now().toISOString()),
+      /** Chaplain rounds run (wave2-J), serialized with the lazy trigger. The ship hull's chapel
+       * backend proxies its POST /api/chapel/rounds/run through this -- names, not imports. */
+      runRounds: (date?: string): Promise<RoundsRunResult> =>
+        enqueueRounds(() => buildRounds(roundsDeps, date ?? isoDate(now()))),
     },
   };
 
