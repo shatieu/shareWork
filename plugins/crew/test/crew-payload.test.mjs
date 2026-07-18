@@ -90,11 +90,12 @@ describe('crew plugin phase-4 payload', () => {
     expect(manifest.description).toContain('quartermaster');
   });
 
-  it('hooks.json wires scrutiny.mjs at SessionStart and stop-gate.mjs at Stop without dropping capture', () => {
+  it('hooks.json wires scrutiny.mjs at SessionStart and stop-gate.mjs + comms.mjs at Stop without dropping capture', () => {
     const hooks = JSON.parse(readFileSync(join(CREW_DIR, 'hooks', 'hooks.json'), 'utf8')).hooks;
     const scriptsFor = (event) =>
       hooks[event].flatMap((entry) => entry.hooks.map((h) => h.args[0].split('/').pop()));
     expect(scriptsFor('SessionStart').sort()).toEqual(['emit.mjs', 'scrutiny.mjs']);
-    expect(scriptsFor('Stop').sort()).toEqual(['emit.mjs', 'stop-gate.mjs']);
+    // comms.mjs (wave2-F): ship-comms message delivery at the turn boundary.
+    expect(scriptsFor('Stop').sort()).toEqual(['comms.mjs', 'emit.mjs', 'stop-gate.mjs']);
   });
 });
